@@ -1,0 +1,31 @@
+# Models
+models/*.gguf
+models/*.bin
+models/*.part
+
+# Virtual environment
+env/
+
+# Runtime state
+run/*.pid
+logs/*.log
+
+# Chroma DB (choose whether to keep memory in git or not)
+# If you WANT memory to travel with persona, comment these out.
+persona/**/chroma/
+persona/**/chroma.sqlite3
+persona/**/memory/chroma/
+persona/global_memory/chroma/
+persona/**/memory/exports/
+persona/**/exports/
+
+# llama.cpp build artifacts
+llama_cpp/build/
+llama_cpp/**/*.o
+llama_cpp/**/*.a
+llama_cpp/**/*.so
+
+# OS/editor noise
+.DS_Store
+*.swp
+*.tmp
