@@ -5,9 +5,12 @@ models/*.part
 
 # Virtual environment
 env/
+.venv/
+venv/
 
 # Runtime state
 run/*.pid
+run/*.env
 logs/*.log
 
 # Chroma DB (choose whether to keep memory in git or not)
@@ -24,8 +27,22 @@ llama_cpp/build/
 llama_cpp/**/*.o
 llama_cpp/**/*.a
 llama_cpp/**/*.so
+llama_cpp/**/*.dll
+llama_cpp/**/*.dylib
+llama_cpp/**/*.exe
+
+# Python noise
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # OS/editor noise
 .DS_Store
+Thumbs.db
 *.swp
 *.tmp
+.vscode/
+.idea/
