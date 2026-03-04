@@ -3,13 +3,15 @@ import time
 import uuid
 import asyncio
 import re
-from typing import Dict, Any, Optional, List
+import json
+from typing import Dict, Any, Optional, List, Literal, AsyncGenerator
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+# Optional deps (fail soft)
 try:
     import chromadb
     from chromadb.config import Settings
@@ -23,6 +25,9 @@ except Exception:
     TextEmbedding = None
 
 
+# -----------------------
+# Config
+# -----------------------
 AI_ROOT = os.getenv("AI_ROOT", os.path.expanduser("~/AI"))
 PERSONA_ROOT = os.getenv("PERSONA_ROOT", os.path.join(AI_ROOT, "persona"))
 PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(PERSONA_ROOT, "profiles"))
@@ -35,6 +40,7 @@ SCIENTIST_PORT = int(os.getenv("SCIENTIST_PORT", "8081"))
 PERSONA_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/completion"
 SCIENTIST_URL = f"http://{LLAMA_HOST}:{SCIENTIST_PORT}/completion"
 
+# Feature toggles
 ASYNC_SCIENTIST_ENABLED = os.getenv("ASYNC_SCIENTIST_ENABLED", "0") == "1"
 ASYNC_SCIENTIST_TOPICS = {
     t.strip().lower()
@@ -54,12 +60,15 @@ PERSONA_TIMEOUT_S = float(os.getenv("PERSONA_TIMEOUT_S", "120"))
 SCIENTIST_TIMEOUT_S = float(os.getenv("SCIENTIST_TIMEOUT_S", "600"))
 
 # If scientist fails, optionally fall back to persona to produce structured notes
-SCIENTIST_FALLBACK_TO_PERSONA = os.getenv("SCIENTIST_FALLBACK_TO_PERSONA", "1") == "1"
+SCIENTIST_FALLBACK_TO_PERSONA = os.getenv("SCIENTIST_FALLBACK_TO_PERSONA", "0") == "1"
 
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
 os.makedirs(PROFILES_DIR, exist_ok=True)
 
+# -----------------------
+# Safe init: embeddings + chroma
+# -----------------------
 _embedder = None
 _embedder_error: Optional[str] = None
 
@@ -130,21 +139,34 @@ def memory_query(text: str, k: int) -> str:
         return ""
 
 
+# -----------------------
+# FastAPI
+# -----------------------
 app = FastAPI()
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"error": "internal_server_error", "detail": repr(exc)})
+    return JSONResponse(
+        status_code=500,
+        content={"error": "internal_server_error", "detail": repr(exc)},
+    )
 
 http = httpx.AsyncClient()
 
+# Prevent runaway: one scientist job at a time
 scientist_lock = asyncio.Lock()
+
+# Allow multiple persona jobs concurrently, but cap to avoid overload
 PERSONA_CONCURRENCY = int(os.getenv("PERSONA_CONCURRENCY", "2"))
 persona_sem = asyncio.Semaphore(PERSONA_CONCURRENCY)
 
+# In-memory job store (persona + scientist)
 jobs: Dict[str, Dict[str, Any]] = {}
 
 
+# -----------------------
+# Request Models
+# -----------------------
 class ChatRequest(BaseModel):
     text: str
     topic: str = "chat"
@@ -157,12 +179,38 @@ class SubmitRequest(BaseModel):
     profile: str = "default"
     debug: bool = False
 
+# Minimal OpenAI-compatible schema (enough for OpenWebUI)
+class OA_Message(BaseModel):
+    role: Literal["system", "user", "assistant"] = "user"
+    content: str
 
-async def query_llama(url: str, prompt: str, tokens: int, temperature: float, timeout_s: float, extra: Optional[Dict[str, Any]] = None):
+class OA_ChatCompletionsReq(BaseModel):
+    model: str = "project_persona"
+    messages: List[OA_Message]
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    stream: Optional[bool] = False
+    topic: Optional[str] = None
+    profile: Optional[str] = None
+    debug: Optional[bool] = False
+
+
+# -----------------------
+# Llama helpers
+# -----------------------
+async def query_llama(
+    url: str,
+    prompt: str,
+    tokens: int,
+    temperature: float,
+    timeout_s: float,
+    extra: Optional[Dict[str, Any]] = None
+):
     start = time.time()
     payload: Dict[str, Any] = {"prompt": prompt, "n_predict": tokens, "temperature": temperature}
     if extra:
         payload.update(extra)
+
     r = await http.post(url, json=payload, timeout=httpx.Timeout(timeout_s))
     r.raise_for_status()
     latency = time.time() - start
@@ -170,7 +218,68 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
     content = (data.get("content") or "").strip()
     tokens_generated = int(data.get("tokens_predicted") or 0)
     tps = (tokens_generated / latency) if latency > 0 else 0.0
-    return content, {"latency_ms": round(latency * 1000, 2), "tokens_generated": tokens_generated, "tokens_per_second": round(tps, 2)}
+    return content, {
+        "latency_ms": round(latency * 1000, 2),
+        "tokens_generated": tokens_generated,
+        "tokens_per_second": round(tps, 2),
+    }
+
+
+async def stream_llama(
+    url: str,
+    prompt: str,
+    tokens: int,
+    temperature: float,
+    timeout_s: float,
+    extra: Optional[Dict[str, Any]] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Streams llama-server /completion output.
+    Modern llama.cpp server supports JSON SSE-like lines when {"stream": true}.
+    We yield text deltas as they arrive.
+
+    If the upstream doesn't actually stream, caller may fall back to non-streaming.
+    """
+    payload: Dict[str, Any] = {
+        "prompt": prompt,
+        "n_predict": tokens,
+        "temperature": temperature,
+        "stream": True,
+    }
+    if extra:
+        payload.update(extra)
+
+    timeout = httpx.Timeout(timeout_s, connect=10.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("POST", url, json=payload) as resp:
+            resp.raise_for_status()
+            # Read line-by-line. llama.cpp often sends "data: {...}" lines.
+            async for raw in resp.aiter_lines():
+                if not raw:
+                    continue
+                line = raw.strip()
+                if line.startswith("data:"):
+                    line = line[len("data:"):].strip()
+
+                if line == "[DONE]":
+                    break
+
+                # Some builds send pure JSON per line; others may send partials.
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+
+                # Try common keys
+                delta = obj.get("content")
+                if delta is None:
+                    # Sometimes: {"choices":[{"delta":{"content":"..."}}]}
+                    choices = obj.get("choices")
+                    if isinstance(choices, list) and choices:
+                        delta = (choices[0].get("delta") or {}).get("content")
+                if not delta:
+                    continue
+                yield str(delta)
 
 
 def build_persona_prompt(user_text: str, rag_context: str) -> str:
@@ -206,13 +315,11 @@ def looks_degenerate(text: str) -> bool:
     if uniq_ratio < 0.45:
         return True
     bigrams = [" ".join(words[i:i+2]) for i in range(len(words) - 1)]
-    if bigrams:
-        if max(bigrams.count(x) for x in set(bigrams)) >= 6:
-            return True
+    if bigrams and max(bigrams.count(x) for x in set(bigrams)) >= 6:
+        return True
     trigrams = [" ".join(words[i:i+3]) for i in range(len(words) - 2)]
-    if trigrams:
-        if max(trigrams.count(x) for x in set(trigrams)) >= 4:
-            return True
+    if trigrams and max(trigrams.count(x) for x in set(trigrams)) >= 4:
+        return True
     for w in ("gene", "user", "system", "crispr", "c2"):
         if f"{w} {w} {w}" in t:
             return True
@@ -253,14 +360,19 @@ User question:
 """
 
 
+# -----------------------
+# Workers
+# -----------------------
 async def persona_worker(job_id: str, profile: str, topic: str, question: str):
     async with persona_sem:
         jobs[job_id]["status"] = "running"
         jobs[job_id]["started_ts"] = int(time.time())
 
         rag_context = ""
+        rag_used = False
         if RAG_ENABLED:
             rag_context = memory_query(question, k=RAG_TOP_K)
+            rag_used = bool(rag_context)
 
         persona_prompt = build_persona_prompt(question, rag_context)
         reply, stats = await query_llama(PERSONA_URL, persona_prompt, PERSONA_MAX_TOKENS, 0.7, PERSONA_TIMEOUT_S)
@@ -269,6 +381,7 @@ async def persona_worker(job_id: str, profile: str, topic: str, question: str):
         jobs[job_id]["completed_ts"] = int(time.time())
         jobs[job_id]["result"] = reply
         jobs[job_id]["stats"] = stats
+        jobs[job_id]["rag_used"] = rag_used
 
 
 async def scientist_worker(job_id: str, profile: str, topic: str, question: str):
@@ -307,7 +420,6 @@ QUESTION:
             )
             notes = notes2
 
-        # If still bad: optional fallback to persona to produce structured notes
         if looks_degenerate(notes) or (not has_required_scientist_sections(notes)):
             if SCIENTIST_FALLBACK_TO_PERSONA:
                 fb_prompt = scientist_template(question) + "\n(Important: follow the template strictly.)\n"
@@ -341,6 +453,9 @@ QUESTION:
         )
 
 
+# -----------------------
+# Routes
+# -----------------------
 @app.get("/health")
 async def health():
     return {
@@ -364,8 +479,10 @@ async def chat(req: ChatRequest):
     topic = (req.topic or "chat").strip().lower()
 
     rag_context = ""
+    rag_used = False
     if RAG_ENABLED:
         rag_context = memory_query(req.text, k=RAG_TOP_K)
+        rag_used = bool(rag_context)
 
     persona_prompt = build_persona_prompt(req.text, rag_context)
     reply, stats = await query_llama(PERSONA_URL, persona_prompt, PERSONA_MAX_TOKENS, 0.7, PERSONA_TIMEOUT_S)
@@ -393,6 +510,8 @@ async def chat(req: ChatRequest):
     if req.debug:
         debug = {
             "persona_stats": stats,
+            "rag_enabled": RAG_ENABLED,
+            "rag_used": rag_used,
             "scientist_job": scientist_job,
             "scientist_reason": scientist_reason,
         }
@@ -453,3 +572,147 @@ async def get_job(job_id: str):
     if not job:
         return {"status": "not_found"}
     return job
+
+
+# -----------------------
+# OpenAI-compatible endpoints (for OpenWebUI)
+# -----------------------
+@app.get("/v1/models")
+async def v1_models():
+    return {
+        "object": "list",
+        "data": [
+            {"id": "project_persona", "object": "model", "created": int(time.time()), "owned_by": "local"},
+        ],
+    }
+
+
+def _messages_to_text(messages: List[OA_Message]) -> str:
+    parts: List[str] = []
+    for m in messages:
+        if m.role == "system":
+            parts.append(f"[system]\n{m.content}")
+        elif m.role == "user":
+            parts.append(f"[user]\n{m.content}")
+        elif m.role == "assistant":
+            parts.append(f"[assistant]\n{m.content}")
+    return "\n\n".join(parts).strip()
+
+
+def _sse(data: str) -> str:
+    return f"data: {data}\n\n"
+
+
+@app.post("/v1/chat/completions")
+async def v1_chat_completions(req: OA_ChatCompletionsReq):
+    user_text = _messages_to_text(req.messages)
+
+    rag_context = ""
+    if RAG_ENABLED:
+        rag_context = memory_query(user_text, k=RAG_TOP_K)
+    persona_prompt = build_persona_prompt(user_text, rag_context)
+
+    max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)
+    temperature = float(req.temperature) if req.temperature is not None else 0.7
+
+    model_id = req.model or "project_persona"
+    created = int(time.time())
+    resp_id = f"chatcmpl-{uuid.uuid4().hex}"
+
+    # Streaming path (OpenAI SSE)
+    if req.stream:
+        async def gen() -> AsyncGenerator[str, None]:
+            # First chunk: establish assistant role
+            first = {
+                "id": resp_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model_id,
+                "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+            }
+            yield _sse(json.dumps(first))
+
+            # Try true upstream streaming
+            streamed_any = False
+            try:
+                async for delta in stream_llama(
+                    PERSONA_URL,
+                    persona_prompt,
+                    tokens=max_tokens,
+                    temperature=temperature,
+                    timeout_s=PERSONA_TIMEOUT_S,
+                    extra={"top_p": 0.9, "repeat_penalty": 1.10},
+                ):
+                    streamed_any = True
+                    chunk = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": model_id,
+                        "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}],
+                    }
+                    yield _sse(json.dumps(chunk))
+            except Exception:
+                # If upstream streaming fails, fall back to non-streaming but still emit chunks so UI doesn't break.
+                streamed_any = False
+
+            if not streamed_any:
+                # Fallback: one-shot completion, then chunk it (best-effort UX)
+                full, _ = await query_llama(
+                    PERSONA_URL, persona_prompt, max_tokens, temperature, PERSONA_TIMEOUT_S,
+                    extra={"top_p": 0.9, "repeat_penalty": 1.10},
+                )
+                # chunk into ~50 char pieces
+                step = 50
+                for i in range(0, len(full), step):
+                    piece = full[i:i+step]
+                    chunk = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": model_id,
+                        "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+                    }
+                    yield _sse(json.dumps(chunk))
+
+            # Final chunk
+            final = {
+                "id": resp_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model_id,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield _sse(json.dumps(final))
+            yield _sse("[DONE]")
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
+
+    # Non-streaming path
+    reply, stats = await query_llama(
+        PERSONA_URL,
+        persona_prompt,
+        max_tokens,
+        temperature,
+        PERSONA_TIMEOUT_S,
+        extra={"top_p": 0.9, "repeat_penalty": 1.10},
+    )
+
+    return {
+        "id": resp_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": model_id,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": reply},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": int(stats.get("tokens_generated", 0)),
+            "total_tokens": int(stats.get("tokens_generated", 0)),
+        },
+    }
