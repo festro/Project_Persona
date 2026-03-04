@@ -13,7 +13,6 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   exit 0
 fi
 
-# Remove stale pidfile
 rm -f "$PIDFILE"
 
 if [ ! -x "$AI_ROOT/env/bin/uvicorn" ]; then
@@ -32,13 +31,26 @@ export LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
 export PERSONA_PORT="${PERSONA_PORT:-8080}"
 export SCIENTIST_PORT="${SCIENTIST_PORT:-8081}"
 
-# Fast-by-default: async scientist OFF unless explicitly enabled.
+# Feature toggles:
+# - RAG is cheap and helpful, default ON.
+# - Scientist async can starve CPU if abused, default OFF.
+export RAG_ENABLED="${RAG_ENABLED:-1}"
 export ASYNC_SCIENTIST_ENABLED="${ASYNC_SCIENTIST_ENABLED:-0}"
+
+# Optional knobs
 export ASYNC_SCIENTIST_TOPICS="${ASYNC_SCIENTIST_TOPICS:-science,biology,coding,math}"
+export RAG_TOP_K="${RAG_TOP_K:-6}"
+export EMBED_MODEL="${EMBED_MODEL:-BAAI/bge-small-en-v1.5}"
+
+export PERSONA_MAX_TOKENS="${PERSONA_MAX_TOKENS:-192}"
+export SCIENTIST_MAX_TOKENS="${SCIENTIST_MAX_TOKENS:-512}"
+export PERSONA_TIMEOUT_S="${PERSONA_TIMEOUT_S:-90}"
+export SCIENTIST_TIMEOUT_S="${SCIENTIST_TIMEOUT_S:-600}"
 
 echo "Starting FastAPI on http://127.0.0.1:8000"
 echo "  Persona:   http://${LLAMA_HOST}:${PERSONA_PORT}"
 echo "  Scientist: http://${LLAMA_HOST}:${SCIENTIST_PORT}"
+echo "  RAG enabled: ${RAG_ENABLED}"
 echo "  Async scientist enabled: ${ASYNC_SCIENTIST_ENABLED}"
 
 cd "$AI_ROOT"
@@ -53,7 +65,7 @@ sleep 1
 
 if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   echo "  OK pid=$(cat "$PIDFILE") log=$LOGFILE"
-  echo "  Health: http://127.0.0.1:8000/health (if implemented)"
+  echo "  Health: http://127.0.0.1:8000/health"
   echo "  Docs:   http://127.0.0.1:8000/docs"
 else
   echo "  FAILED (see $LOGFILE)"
