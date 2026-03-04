@@ -30,23 +30,17 @@ export DEFAULT_PROFILE="${DEFAULT_PROFILE:-default}"
 
 export LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
 export PERSONA_PORT="${PERSONA_PORT:-8080}"
-export REASONING_PORT="${REASONING_PORT:-8081}"
-export CODER_PORT="${CODER_PORT:-8082}"
+export SCIENTIST_PORT="${SCIENTIST_PORT:-8081}"
 
-# Timeouts/budgets (tune here)
-export EXPERT_MAX_TOKENS=192
-export EXPERT_TIMEOUT_S=120
-export HTTP_TIMEOUT_S="${HTTP_TIMEOUT_S:-180}"
-export EXPERT_TIMEOUT_S="${EXPERT_TIMEOUT_S:-240}"
-export EXPERT_MAX_TOKENS="${EXPERT_MAX_TOKENS:-512}"
-
-
-# Memory / embeddings
-export EMBED_MODEL="${EMBED_MODEL:-BAAI/bge-small-en-v1.5}"
+# Fast-by-default: async scientist OFF unless explicitly enabled.
+export ASYNC_SCIENTIST_ENABLED="${ASYNC_SCIENTIST_ENABLED:-0}"
+export ASYNC_SCIENTIST_TOPICS="${ASYNC_SCIENTIST_TOPICS:-science,biology,coding,math}"
 
 echo "Starting FastAPI on http://127.0.0.1:8000"
+echo "  Persona:   http://${LLAMA_HOST}:${PERSONA_PORT}"
+echo "  Scientist: http://${LLAMA_HOST}:${SCIENTIST_PORT}"
+echo "  Async scientist enabled: ${ASYNC_SCIENTIST_ENABLED}"
 
-# Run from the API folder without requiring python packages
 cd "$AI_ROOT"
 
 nohup "$AI_ROOT/env/bin/uvicorn" "server:app" \
@@ -59,7 +53,7 @@ sleep 1
 
 if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   echo "  OK pid=$(cat "$PIDFILE") log=$LOGFILE"
-  echo "  Health: http://127.0.0.1:8000/health"
+  echo "  Health: http://127.0.0.1:8000/health (if implemented)"
   echo "  Docs:   http://127.0.0.1:8000/docs"
 else
   echo "  FAILED (see $LOGFILE)"

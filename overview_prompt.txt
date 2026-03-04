@@ -1,0 +1,150 @@
+# Self-hosted AI Stack — Project Overview (Single-File Rundown)
+
+## 1) Project Overview
+This project is a fully local, self-hosted AI stack that runs multiple llama.cpp servers (persona + specialists) behind a FastAPI “Companion API” that supports:
+- A primary **persona** model that always produces the user-facing reply
+- Optional “silent expert” models (**reasoning** and **coder**) that generate internal notes to improve accuracy
+- **Multi-profile** support (separate persona/style/rules per profile)
+- **RAG memory** using ChromaDB:
+  - Per-profile memory store
+  - Global shared memory store
+- A `/health` endpoint that reports status/latency of each llama.cpp server
+    - A Single 3D world
+    → Rendered to:
+   - Fixed 2D camera (monitor)
+   - Head-tracked VR camera (optional)
+- An Ai companion
+Target machine:
+- **GMKtec EVO-X2 (96GB RAM variant)**
+- llama.cpp servers run locally on `127.0.0.1` with ports: `8080/8081/8082`
+- FastAPI runs locally on `127.0.0.1:8000`
+
+Validation status (as last tested):
+- All ports listening and all servers respond to `/health`
+- All three llama servers successfully generate a simple completion (“OK”)
+- Note: the reasoning endpoint may emit `<think>` tag fragments depending on model/chat settings
+
+
+## 2) Stack (Components + Models)
+### Runtime components
+- **llama.cpp**
+  - Runs 3 separate `llama-server` instances:
+    - Persona server:    `http://127.0.0.1:8080`
+    - Reasoning server: `http://127.0.0.1:8081`
+    - Coder server:     `http://127.0.0.1:8082`
+  - API endpoint used by FastAPI:
+    - `POST /completion`
+
+- **FastAPI (Companion API)**
+  - Runs via `uvicorn` on: `http://127.0.0.1:8000`
+  - Key endpoints:
+    - `GET  /health` — reports llama server health + latencies
+    - `POST /chat` — main chat endpoint (persona reply, optional expert consult, RAG injection)
+    - `GET  /profiles` — list profiles
+    - `POST /profiles/create` — create a new profile folder with default wrapper files
+    - `POST /memory/add` — add memory to profile/global store
+    - `POST /memory/search` — query memory store(s)
+    - `GET  /topics` — topic routing policy
+    - `GET  /state` — version/state
+
+- **ChromaDB (Persistent)**
+  - Used for RAG memory storage:
+    - Per-profile persistent collections
+    - Global persistent collection
+
+- **Embeddings**
+  - `fastembed` TextEmbedding
+  - Default embedding model: `BAAI/bge-small-en-v1.5`
+
+
+### Models in use (GGUF)
+Located in `~/AI/models/`:
+- `persona.gguf`   (~19G)
+- `reasoning.gguf` (~40G)
+- `coder.gguf`     (~19G)
+
+Behavior:
+- Persona always speaks (final output)
+- Reasoning/coder generate internal notes when selected by topic policy or strict mode
+- Topics typically route:
+  - `coding` → coder
+  - `math/analysis/reasoning` → reasoning
+  - `chat/general` → none (unless auto-expert-on-empty-memory is enabled)
+
+
+## 3) Folder Layout (Top-Level Map)
+Project root: `~/AI`
+
+### Top-level directories/files
+- `bin/`
+  - Misc binaries/utilities (project-specific; not fully enumerated here)
+
+- `env/`
+  - Python virtual environment (contains uvicorn, fastapi, chromadb libs, etc.)
+  - Not “source code”; treat as runtime dependency folder
+
+- `llama_cpp/`
+  - llama.cpp source + build artifacts
+  - Built `llama-server` binary lives under:
+    - `llama_cpp/build/bin/llama-server`
+
+- `models/`
+  - GGUF model files:
+    - `persona.gguf`
+    - `reasoning.gguf`
+    - `coder.gguf`
+
+- `persona/`
+  - Multi-profile persona wrapper system + RAG stores
+  - `persona/profiles/`
+    - Each profile is a folder (e.g. `default`, `test`)
+    - Each profile includes:
+      - `persona.md` — persona definition
+      - `style.md` — style guide
+      - `system_rules.md` — hard rules
+      - `memory/chroma/` — per-profile Chroma persistence
+      - `memory/exports/` — profile memory exports
+  - `persona/global_memory/`
+    - `chroma/` — global Chroma persistence
+    - `exports/` — global memory exports
+
+- `services/`
+  - Application/service code
+  - `services/api/`
+    - FastAPI companion API entrypoint:
+      - `services/api/server.py`
+  - `services/chromadb/`
+    - Chroma-related service/support directory (present; contents not enumerated here)
+
+- `scripts/`
+  - Operational scripts (already executable)
+  - Notable scripts:
+    - `start_all.sh` / `stop_all.sh`
+    - `start_llama_servers.sh` / `stop_llama_servers.sh`
+    - `start_api.sh` / `stop_api.sh`
+    - `status.sh` — quick status summary
+    - `doctor.sh` — deeper diagnostics + smoke tests
+    - `unified_test.sh` — larger integrated test suite
+    - `setup_native_stack.sh` — bootstrap/setup automation
+    - `init_profiles.sh` — initialize persona profiles
+    - `clean.sh` — cleanup helper
+    - `archive/` — older scripts/notes
+
+- `run/`
+  - Runtime state + environment
+  - `run/llama-servers.env` — ports/models/env config used by scripts
+  - `run/*.pid` — pid files for api/persona/reasoning/coder
+
+- `logs/`
+  - Log files:
+    - `api.log`
+    - `persona.log`
+    - `reasoning.log`
+    - `coder.log`
+
+- `.gitignore`
+  - Git ignore rules
+
+
+---
+End of file.

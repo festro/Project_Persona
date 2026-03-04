@@ -1,105 +1,91 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 AI_ROOT="${AI_ROOT:-$HOME/AI}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
-DRY_RUN=false
-if [ "${1:-}" = "--dry-run" ]; then DRY_RUN=true; fi
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: Missing env file: $ENV_FILE"
   exit 1
 fi
-# shellcheck disable=SC1090
+
 source "$ENV_FILE"
 
 BIN="$AI_ROOT/llama_cpp/build/bin/llama-server"
+
 if [ ! -x "$BIN" ]; then
   echo "ERROR: llama-server not found: $BIN"
   exit 1
 fi
 
 THREADS_EFFECTIVE="${THREADS:-0}"
-if [ "$THREADS_EFFECTIVE" = "0" ]; then THREADS_EFFECTIVE="$(nproc)"; fi
-
-HOST="${HOST:-127.0.0.1}"
-
-# Global defaults (fallbacks)
-CTX_SIZE="${CTX_SIZE:-8192}"
-GPU_LAYERS="${GPU_LAYERS:-0}"
-BATCH_SIZE="${BATCH_SIZE:-512}"
-
-# Per-model overrides (optional)
-PERSONA_CTX="${PERSONA_CTX:-$CTX_SIZE}"
-REASONING_CTX="${REASONING_CTX:-$CTX_SIZE}"
-CODER_CTX="${CODER_CTX:-$CTX_SIZE}"
-
-GPU_LAYERS_PERSONA="${GPU_LAYERS_PERSONA:-$GPU_LAYERS}"
-GPU_LAYERS_REASONING="${GPU_LAYERS_REASONING:-$GPU_LAYERS}"
-GPU_LAYERS_CODER="${GPU_LAYERS_CODER:-$GPU_LAYERS}"
 
 mkdir -p "$AI_ROOT/logs" "$AI_ROOT/run"
 
-start_one () {
-  local name="$1"
-  local model_file="$2"
-  local port="$3"
-  local ctx="$4"
-  local gpu_layers="$5"
+start_model () {
 
-  local pidfile="$AI_ROOT/run/${name}.pid"
-  local logfile="$AI_ROOT/logs/${name}.log"
-  local model_path="$AI_ROOT/models/${model_file}"
+  NAME="$1"
+  MODEL_FILE="$2"
+  PORT="$3"
+  CTX="$4"
+  GPU="$5"
 
-  if [ ! -f "$model_path" ]; then
-    echo "ERROR: Missing model for $name: $model_path"
+  MODEL_PATH="$AI_ROOT/models/$MODEL_FILE"
+  PIDFILE="$AI_ROOT/run/${NAME}.pid"
+  LOGFILE="$AI_ROOT/logs/${NAME}.log"
+
+  if [ ! -f "$MODEL_PATH" ]; then
+    echo "ERROR: Missing model for $NAME: $MODEL_PATH"
     return 1
   fi
 
-  # If pidfile exists, verify process still alive; otherwise remove stale pidfile
-  if [ -f "$pidfile" ]; then
-    oldpid="$(cat "$pidfile" 2>/dev/null || true)"
-    if [ -n "${oldpid:-}" ] && kill -0 "$oldpid" 2>/dev/null; then
-      echo "SKIP: $name already running (pid $oldpid)"
-      return 0
-    else
-      echo "WARN: stale pidfile for $name; removing"
-      rm -f "$pidfile"
-    fi
-  fi
-
-  echo "Starting $name on http://${HOST}:${port}"
-  echo "  model=$model_path"
-  echo "  ctx=$ctx threads=$THREADS_EFFECTIVE gpu_layers=$gpu_layers batch=$BATCH_SIZE"
-
-  if [ "$DRY_RUN" = true ]; then
-    echo "  [DRY RUN]"
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "SKIP: $NAME already running (pid $(cat "$PIDFILE"))"
     return 0
   fi
 
+  rm -f "$PIDFILE"
+
+  echo "Starting $NAME on http://${HOST}:${PORT}"
+  echo "  model=$MODEL_PATH"
+
   nohup "$BIN" \
-    --model "$model_path" \
+    --model "$MODEL_PATH" \
     --host "$HOST" \
-    --port "$port" \
-    --ctx-size "$ctx" \
+    --port "$PORT" \
+    --ctx-size "$CTX" \
     --threads "$THREADS_EFFECTIVE" \
     --batch-size "$BATCH_SIZE" \
-    --n-gpu-layers "$gpu_layers" \
-    > "$logfile" 2>&1 &
+    --ubatch-size 512 \
+    --cache-type-k q8_0 \
+    --cache-type-v q8_0 \
+    --n-gpu-layers "$GPU" \
+    > "$LOGFILE" 2>&1 &
 
-  echo $! > "$pidfile"
+  echo $! > "$PIDFILE"
+
   sleep 1
-  if kill -0 "$(cat "$pidfile")" 2>/dev/null; then
-    echo "  OK pid=$(cat "$pidfile") log=$logfile"
+
+  if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "  OK pid=$(cat "$PIDFILE") log=$LOGFILE"
   else
-    echo "  FAILED (see $logfile)"
-    return 1
+    echo "  FAILED (see $LOGFILE)"
   fi
 }
 
 FAILED=0
-start_one "persona"   "$PERSONA_MODEL"   "$PERSONA_PORT"   "$PERSONA_CTX"   "$GPU_LAYERS_PERSONA"   || FAILED=$((FAILED+1))
-start_one "reasoning" "$REASONING_MODEL" "$REASONING_PORT" "$REASONING_CTX" "$GPU_LAYERS_REASONING" || FAILED=$((FAILED+1))
-start_one "coder"     "$CODER_MODEL"     "$CODER_PORT"     "$CODER_CTX"     "$GPU_LAYERS_CODER"     || FAILED=$((FAILED+1))
+
+start_model "persona" \
+"$PERSONA_MODEL" \
+"$PERSONA_PORT" \
+"$PERSONA_CTX" \
+"$GPU_LAYERS_PERSONA" || FAILED=$((FAILED+1))
+
+start_model "scientist" \
+"$SCIENTIST_MODEL" \
+"$SCIENTIST_PORT" \
+"$SCIENTIST_CTX" \
+"$GPU_LAYERS_SCIENTIST" || FAILED=$((FAILED+1))
 
 if [ "$FAILED" -eq 0 ]; then
   echo "All llama servers started."
