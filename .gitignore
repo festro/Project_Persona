@@ -49,3 +49,12 @@ Thumbs.db
 # Python cache
 __pycache__/
 *.pyc
+
+# WebUI
+.webui_secret_key
+env_webui/
+openwebui/
+
+# Python envs
+env/
+__pycache__/
