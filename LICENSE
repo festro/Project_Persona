@@ -328,8 +328,7 @@ documented (and with an implementation available to the public in
 source code form), and must require no special password or key for
 unpacking, reading or copying.
 
-  7. Additional Terms.
-
+7. Additional Terms.
   "Additional permissions" are terms that supplement the terms of this
 License by making exceptions from one or more of its conditions.
 Additional permissions that are applicable to the entire Program shall
@@ -338,41 +337,32 @@ that they are valid under applicable law.  If additional permissions
 apply only to part of the Program, that part may be used separately
 under those permissions, but the entire Program remains governed by
 this License without regard to the additional permissions.
-
   When you convey a copy of a covered work, you may at your option
 remove any additional permissions from that copy, or from any part of
 it.  (Additional permissions may be written to require their own
 removal in certain cases when you modify the work.)  You may place
 additional permissions on material, added by you to a covered work,
 for which you have or can give appropriate copyright permission.
-
   Notwithstanding any other provision of this License, for material you
 add to a covered work, you may (if authorized by the copyright holders of
 that material) supplement the terms of this License with terms:
-
     a) Disclaiming warranty or limiting liability differently from the
     terms of sections 15 and 16 of this License; or
-
     b) Requiring preservation of specified reasonable legal notices or
     author attributions in that material or in the Appropriate Legal
     Notices displayed by works containing it; or
-
     c) Prohibiting misrepresentation of the origin of that material, or
     requiring that modified versions of such material be marked in
     reasonable ways as different from the original version; or
-
     d) Limiting the use for publicity purposes of names of licensors or
     authors of the material; or
-
     e) Declining to grant rights under trademark law for use of some
     trade names, trademarks, or service marks; or
-
     f) Requiring indemnification of licensors and authors of that
     material by anyone who conveys the material (or modified versions of
     it) with contractual assumptions of liability to the recipient, for
     any liability that these contractual assumptions directly impose on
     those licensors and authors.
-
   All other non-permissive additional terms are considered "further
 restrictions" within the meaning of section 10.  If the Program as you
 received it, or any part of it, contains a notice stating that it is
@@ -382,15 +372,47 @@ a further restriction but permits relicensing or conveying under this
 License, you may add to a covered work material governed by the terms
 of that license document, provided that the further restriction does
 not survive such relicensing or conveying.
-
   If you add terms to a covered work in accord with this section, you
 must place, in the relevant source files, a statement of the
 additional terms that apply to those files, or a notice indicating
 where to find the applicable terms.
-
   Additional terms, permissive or non-permissive, may be stated in the
 form of a separately written license, or stated as exceptions;
 the above requirements apply either way.
+
+  ADDITIONAL PERMISSION UNDER SECTION 7 (LINKING EXCEPTION)
+
+  As a special exception to the terms of the GNU Affero General Public
+License, version 3 (AGPLv3), the copyright holders of this software
+grant you permission to link or combine this software with independent
+modules, services, or works (collectively, "External Components")
+regardless of the license terms governing those External Components,
+and to convey the resulting combined work, provided that:
+
+    1. You do not modify the source files of this software. Any
+    modifications to the source files of this software remain subject
+    to the full terms of the AGPLv3, including the network interaction
+    requirement of Section 13.
+
+    2. External Components are not derived from, and do not constitute
+    modified versions of, this software. Mere interaction with this
+    software via a network protocol, API, or inter-process
+    communication does not constitute a derivative work.
+
+    3. This exception does not permit you to sublicense this software
+    under terms other than the AGPLv3. Redistribution of this
+    software, with or without modification, must still comply with all
+    terms of the AGPLv3.
+
+    4. This exception does not grant permission to incorporate this
+    software into proprietary works in a manner that would otherwise
+    require the proprietary work to be licensed under the AGPLv3. It
+    grants only the right to link or interact without license
+    propagation to the External Component.
+
+  If you modify this software, this exception does not apply to your
+modified version. You may, at your option, apply this exception to
+your modified version by explicit written statement.
 
   8. Termination.
 
