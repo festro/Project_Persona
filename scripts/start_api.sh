@@ -37,6 +37,23 @@ export SCIENTIST_PORT="${SCIENTIST_PORT:-8081}"
 export RAG_ENABLED="${RAG_ENABLED:-1}"
 export ASYNC_SCIENTIST_ENABLED="${ASYNC_SCIENTIST_ENABLED:-0}"
 
+# Convergence step 1: profile wrappers (safe; no extra model calls)
+export PROFILE_WRAPPERS_ENABLED="${PROFILE_WRAPPERS_ENABLED:-1}"
+
+# Convergence step 2: memory tagging (safe)
+export PERSONA_WRITEBACK_ENABLED="${PERSONA_WRITEBACK_ENABLED:-1}"
+
+# Convergence step 3: job persistence (safe)
+export JOBS_PERSIST_ENABLED="${JOBS_PERSIST_ENABLED:-1}"
+export JOBS_PERSIST_PATH="${JOBS_PERSIST_PATH:-$AI_ROOT/run/jobs.jsonl}"
+export JOBS_PERSIST_MAX_LOAD="${JOBS_PERSIST_MAX_LOAD:-5000}"
+
+# Convergence step 4: in-band scientist notes (DEFAULT OFF for stability)
+export SCIENTIST_INBAND_ENABLED="${SCIENTIST_INBAND_ENABLED:-0}"
+export SCIENTIST_INBAND_TOPICS="${SCIENTIST_INBAND_TOPICS:-science,biology,coding,math}"
+export SCIENTIST_INBAND_MAX_TOKENS="${SCIENTIST_INBAND_MAX_TOKENS:-256}"
+export SCIENTIST_INBAND_TIMEOUT_S="${SCIENTIST_INBAND_TIMEOUT_S:-45}"
+
 # Optional knobs
 export ASYNC_SCIENTIST_TOPICS="${ASYNC_SCIENTIST_TOPICS:-science,biology,coding,math}"
 export RAG_TOP_K="${RAG_TOP_K:-6}"
@@ -52,6 +69,10 @@ echo "  Persona:   http://${LLAMA_HOST}:${PERSONA_PORT}"
 echo "  Scientist: http://${LLAMA_HOST}:${SCIENTIST_PORT}"
 echo "  RAG enabled: ${RAG_ENABLED}"
 echo "  Async scientist enabled: ${ASYNC_SCIENTIST_ENABLED}"
+echo "  Profile wrappers enabled: ${PROFILE_WRAPPERS_ENABLED}"
+echo "  Persona writeback enabled: ${PERSONA_WRITEBACK_ENABLED}"
+echo "  Jobs persistence enabled: ${JOBS_PERSIST_ENABLED} (${JOBS_PERSIST_PATH})"
+echo "  Scientist in-band enabled: ${SCIENTIST_INBAND_ENABLED}"
 
 cd "$AI_ROOT"
 
@@ -71,3 +92,4 @@ else
   echo "  FAILED (see $LOGFILE)"
   exit 1
 fi
+export MEMORY_DISTILL_ENABLED="${MEMORY_DISTILL_ENABLED:-1}"

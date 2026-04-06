@@ -58,3 +58,10 @@ openwebui/
 # Python envs
 env/
 __pycache__/
+
+# Agent/job runtime artifacts
+agent_*.json
+job*.json
+*_result.json
+scan_result.json
+tools/
