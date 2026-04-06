@@ -2,7 +2,7 @@
 **Last Updated:** 2026-04-06 | Status: PHASE 1 COMPLETE — PHASE 2 ACTIVE  
 **Repo:** github.com/festro/Project_Persona  
 **Live:** ~/Live/AIStack/Project_Persona/  
-**Git:** ~/Git/Project_Persona/ (TBD — verify exists)  
+**Git Template:** ~/Git/Project_Persona/  
 **Domain:** layonet.org | **Target OS:** Debian Linux | **Daily Driver:** Windows  
 **License:** AGPL-3.0 with Linking Exception
 
@@ -15,6 +15,7 @@
 | `~/Live/AIStack/Project_Persona/` | Running personal instance — real config, real data, never pushed |
 | `~/Live/AIStack/AI_TWIN/` | AIT_ running instance — separate, no shared resources |
 | `~/Git/Project_Persona/` | Public template repo — sanitized, pushed to GitHub |
+| `~/Git/AI_TWIN/` | AIT_ public template repo |
 
 ---
 
@@ -22,24 +23,25 @@
 
 | Component | Status | Notes |
 |---|---|---|
-| llama-server (persona) port 8080 | ⚠️ Not running | Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf — 35 GPU layers |
-| llama-server (scientist) port 8081 | ⚠️ Not running | Qwen2.5-14B-Instruct-Q5_K_M.gguf — 45 GPU layers, ctx 12288 |
-| FastAPI Companion API port 8000 | ⚠️ Not running | uvicorn via start_api.sh |
-| ChromaDB RAG | ⚠️ Unknown | Per-profile + global collections |
-| Models present | ✅ Confirmed | Both GGUF files verified on disk |
-| Path migration | ✅ Complete | AI_ROOT updated to ~/Live/AIStack/Project_Persona |
+| llama-server (persona) port 8080 | ✅ Running | Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf — 35 GPU layers, ctx 8192 |
+| llama-server (scientist) port 8083 | ✅ Running | Qwen2.5-14B-Instruct-Q5_K_M.gguf — 45 GPU layers, ctx 12288 |
+| FastAPI Companion API port 8000 | ✅ Running | uvicorn via start_api.sh |
+| ChromaDB RAG | ✅ Running | Fresh init — global_memory/chroma/ wiped and reinitialised |
+| /health endpoint | ✅ Verified | All components reporting ok |
+| /chat endpoint | ✅ Verified | End-to-end chat confirmed working |
+| Embedder | ✅ Running | BAAI/bge-small-en-v1.5 via fastembed |
 
-**Corrections from previous knowledge (ChatGPT handoff was stale):**
-
-| Item | Was | Actual |
+**Port mapping (confirmed):**
+| Server | Port | Notes |
 |---|---|---|
-| Persona model | `persona.gguf` generic | `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` (4.6G) |
-| Second server role | `coder` + `reasoning` | `scientist` only |
-| Second model | `reasoning.gguf` / `coder.gguf` | `Qwen2.5-14B-Instruct-Q5_K_M.gguf` (9.8G) |
-| GPU layers (persona) | 25 | 35 |
-| GPU layers (scientist) | — | 45 |
-| Third server (coder 8082) | Listed | Not present |
-| AI_ROOT default | `$HOME/AI` | `$HOME/Live/AIStack/Project_Persona` |
+| persona | 8080 | ✅ |
+| scientist | 8083 | Changed from 8081 — conflict with OTS/BrandonNet docker container |
+| API | 8000 | ✅ |
+
+**Known conflicts:**
+- Port 8081 — OTS (OpenTAK Server) docker container from BrandonNet
+- Port 8082 — BrandonNet docker container
+- Port 8088/8089 — BrandonNet docker containers
 
 ---
 
@@ -48,10 +50,11 @@
 | Component | Detail |
 |---|---|
 | Persona server | llama-server, port 8080, Meta-Llama-3.1-8B Q4_K_M, 35 GPU layers, ctx 8192 |
-| Scientist server | llama-server, port 8081, Qwen2.5-14B Q5_K_M, 45 GPU layers, ctx 12288 |
+| Scientist server | llama-server, port 8083, Qwen2.5-14B Q5_K_M, 45 GPU layers, ctx 12288 |
 | FastAPI API | port 8000, uvicorn, services/api/server.py |
-| ChromaDB | Per-profile + global Chroma collections |
+| ChromaDB | global_memory/chroma/ — fresh init 2026-04-06 |
 | Embeddings | fastembed — BAAI/bge-small-en-v1.5 |
+| venv | ~/Live/AIStack/Project_Persona/env/ — rebuilt 2026-04-06 |
 
 ---
 
@@ -96,13 +99,12 @@
 
 | # | Item | Priority | Notes |
 |---|---|---|---|
-| 1 | Start stack and verify all endpoints responding | High | Not run since path migration |
-| 2 | Run unified_test.sh to validate full stack | High | Confirm nothing broke in migration |
-| 3 | OpenWebUI frontend — wire to FastAPI | High | Phase 2 |
-| 4 | Suppress / strip `<think>` tags from scientist output | Medium | Known issue |
-| 5 | Confirm AGPL-3.0 + Linking Exception LICENSE at repo root | Medium | Housekeeping |
-| 6 | Review scripts/archive/ — prune if safe | Low | Housekeeping |
-| 7 | Verify Git template repo exists at ~/Git/Project_Persona/ | Medium | Unclear if present |
+| 1 | Run unified_test.sh — full end-to-end validation | High | Stack just migrated, needs full test |
+| 2 | OpenWebUI frontend — wire to FastAPI | High | Phase 2 |
+| 3 | Suppress / strip `<think>` tags from scientist output | Medium | Known issue |
+| 4 | Confirm AGPL-3.0 + Linking Exception LICENSE at repo root | Medium | Housekeeping |
+| 5 | Review scripts/archive/ — prune if safe | Low | Housekeeping |
+| 6 | Add AIP_ entry to ~/Git/sterilize.sh | Medium | Currently only Netstack is covered |
 
 ---
 
@@ -110,9 +112,16 @@
 
 | Date | Issue | Resolution |
 |---|---|---|
-| 2026-04-06 | AI_ROOT defaulting to $HOME/AI after move to ~/Live/AIStack/ | ✅ Fixed — sed updated all scripts |
+| 2026-04-06 | AI_ROOT defaulting to $HOME/AI after directory migration | ✅ Fixed — sed updated all scripts |
 | 2026-04-06 | Stale pid files for persona and scientist | ✅ Removed |
 | 2026-04-06 | AIP_ running flat in ~/Live/AIStack/ | ✅ Moved to ~/Live/AIStack/Project_Persona/ |
+| 2026-04-06 | Port 8081 conflict with OTS BrandonNet container | ✅ Scientist moved to 8083 |
+| 2026-04-06 | llama-server missing libmtmd.so.0 at runtime | ✅ LD_LIBRARY_PATH injected in start_llama_servers.sh |
+| 2026-04-06 | venv shebangs pointing to old $HOME/AI path | ✅ venv rebuilt with --clear |
+| 2026-04-06 | server.py syntax error — escaped docstring quotes | ✅ Restored correct triple-quote docstring |
+| 2026-04-06 | start_api.sh not sourcing llama-servers.env | ✅ Source block added before exports |
+| 2026-04-06 | Chroma KeyError('_type') — version mismatch | ✅ Old sqlite3 data wiped, fresh init |
+| 2026-04-06 | chromadb Settings() API changed in 0.6.x | ✅ Settings parameter removed from PersistentClient call |
 
 ---
 
@@ -120,8 +129,11 @@
 
 | Session Date | Files Modified | Summary |
 |---|---|---|
-| 2026-04-06 | AIP_knowledge.md | Full rewrite — actual stack confirmed, path migration documented |
-| 2026-04-06 | scripts/*.sh | AI_ROOT default updated to ~/Live/AIStack/Project_Persona |
+| 2026-04-06 | scripts/start_llama_servers.sh | LD_LIBRARY_PATH injection, AI_ROOT path fix |
+| 2026-04-06 | scripts/start_api.sh | Source llama-servers.env, AI_ROOT path fix |
+| 2026-04-06 | run/llama-servers.env | SCIENTIST_PORT changed 8081→8083 |
+| 2026-04-06 | services/api/server.py | Syntax fix, chromadb Settings removed |
+| 2026-04-06 | AIP_knowledge.md | Created — full session state captured |
 
 ---
 
@@ -145,7 +157,7 @@
 
 | Tag | Description | Date |
 |---|---|---|
-| *(none yet tagged in this tracker)* | — | — |
+| v1.1-post-migration | Full stack running at ~/Live/AIStack/Project_Persona/ | 2026-04-06 |
 
 ---
 
