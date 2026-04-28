@@ -4,7 +4,7 @@
 # Deep mode: ./doctor.sh --deep
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 HOST="${HOST:-127.0.0.1}"
 

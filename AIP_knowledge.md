@@ -3,7 +3,7 @@
 **Repo:** github.com/festro/Project_Persona  
 **Live:** ~/Live/AIStack/Project_Persona/  
 **Git Template:** ~/Git/Project_Persona/  
-**Domain:** layonet.org | **Target OS:** Debian Linux | **Daily Driver:** Windows  
+**Domain:** yourdomain.com | **Target OS:** Debian Linux | **Daily Driver:** Windows  
 **License:** AGPL-3.0 with Linking Exception
 
 ---

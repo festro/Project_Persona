@@ -1,20 +1,49 @@
-# Models
+# Models (user-provided, never committed)
 models/*.gguf
 models/*.bin
 models/*.part
 
-# Virtual environment
+# Virtual environments
 env/
 .venv/
 venv/
+env_webui/
+
+# Python noise
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.vscode/
+.idea/
 
 # Runtime state
 run/*.pid
-run/*.env
-logs/*.log
+run/*.sock
+run/jobs.jsonl
+run/jobs/
+logs/
 
-# Chroma DB (choose whether to keep memory in git or not)
-# If you WANT memory to travel with persona, comment these out.
+# Secrets and tracked configuration
+run/*.env
+!run/llama-servers.env
+
+# Persistent application state
+data/
+inbox/
+services/chromadb/
+openwebui/
+.webui_secret_key
+
+# Vector store / memory artifacts
 persona/**/chroma/
 persona/**/chroma.sqlite3
 persona/**/memory/chroma/
@@ -30,38 +59,3 @@ llama_cpp/**/*.so
 llama_cpp/**/*.dll
 llama_cpp/**/*.dylib
 llama_cpp/**/*.exe
-
-# Python noise
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# OS/editor noise
-.DS_Store
-Thumbs.db
-*.swp
-*.tmp
-.vscode/
-.idea/
-# Python cache
-__pycache__/
-*.pyc
-
-# WebUI
-.webui_secret_key
-env_webui/
-openwebui/
-
-# Python envs
-env/
-__pycache__/
-
-# Agent/job runtime artifacts
-agent_*.json
-job*.json
-*_result.json
-scan_result.json
-tools/

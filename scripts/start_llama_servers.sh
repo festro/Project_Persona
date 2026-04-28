@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 DRY_RUN=false
 if [ "${1:-}" = "--dry-run" ]; then DRY_RUN=true; fi
@@ -70,6 +70,7 @@ start_one () {
     return 0
   fi
 
+  LD_LIBRARY_PATH="$AI_ROOT/llama_cpp/build/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   nohup "$BIN" \
     --model "$model_path" \
     --host "$HOST" \

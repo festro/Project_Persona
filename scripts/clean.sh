@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 echo "==> Cleaning runtime state in $AI_ROOT"
 

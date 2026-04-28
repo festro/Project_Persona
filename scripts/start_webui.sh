@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 VENV="$AI_ROOT/env_webui"
 
 if [ ! -x "$VENV/bin/python" ]; then

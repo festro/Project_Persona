@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 
 echo "=== AI Status ==="

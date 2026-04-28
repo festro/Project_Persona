@@ -127,8 +127,7 @@ if chromadb is None:
 else:
     try:
         _client_chroma = chromadb.PersistentClient(
-            path=GLOBAL_CHROMA_DIR,
-            settings=Settings(anonymized_telemetry=False) if Settings else None
+            path=GLOBAL_CHROMA_DIR
         )
         _collection = _client_chroma.get_or_create_collection("global_memory")
         _chroma_ok = True
@@ -594,14 +593,15 @@ from pathlib import Path
 
 @app.post("/agent/run")
 async def agent_run(payload: dict):
-    \"\"\"Run a local taskman2 job.
+    """Run a local taskman2 job.
 
     Expected payload: a job JSON object (same schema used by tools/taskman2.py).
 
     Writes:
       run/jobs/<task_id>.job.json
       run/jobs/<task_id>.result.json
-    \"\"\"
+    """
+    
 
     import json
     import subprocess

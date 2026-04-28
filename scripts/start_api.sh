@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 mkdir -p "$AI_ROOT/logs" "$AI_ROOT/run"
 
@@ -14,6 +14,15 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
 fi
 
 rm -f "$PIDFILE"
+
+# Load llama server config
+ENV_FILE="$AI_ROOT/run/llama-servers.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
 
 if [ ! -x "$AI_ROOT/env/bin/uvicorn" ]; then
   echo "ERROR: uvicorn not found at $AI_ROOT/env/bin/uvicorn"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 API_BASE="${API_BASE:-http://127.0.0.1:8000}"
 API_CHAT="${API_CHAT:-$API_BASE/chat}"
 PROFILE="${PROFILE:-default}"

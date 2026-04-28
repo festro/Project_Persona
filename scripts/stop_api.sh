@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 PIDFILE="$AI_ROOT/run/api.pid"
 if [ ! -f "$PIDFILE" ]; then
   echo "API not running"

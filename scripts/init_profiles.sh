@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 PERSONA_ROOT="$AI_ROOT/persona"
 PROFILES_DIR="$PERSONA_ROOT/profiles"
 GLOBAL_DIR="$PERSONA_ROOT/global_memory"

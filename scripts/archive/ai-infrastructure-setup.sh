@@ -24,7 +24,7 @@ log_warn()    { echo -e "${YELLOW}⚠ $1${NC}"; }
 log_error()   { echo -e "${RED}✗ $1${NC}"; }
 
 # Configuration
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -247,7 +247,7 @@ cat > "$AI_ROOT/scripts/start_llama_servers.sh" <<'SCRIPT_EOF'
 #
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 DRY_RUN=false
 
@@ -380,7 +380,7 @@ cat > "$AI_ROOT/scripts/stop_llama_servers.sh" <<'SCRIPT_EOF'
 #
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 FORCE=false
 
 if [ "${1:-}" = "--force" ]; then
@@ -451,7 +451,7 @@ cat > "$AI_ROOT/scripts/status.sh" <<'SCRIPT_EOF'
 #
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 echo "============================================"
 echo "AI Infrastructure Status"
@@ -857,7 +857,7 @@ log_info "Writing utility scripts"
 cat > "$AI_ROOT/scripts/up.sh" <<'SCRIPT_EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 cd "$AI_ROOT/docker"
 
@@ -890,7 +890,7 @@ chmod +x "$AI_ROOT/scripts/up.sh"
 cat > "$AI_ROOT/scripts/down.sh" <<'SCRIPT_EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 cd "$AI_ROOT/docker"
 docker compose down
@@ -902,7 +902,7 @@ chmod +x "$AI_ROOT/scripts/down.sh"
 cat > "$AI_ROOT/scripts/start_all.sh" <<'SCRIPT_EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 echo "Starting AI infrastructure..."
 echo ""
@@ -939,7 +939,7 @@ chmod +x "$AI_ROOT/scripts/start_all.sh"
 cat > "$AI_ROOT/scripts/stop_all.sh" <<'SCRIPT_EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 
 echo "Stopping AI infrastructure..."
 "$AI_ROOT/scripts/down.sh" || true
@@ -958,7 +958,7 @@ cat > "$AI_ROOT/scripts/download_models.sh" <<'SCRIPT_EOF'
 #
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/AI}"
+AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
 MODELS_DIR="$AI_ROOT/models"
 
 mkdir -p "$MODELS_DIR"

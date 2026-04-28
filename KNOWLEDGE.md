@@ -1,7 +1,7 @@
 # Project_Persona — Knowledge & Task Tracker
 **Last Updated:** 2026-04-05 12:00 UTC
 **Repo:** https://github.com/festro/Project_Persona
-**Domain:** layonet.org | **Target OS:** Debian Linux | **Daily Driver:** Windows
+**Domain:** yourdomain.com | **Target OS:** Debian Linux | **Daily Driver:** Windows
 
 ---
 
