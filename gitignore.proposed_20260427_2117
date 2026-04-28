@@ -1,0 +1,61 @@
+# Models (user-provided, never committed)
+models/*.gguf
+models/*.bin
+models/*.part
+
+# Virtual environments
+env/
+.venv/
+venv/
+env_webui/
+
+# Python noise
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.vscode/
+.idea/
+
+# Runtime state
+run/*.pid
+run/*.sock
+run/jobs.jsonl
+run/jobs/
+logs/
+
+# Secrets and tracked configuration
+run/*.env
+!run/llama-servers.env
+
+# Persistent application state
+data/
+inbox/
+services/chromadb/
+openwebui/
+.webui_secret_key
+
+# Vector store / memory artifacts
+persona/**/chroma/
+persona/**/chroma.sqlite3
+persona/**/memory/chroma/
+persona/global_memory/chroma/
+persona/**/memory/exports/
+persona/**/exports/
+
+# llama.cpp build artifacts
+llama_cpp/build/
+llama_cpp/**/*.o
+llama_cpp/**/*.a
+llama_cpp/**/*.so
+llama_cpp/**/*.dll
+llama_cpp/**/*.dylib
+llama_cpp/**/*.exe
