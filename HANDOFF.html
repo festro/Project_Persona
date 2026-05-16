@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Project_Persona Living Handoff</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+  </style>
+  <style type="text/css">body {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+max-width: 1100px;
+margin: 2em auto;
+padding: 0 2em;
+line-height: 1.55;
+color: #1a1a1a;
+background: #ffffff;
+}
+h1, h2, h3 { color: #0f1419; }
+h1 { border-bottom: 2px solid #2c3e50; padding-bottom: 0.3em; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom: 0.2em; margin-top: 2em; }
+code { background: #f5f5f5; padding: 0.1em 0.4em; border-radius: 3px; font-size: 0.9em; }
+pre { background: #f5f5f5; padding: 1em; border-radius: 5px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+th, td { border: 1px solid #d0d7de; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+th { background: #f5f5f5; }
+details { border: 1px solid #d0d7de; border-radius: 5px; padding: 0.5em 1em; margin: 1em 0; background: #fafbfc; }
+details[open] { background: #ffffff; }
+summary { cursor: pointer; font-weight: 600; padding: 0.3em 0; user-select: none; }
+summary:hover { color: #0969da; }
+blockquote { border-left: 4px solid #d0d7de; margin: 1em 0; padding: 0.3em 1em; background: #f8f9fa; color: #444; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #d0d7de; margin: 2em 0; }
+#TOC { background: #f8f9fa; border: 1px solid #d0d7de; border-radius: 5px; padding: 1em 2em; margin: 1em 0 2em; }
+#TOC ul { padding-left: 1.5em; }
+@media (prefers-color-scheme: dark) {
+body { background: #0d1117; color: #c9d1d9; }
+h1, h2, h3 { color: #f0f6fc; }
+h1 { border-bottom-color: #30363d; }
+h2 { border-bottom-color: #21262d; }
+code, pre { background: #161b22; color: #c9d1d9; }
+th, td { border-color: #30363d; }
+th { background: #161b22; }
+details { background: #0d1117; border-color: #30363d; }
+details[open] { background: #0d1117; }
+summary:hover { color: #58a6ff; }
+blockquote { background: #161b22; border-left-color: #30363d; color: #8b949e; }
+a { color: #58a6ff; }
+hr { border-top-color: #30363d; }
+#TOC { background: #161b22; border-color: #30363d; }
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Project_Persona Living Handoff</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#project_persona-living-handoff">Project_Persona — Living Handoff</a></li>
+</ul>
+</nav>
+<h1 id="project_persona-living-handoff">Project_Persona — Living Handoff</h1>
+<p><strong>Last Updated:</strong> 2026-05-16 0433 UTC <strong>Type:</strong> Living document — overwritten as state changes (NOT a frozen handoff record) <strong>Frozen records:</strong> dated <code>HANDOFF_YYYY-MM-DD_HHMM_*.md</code> files (see changelog) <strong>Long-form rolling state:</strong> <code>knowledge.md</code> <strong>Browser-friendly view:</strong> <code>HANDOFF.html</code> (regenerate via <code>scripts/regen_handoff_html.sh</code>)</p>
+<blockquote>
+<p><strong>Document purpose.</strong> This is the “where are we right now and what’s next” view. Open this first when resuming work. For full project state see <code>knowledge.md</code>. For frozen decision rationale see the dated handoff matching the relevant decision.</p>
+<p><strong>Section collapsibility.</strong> Sections wrap in <code>&lt;details&gt;</code>/<code>&lt;summary&gt;</code> HTML5 tags. Collapsed sections show only the header until clicked; expanded sections show contents. Renders natively in browsers (HANDOFF.html), GitHub, VS Code Markdown Preview, Obsidian, Typora, and most HTML-pass-through markdown viewers. Section 2 (Critical Path) and Section 3 (Active Work) open by default — everything else collapsed.</p>
+</blockquote>
+<hr />
+<details>
+<p><summary><strong>1. System Status</strong> (current state per layer)</summary></p>
+<h3 id="inference-layer">Inference layer</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>llama.cpp build 8157 (Vulkan)</td>
+<td>✅ Working</td>
+<td>RADV identifies hardware as <code>GFX1151</code> native; uma=1, fp16=1, bf16=0, KHR_coopmat present</td>
+</tr>
+<tr class="even">
+<td>llama-server (persona) port 8080</td>
+<td>✅ Running — TO BE RETIRED</td>
+<td>Llama-3.1-8B-Q4_K_M; superseded by single-model consolidation</td>
+</tr>
+<tr class="odd">
+<td>llama-server (reasoning) port 8081</td>
+<td>✅ Running — TO BE RETIRED</td>
+<td>Qwen2.5-14B-Q5_K_M; superseded by single-model consolidation</td>
+</tr>
+<tr class="even">
+<td>llama-server (coder) port 8082</td>
+<td>❌ Cancelled</td>
+<td>Superseded by single-model consolidation 2026-05-09</td>
+</tr>
+<tr class="odd">
+<td>llama-server (unified) port 8080</td>
+<td>⏳ Planned</td>
+<td>Target: Qwen3.6-35B-A3B-UD-Q5_K_XL <strong>(pending T0.1 arch test)</strong></td>
+</tr>
+<tr class="even">
+<td>Model file in models/</td>
+<td>⏳ Not yet downloaded</td>
+<td>Awaiting T0 GO/NO-GO with IQ1_M smoke test first</td>
+</tr>
+</tbody>
+</table>
+<h3 id="api-layer">API layer</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FastAPI Companion API port 8000</td>
+<td>✅ Running</td>
+<td>uvicorn, OpenAI-compatible</td>
+</tr>
+<tr class="even">
+<td><code>/v1/chat/completions</code></td>
+<td>⚠️ Streaming claimed but NOT implemented</td>
+<td>server.py accepts <code>stream</code> field, ignores it, returns single JSONResponse — see HANDOFF_2026-05-11 H4 / Mercury addendum §4.4</td>
+</tr>
+<tr class="odd">
+<td><code>/chat</code>, <code>/jobs/{id}</code>, <code>/health</code></td>
+<td>✅ Verified</td>
+<td>Existing surface</td>
+</tr>
+<tr class="even">
+<td><code>/chat_submit</code></td>
+<td>❌ Disabled</td>
+<td>Returns “chat_submit is disabled in this build.”</td>
+</tr>
+<tr class="odd">
+<td><code>/agent/run</code></td>
+<td>⚠️ Broken (synchronous, blocks event loop up to 300s)</td>
+<td>Fix queued in Hermes adoption work — reshape to Task Board submit</td>
+</tr>
+<tr class="even">
+<td>Routing decision (trivial → in-band, non-trivial → Task Board)</td>
+<td>⏳ Planned</td>
+<td>T2 work, post-Tier-0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="storage-rag">Storage / RAG</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ChromaDB RAG (global only)</td>
+<td>⚠️ Partial</td>
+<td>Per-profile not wired; Qdrant migration planned (Phase 2a)</td>
+</tr>
+<tr class="even">
+<td>Qdrant</td>
+<td>⏳ Planned</td>
+<td>Phase 2a — replaces ChromaDB</td>
+</tr>
+<tr class="odd">
+<td><code>data/conversations.db</code></td>
+<td>⏳ Not yet implemented</td>
+<td>Phase 2c</td>
+</tr>
+<tr class="even">
+<td><code>data/tasks.db</code> (Task Board)</td>
+<td>⏳ Not yet implemented</td>
+<td>Replaces in-memory jobs dict; Tenacity-extended schema documented</td>
+</tr>
+</tbody>
+</table>
+<h3 id="agent-layer">Agent layer</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Hermes Agent</td>
+<td>⏳ Planned daemon child</td>
+<td>DECISION 2026-05-11 — see HANDOFF_2026-05-11. Implementation queued behind T0 + T1.</td>
+</tr>
+<tr class="even">
+<td>AG2 / LangGraph / CrewAI / Mercury</td>
+<td>❌ Deleted</td>
+<td>All superseded by Hermes adoption — see Section 7</td>
+</tr>
+</tbody>
+</table>
+<h3 id="frontend">Frontend</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>OpenWebUI (port 3000)</td>
+<td>✅ Running — <strong>PRIMARY (locked 2026-05-14)</strong></td>
+<td>Separate venv <code>env_webui/</code>, data at <code>openwebui/</code>, BSD-3+branding clause</td>
+</tr>
+<tr class="even">
+<td>SillyTavern</td>
+<td>❌ Out of scope</td>
+<td>AIP_knowledge.md decision superseded 2026-05-14</td>
+</tr>
+</tbody>
+</table>
+<h3 id="embodiment-voice-pipelines">Embodiment / Voice / Pipelines</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Phase 4 Godot avatar</td>
+<td>⏳ Planned</td>
+<td>Two-channel RESPONSE/STATE protocol</td>
+</tr>
+<tr class="even">
+<td>Phase 5 Whisper.cpp + Piper TTS</td>
+<td>⏳ Planned</td>
+<td>Wyoming protocol coordination</td>
+</tr>
+<tr class="odd">
+<td>Phase 6 Sorting Line</td>
+<td>⏳ Planned</td>
+<td>watchdog + semantic classifier</td>
+</tr>
+<tr class="even">
+<td>Phase 7 Sleep Cycle</td>
+<td>⏳ Planned</td>
+<td>Idle-triggered consolidation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="daemon-phase-3">Daemon (Phase 3)</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>daemon.py</code></td>
+<td>⏳ Not yet implemented</td>
+<td>Single asyncio loop, child process map, three-strike restart</td>
+</tr>
+<tr class="even">
+<td>Unix socket IPC</td>
+<td>⏳ Not yet implemented</td>
+<td><code>run/daemon.sock</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="hardware-os">Hardware / OS</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AMD RYZEN AI MAX+ 395 / Radeon 8060S</td>
+<td>✅</td>
+<td>Strix Halo, gfx1151 native, 96GB unified</td>
+</tr>
+<tr class="even">
+<td>ROCm 7.2.0</td>
+<td>✅ Installed</td>
+<td>Operating via <code>HSA_OVERRIDE_GFX_VERSION=11.0.1</code> (gfx1101 codegen workaround)</td>
+</tr>
+<tr class="odd">
+<td>Kernel 6.17.0-22-generic</td>
+<td>✅ Running</td>
+<td>HWE rolling track; -23 installed waiting for reboot</td>
+</tr>
+<tr class="even">
+<td>Mesa/RADV Vulkan</td>
+<td>✅ Native gfx1151</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</details>
+<hr />
+<details open>
+<p><summary><strong>2. Critical Path — Next Action</strong> (open by default)</summary></p>
+<p><strong>Run T0.1: Empirical llama.cpp arch test for <code>qwen3_5_moe</code>.</strong></p>
+<p>This is the GO/NO-GO gate for the entire compatibility re-evaluation work. Five-minute test, blocks all Tier 1+ work.</p>
+<pre><code>cd ~/Live/AIStack/Project_Persona/models/
+
+huggingface-cli download unsloth/Qwen3.6-35B-A3B-GGUF \
+    --include &quot;Qwen3.6-35B-A3B-UD-IQ1_M.gguf&quot; --local-dir .
+
+LD_LIBRARY_PATH=$HOME/Live/AIStack/Project_Persona/llama_cpp/build/bin \
+~/Live/AIStack/Project_Persona/llama_cpp/build/bin/llama-server \
+    --model Qwen3.6-35B-A3B-UD-IQ1_M.gguf \
+    --port 8090 --n-gpu-layers 0 -c 2048 2&gt;&amp;1 | tee /tmp/qwen36_load_test.log</code></pre>
+<p>Then in another shell:</p>
+<pre><code>curl -s http://127.0.0.1:8090/v1/chat/completions \
+    -H &quot;Content-Type: application/json&quot; \
+    -d &#39;{&quot;model&quot;:&quot;qwen3.6&quot;,&quot;messages&quot;:[{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:&quot;Explain what an LLM is in one sentence.&quot;}],&quot;max_tokens&quot;:100}&#39;</code></pre>
+<p><strong>Acceptance:</strong> loads + generates coherent output → proceed to T0.2 (tool-calling verification), then Tier 1. <strong>Failure:</strong> halt Qwen3.6 path. Decision branch — fall back to Instruct-2507 (no thinking mode), wait for llama.cpp arch support, or stand up vLLM via gfx1101 override. See HANDOFF_2026-05-15 “Rollback Path” section.</p>
+</details>
+<hr />
+<details open>
+<p><summary><strong>3. Active Work &amp; Issues</strong> (open by default)</summary></p>
+<h3 id="currently-focused-on">Currently focused on</h3>
+<p><strong>Pre-implementation: validating the foundational assumption (T0).</strong> All migration work (single-model M1-M12, Hermes adoption H1-H6, compat re-eval T1-T3) is queued behind T0 GO/NO-GO. Nothing else moves until T0.1 returns a clear yes/no.</p>
+<h3 id="issues-encountered-with-planned-resolution">Issues encountered (with planned resolution)</h3>
+<p><strong>Issue: <code>/agent/run</code> synchronous subprocess blocks event loop up to 300s</strong> - <em>Encountered:</em> prior session, recorded in knowledge.md Known Issues; verified by Mercury addendum 2026-04-27 - <em>Resolution path:</em> reshape <code>/agent/run</code> to Task Board submit endpoint (T2 work). Eliminates the synchronous subprocess entirely — Hermes pulls from Task Board asynchronously.</p>
+<p><strong>Issue: M1 picked Instruct-2507 which has no thinking mode (defeats DECISION 2026-05-09 design intent)</strong> - <em>Encountered:</em> same session as M1 lock, surfaced during compat re-eval - <em>Resolution path:</em> swap target to Qwen3.6-35B-A3B (has thinking mode + new <code>preserve_thinking</code> for agent loops). T0 gates this. - <em>Frozen analysis:</em> HANDOFF_2026-05-15 “Meta-Finding”</p>
+<p><strong>Issue: <code>&lt;think&gt;</code> tag stripping graduates from M8 future-work to immediate</strong> - <em>Encountered:</em> identified in compat re-eval — Qwen3.6 always wraps reasoning in <code>&lt;think&gt;</code> when thinking mode on - <em>Resolution path:</em> T2.4 — implement at Task Board → persona surface boundary (one chokepoint, applies to direct llama-server AND Hermes worker outputs uniformly)</p>
+<p><strong>Issue: Hermes has 7 network egress paths + Claude Code creds risk on this machine</strong> - <em>Encountered:</em> H1.5 investigation 2026-05-11 - <em>Resolution path:</em> safe-config recipe enforced by construction via T1.2 (per-profile config.yaml template); kernel-level egress containment via H1.6 (ip netns or iptables rules). Verified by H1.5 packet-capture integration test before production.</p>
+<p><strong>Issue: Vulkan reports <code>bf16: 0</code></strong> - <em>Encountered:</em> M2a verification 2026-05-14 - <em>Resolution path:</em> No action needed for Q5 weights / q8_0 KV cache. Flag-only — guard against future configs that assume bf16.</p>
+<p><strong>Issue: Hermes auxiliary model routing defaults to <code>provider: auto</code> (cloud-leak risk)</strong> - <em>Encountered:</em> H1.5 investigation - <em>Resolution path:</em> T1.2 config template explicitly pins all <code>auxiliary.*.provider: main</code> and empties <code>fallback_providers</code>. Belt-and-suspenders via H1.6 kernel egress containment.</p>
+<p><strong>Issue: knowledge.md claims <code>looks_degenerate()</code> quality guard is present, but it’s not in live code</strong> - <em>Encountered:</em> Mercury addendum 2026-04-27 grep verification — zero matches in live <code>services/api/server.py</code> - <em>Resolution path:</em> documentation corrected 2026-05-16 (knowledge.md System State now reflects ❌ NOT present). <strong>Open decision:</strong> reinstate the guard (recommended for persona output safety — catches length / quote-ratio / word-uniqueness / n-gram repetition issues and triggers a two-stage self-repair loop at temp 0.0) OR accept absence. Tracked in Section 4 Open Decisions.</p>
+<p><strong>Issue: README.md and persona/README.md were stale (April-era topology)</strong> ✅ RESOLVED 2026-05-16 - <em>Resolution:</em> both READMEs rewritten to reflect locked decisions (Hermes backbone, Qwen3.6 target, OpenWebUI primary, Qdrant target, 2-file Hermes-naming profile, single-model topology). Consolidation batch 2026-05-16.</p>
+<p><strong>Issue: <code>.gitignore</code> didn’t reflect Hermes-locked file conventions</strong> ✅ RESOLVED 2026-05-16 - <em>Resolution:</em> <code>.gitignore</code> rewritten to add Hermes-managed paths (MEMORY.md / USER.md / hermes_state.db / sessions/), env_hermes/, data/, inbox/, run/*.sock, archive/cruft/; legacy duplicates removed; <code>run/llama-servers.env</code> and <code>run/config.env</code> allow-listed. Consolidation batch 2026-05-16.</p>
+<p><strong>Issue: Stale cruft and superseded docs at repo root (<code>.txt</code>, <code>overview_prompt.txt</code>, two <code>*.proposed_*</code> files, <code>AIP_knowledge.md</code>, <code>AIP_HANDOFF_mercury_*</code>)</strong> ✅ RESOLVED 2026-05-16 - <em>Resolution:</em> AIP_ files archived to <code>archive/</code>; cruft moved to <code>archive/cruft/</code> (sandbox couldn’t <code>rm</code> directly — user can <code>rm -rf archive/cruft/</code> to fully delete when ready). Profile <code>style.md</code> files moved to <code>archive/legacy_profile_files/</code>. Profile files renamed: <code>persona.md</code> → <code>SOUL.md</code>, <code>system_rules.md</code> → <code>.hermes.md</code> in <code>default/</code> and <code>test/</code> profiles. Repo root now clean. Consolidation batch 2026-05-16.</p>
+<h3 id="plans-for-resolving-issues">Plans for resolving issues</h3>
+<p>Most issues map to specific tier work (T2.4 stripping, T1.2 config template, etc.). The dispatcher pattern is: each issue has a documented Tier item or TODO entry; tier execution closes the issue; doctor.sh + unified_test.sh additions catch regressions.</p>
+</details>
+<hr />
+<details>
+<p><summary><strong>4. Open Decisions &amp; Deferred Items</strong> (waiting on triggers)</summary></p>
+<p>Things waiting on something, not actively being worked on. Each has a documented trigger to promote it to active work.</p>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Item</th>
+<th>Status</th>
+<th>Trigger to revisit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>T4.1 — Dual-memory unification</strong> (Qdrant vs Hermes session_search)</td>
+<td>Deferred; coexistence accepted</td>
+<td>User-facing query surfaces contradictory information from the two systems, OR storage cost becomes problematic</td>
+</tr>
+<tr class="even">
+<td><strong>T4.2 — Vision pathway</strong> (<code>VISION_ENABLED=1</code> + mmproj loading)</td>
+<td>Deferred; off by default</td>
+<td>Specific use case explicitly demands it (avatar perception, OCR-free PDF ingest)</td>
+</tr>
+<tr class="odd">
+<td><strong>T4.3 — MTP / speculative decoding for Qwen3.6</strong></td>
+<td>Deferred</td>
+<td>llama.cpp adds MTP support OR draft model becomes available</td>
+</tr>
+<tr class="even">
+<td><strong>TODO #36 — Re-evaluate Qwen3.5/3.6</strong> at full quant maturity</td>
+<td><strong>Active</strong> as of 2026-05-15 — being addressed by current re-eval</td>
+<td>(already being done)</td>
+</tr>
+<tr class="odd">
+<td><strong>Kernel upgrade to 6.18.4+</strong> for vLLM native gfx1151 path</td>
+<td>Deferred; low-friction when needed</td>
+<td>vLLM becomes critical path (only if T0 fails AND vLLM is the chosen fallback)</td>
+</tr>
+<tr class="even">
+<td><strong>vLLM as inference engine fallback</strong></td>
+<td>Available via gfx1101 override (now), or kernel upgrade for native (later)</td>
+<td>T0.1 fails AND a fallback path is needed</td>
+</tr>
+<tr class="odd">
+<td><strong><code>looks_degenerate()</code> quality guard reinstate</strong></td>
+<td>Open question</td>
+<td>Decision needed — reinstate (recommended) or accept absence</td>
+</tr>
+<tr class="even">
+<td><strong>Phase 4-7 implementation</strong></td>
+<td>Sequenced behind T0-T3</td>
+<td>Compat re-eval work completes</td>
+</tr>
+</tbody>
+</table>
+</details>
+<hr />
+<details>
+<p><summary><strong>5. Quick Reference</strong> (commands, paths, URLs, decision shortcuts)</summary></p>
+<h3 id="common-commands">Common commands</h3>
+<pre><code># Get current UTC timestamp
+date -u +&quot;%Y-%m-%d %H%M UTC&quot;
+
+# Run llama-server with the LD_LIBRARY_PATH inject (avoids libmtmd.so.0 error)
+LD_LIBRARY_PATH=$HOME/Live/AIStack/Project_Persona/llama_cpp/build/bin \
+~/Live/AIStack/Project_Persona/llama_cpp/build/bin/llama-server \
+    --model &lt;path&gt; --port &lt;port&gt; --n-gpu-layers &lt;n&gt; -c &lt;ctx&gt;
+
+# Verify llama.cpp build
+LD_LIBRARY_PATH=$HOME/Live/AIStack/Project_Persona/llama_cpp/build/bin \
+~/Live/AIStack/Project_Persona/llama_cpp/build/bin/llama-server --version
+
+# Check ROCm + GPU recognition
+uname -r &amp;&amp; rocminfo 2&gt;/dev/null | grep -E &quot;Name:|gfx&quot; | head -20
+printenv | grep -i HSA
+
+# Apt kernel state
+apt-cache policy linux-image-$(uname -r)
+dpkg -l | grep -E &quot;linux-(image|headers|generic|oem|hwe)&quot; | head -20
+
+# Sterilize before push (cross-repo script)
+~/Git/sterilize.sh --repo Project_Persona --check    # dry-run
+~/Git/sterilize.sh --repo Project_Persona            # apply
+
+# Download GGUF to local model dir
+huggingface-cli download &lt;repo&gt; --include &quot;&lt;filename&gt;&quot; \
+    --local-dir ~/Live/AIStack/Project_Persona/models/
+
+# Regenerate HANDOFF.html from HANDOFF.md
+~/Git/Project_Persona/scripts/regen_handoff_html.sh</code></pre>
+<h3 id="key-paths">Key paths</h3>
+<pre><code>~/Live/AIStack/Project_Persona/         → live running instance (real config, real data)
+~/Git/Project_Persona/                  → public template repo (sanitized, pushed)
+~/Live/AIStack/Project_Persona/models/  → GGUF model files (gitignored)
+~/Live/AIStack/Project_Persona/llama_cpp/build/bin/  → llama.cpp binaries
+persona/profiles/&lt;name&gt;/                → per-profile (becomes HERMES_HOME)
+persona/profiles/&lt;name&gt;/SOUL.md         → personality (Hermes naming, was persona.md)
+persona/profiles/&lt;name&gt;/.hermes.md      → rules + STATE vocab (Hermes naming, was system_rules.md)
+data/                                   → conversations.db, tasks.db, insights/
+inbox/                                  → user file drop (Phase 6 sorting line)
+run/config.env                          → all runtime tunables (renamed from llama-servers.env, pending)
+run/daemon.sock                         → Unix socket IPC (Phase 3)
+archive/                                → superseded historical docs (AIP_knowledge.md, Mercury borrow plan)
+archive/cruft/                          → stale files moved out of repo root (safe to rm -rf)
+archive/legacy_profile_files/           → retired style.md content (safe to rm -rf)</code></pre>
+<h3 id="active-model-decision">Active model decision</h3>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Slot</th>
+<th>Locked</th>
+<th>Pending</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Family</td>
+<td>Qwen3 / Qwen3.6 (under re-eval)</td>
+<td>T0.1 outcome</td>
+</tr>
+<tr class="even">
+<td>Quant</td>
+<td>Q5_K_XL (Unsloth Dynamic) if Qwen3.6, else Q5_K_M (bartowski imatrix) for Qwen3-30B-A3B-Instruct-2507</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>File</td>
+<td>Pending T0.1 result</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-urls">Key URLs</h3>
+<ul>
+<li><a href="https://hermes-agent.nousresearch.com/docs/">Hermes Agent docs root</a></li>
+<li><a href="https://hermes-agent.nousresearch.com/docs/developer-guide/architecture">Hermes Architecture</a></li>
+<li><a href="https://hermes-agent.nousresearch.com/docs/developer-guide/prompt-assembly">Hermes Prompt Assembly</a></li>
+<li><a href="https://hermes-agent.nousresearch.com/docs/developer-guide/provider-runtime">Hermes Provider Runtime</a></li>
+<li><a href="https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF">bartowski Qwen3-30B-A3B-Instruct-2507 GGUF</a></li>
+<li><a href="https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF">unsloth Qwen3.6-35B-A3B GGUF</a></li>
+<li><a href="https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507">Qwen3-30B-A3B-Instruct-2507 model card</a></li>
+</ul>
+<h3 id="decision-shortcuts-all-locked">Decision shortcuts (all locked)</h3>
+<ul>
+<li><strong>Frontend:</strong> OpenWebUI (locked 2026-05-14; SillyTavern out of scope)</li>
+<li><strong>Inference engine:</strong> llama.cpp Vulkan (primary); vLLM via gfx1101 override (fallback if needed)</li>
+<li><strong>Vector store target:</strong> Qdrant (Phase 2a, replaces ChromaDB)</li>
+<li><strong>Profile structure:</strong> 2 files using Hermes naming — <code>SOUL.md</code> + <code>.hermes.md</code> (locked 2026-05-14)</li>
+<li><strong>Profile location:</strong> <code>persona/profiles/&lt;name&gt;/</code> doubles as Hermes <code>HERMES_HOME</code></li>
+<li><strong>Agent backbone:</strong> Hermes Agent as daemon child (DECISION 2026-05-11)</li>
+<li><strong>Project license:</strong> AGPLv3 + Section 7 linking exception</li>
+</ul>
+</details>
+<hr />
+<details>
+<p><summary><strong>6. Handoff Changelog</strong> (frozen records, newest first)</summary></p>
+<table>
+<colgroup>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+<col style="width: 33%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th>Date</th>
+<th>Document</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>2026-05-15</td>
+<td><a href="HANDOFF_2026-05-15_0827_compat-reeval-tiered.md">HANDOFF_2026-05-15_0827_compat-reeval-tiered.md</a></td>
+<td>Stack-wide compatibility re-evaluation against Hermes + Qwen3.6 swap. Per-layer findings, meta-finding (Qwen3.6 honors DECISION 2026-05-09 design intent), tiered T0-T4 action plan with acceptance criteria, sequencing rationale, fallback decision branches.</td>
+</tr>
+<tr class="even">
+<td>2026-05-11</td>
+<td><a href="HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md">HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md</a></td>
+<td>Adopt Hermes Agent (Nous Research, MIT) as agent-work backbone. Six brainstorm forks resolved. AG2/LangGraph/CrewAI deleted. Network egress risk surface (7 paths + Claude Code creds risk) + safe-config recipe + H1.6 kernel-level containment. H1-H6 sequenced migration plan.</td>
+</tr>
+<tr class="odd">
+<td>2026-05-09</td>
+<td><a href="HANDOFF_2026-05-09_0950_single-model-migration.md">HANDOFF_2026-05-09_0950_single-model-migration.md</a></td>
+<td>Consolidate from multi-model topology (persona 8080 + reasoning 8081 + planned coder 8082) to single Qwen3-30B-A3B model with parallel slots and mode-switched prompts. M1-M12 sequenced migration. M1 resolution addendum (2026-05-14): bartowski/Qwen3-30B-A3B-Instruct-2507-GGUF Q5_K_M chosen, Path 2 Qwen3.5/3.6 deferred (later promoted to active by 2026-05-15 compat re-eval).</td>
+</tr>
+</tbody>
+</table>
+</details>
+<hr />
+<details>
+<p><summary><strong>7. Retired Ideas &amp; Software</strong> (what we explicitly left behind, with reasons)</summary></p>
+<blockquote>
+<p>Things that were on the table or in the design at some point and have been explicitly deprecated, deleted, or moved out of scope. Captured here so future-you doesn’t reconsider something that was already evaluated and dropped.</p>
+</blockquote>
+<h3 id="inference-topology">Inference &amp; topology</h3>
+<p><strong>Multi-model topology</strong> (persona 8080 + reasoning 8081 + planned coder 8082) - <em>Retired:</em> 2026-05-09 - <em>Reason:</em> Three model files = 3× ops surface, fault propagation, KV cache competition, and a generation gap as Qwen3-30B-A3B (MoE, 3B active) became the right shape for the EVO-X2’s bandwidth-limited unified memory. - <em>Replaced by:</em> Single unified llama-server on port 8080 with <code>--parallel</code> slots and mode-switched prompts (DECISION 2026-05-09). - <em>Reference:</em> HANDOFF_2026-05-09_0950</p>
+<p><strong>Coder server (port 8082)</strong> - <em>Retired:</em> 2026-05-09 (cancelled before implementation) - <em>Reason:</em> Same model-consolidation rationale; coding tasks now served by Qwen3 (or Qwen3.6) in thinking mode with code-specialist system prompt. - <em>Replaced by:</em> Same single-model dispatch with role-tagged prompts.</p>
+<p><strong>Qwen3-30B-A3B-Instruct-2507</strong> as M1 lock - <em>Retired:</em> 2026-05-15 (pending T0.1 arch test verification) - <em>Reason:</em> The 2507 release split the original Qwen3-30B-A3B’s dual-mode model into separate <code>Instruct-2507</code> (non-thinking only) and <code>Thinking-2507</code> (thinking only) variants. The thinking-mode toggle that justified DECISION 2026-05-09’s “single model serves both persona and reasoning” premise was abandoned in this lock. - <em>Replaced by:</em> Qwen3.6-35B-A3B (toggle is back, plus <code>preserve_thinking</code> for agent loops, plus better benchmarks). Pending T0.1 empirical validation. - <em>Reference:</em> HANDOFF_2026-05-15_0827 “Meta-Finding”</p>
+<h3 id="agent-orchestration">Agent orchestration</h3>
+<p><strong>AG2</strong> (Phase 2.5 scientist↔︎critic loop, originally Phase 8) - <em>Retired:</em> 2026-05-11 - <em>Reason:</em> Hermes’ agent loop with subagent delegation handles iterative reasoning natively. Two orchestrators = two failure surfaces, two prompt conventions, two debugging paths. Hybrid case evaluated and rejected — IPC overhead is irrelevant at LLM-call timescales. - <em>Replaced by:</em> Hermes Agent (DECISION 2026-05-11). - <em>Reference:</em> HANDOFF_2026-05-11_0038</p>
+<p><strong>AutoGen</strong> (planned fallback for AG2) - <em>Retired:</em> 2026-05-11 (moot) - <em>Reason:</em> AG2 retirement made this fallback meaningless.</p>
+<p><strong>LangGraph</strong> (Phase 8 original agentic layer) - <em>Retired:</em> 2026-05-11 (reshaped into Hermes integration) - <em>Reason:</em> Hermes’ delegate_tool fan-out and tool registry cover what LangGraph would have provided. - <em>Replaced by:</em> Hermes Agent (Phase 8 reshapes to Hermes integration via Task Board).</p>
+<p><strong>CrewAI</strong> (Phase 9 candidate — observable multi-agent) - <em>Retired:</em> 2026-05-11 - <em>Reason:</em> Hermes’ Tenacity Kanban (heartbeat / reclaim / zombie detection / hallucination recovery) covers what CrewAI was wanted for, with deeper integration than the alternative. - <em>Replaced by:</em> Hermes Agent.</p>
+<p><strong>Microsoft Agent Framework</strong> - <em>Retired:</em> before 2026-05-09 (rejected during AIP_knowledge.md era evaluation) - <em>Reason:</em> Cloud-first, Azure-dependent — incompatible with Project_Persona’s self-hosted ethos and AGPLv3 design. Never seriously considered after initial evaluation. - <em>Reference:</em> AIP_knowledge.md (archived)</p>
+<p><strong>Mercury (<code>@cosmicstack/mercury-agent</code>)</strong> — borrow plan - <em>Retired:</em> 2026-05-11 (silently deprecated by Hermes adoption) - <em>Reason:</em> Mercury was an upstream agent framework whose architectural patterns (Second Brain memory, daemon, blocklist, Telegram integration) were going to be selectively borrowed (B1-B4 specs). Hermes Agent provides equivalent (or better) capability across all of them as a complete drop-in. The April borrow plan (<code>AIP_HANDOFF_mercury_integration_*</code>) is obsolete. - <em>Replaced by:</em> Hermes Agent (full backbone, not selective borrow). - <em>Reference:</em> AIP_HANDOFF_mercury_integration_20260427_1545_addendum_2108.md (archived/retired)</p>
+<h3 id="frontend-1">Frontend</h3>
+<p><strong>SillyTavern</strong> as primary frontend - <em>Retired:</em> 2026-05-14 (out of scope) - <em>Reason:</em> AIP_knowledge.md had marked SillyTavern as “✅ DECIDED” based on persona/character-card vocabulary alignment, but that decision predated Hermes adoption. With Hermes covering the agent layer + OpenWebUI handling the frontend cleanly + Phase 4 Godot covering embodiment, SillyTavern’s specific value collapsed. Could be used for another project. - <em>Replaced by:</em> OpenWebUI as primary frontend (locked).</p>
+<h3 id="profile-structure">Profile structure</h3>
+<p><strong>3-file profile</strong> (<code>persona.md</code> + <code>style.md</code> + <code>system_rules.md</code>) - <em>Retired:</em> 2026-05-14 - <em>Reason:</em> <code>style.md</code> content folded into the personality definition. Two files cover the persona/rules split cleanly with less prompt-token bloat (~6K tokens of static prefix vs ~9K). - <em>Replaced by:</em> 2-file profile.</p>
+<p><strong><code>persona.md</code> filename</strong> - <em>Retired:</em> 2026-05-14 - <em>Reason:</em> Defer to Hermes naming convention to eliminate a mapping layer between Project_Persona files and Hermes prompt-assembly file expectations. - <em>Replaced by:</em> <code>SOUL.md</code> (Hermes’ personality file convention).</p>
+<p><strong><code>system_rules.md</code> filename</strong> - <em>Retired:</em> 2026-05-14 - <em>Reason:</em> Same rationale as persona.md rename. - <em>Replaced by:</em> <code>.hermes.md</code> (Hermes’ highest-priority context file convention with tree-walk discovery and YAML frontmatter support).</p>
+<p><strong><code>style.md</code> profile file</strong> - <em>Retired:</em> 2026-05-14 - <em>Reason:</em> Content folded into SOUL.md (personality including style) and .hermes.md (output format rules).</p>
+<p><strong><code>AGENTS.md</code></strong> as candidate for system_rules.md replacement - <em>Retired:</em> 2026-05-14 (rejected during naming evaluation) - <em>Reason:</em> Lower priority in Hermes’ context-file lookup (AGENTS.md is CWD-only, lower priority than <code>.hermes.md</code> which walks to git root); no YAML frontmatter support; AGENTS.md is more of a cross-tool convention while <code>.hermes.md</code> is Hermes-native. - <em>Replaced by:</em> <code>.hermes.md</code> chosen instead. - <em>Reference:</em> HANDOFF_2026-05-15_0827 (Hermes adoption work)</p>
+<h3 id="storage-rag-1">Storage / RAG</h3>
+<p><strong>ChromaDB</strong> as RAG vector store - <em>Retired:</em> in progress (planned for Phase 2a migration) - <em>Reason:</em> API stability concerns (broke twice during AIP_ era), Rust performance, built-in debug web UI, native sparse + dense hybrid search. Decision recorded in AIP_knowledge.md, carried forward to knowledge.md. - <em>Replaced by:</em> Qdrant (Apache 2.0). - <em>Status:</em> not yet migrated — Phase 2a work pending.</p>
+<h3 id="configuration-api">Configuration / API</h3>
+<p><strong><code>PERSONA_URL</code> / <code>SCIENTIST_URL</code></strong> URL-based dispatch - <em>Retired:</em> in progress (M5 of single-model migration) - <em>Reason:</em> With single unified model serving both persona and reasoning roles via thinking-mode toggle, two URLs collapse to one endpoint with mode parameter in payload. - <em>Replaced by:</em> Single endpoint <code>http://127.0.0.1:8080/v1</code> + <code>enable_thinking</code> flag.</p>
+<p><strong><code>PERSONA_CONCURRENCY=2</code></strong> API-side semaphore - <em>Retired:</em> in progress (M5 of single-model migration) - <em>Reason:</em> Gates parallelism upstream of llama.cpp’s slot scheduler — wasteful when llama-server’s <code>--parallel N --cont-batching</code> provides smarter slot management. Should only exist as backpressure above slot count, not as primary parallelism gate. - <em>Replaced by:</em> llama.cpp parallel slots + continuous batching.</p>
+<p><strong><code>ASYNC_REASONING_ENABLED</code></strong> toggle - <em>Retired:</em> in progress (T3.3 cleanup, post-Hermes adoption) - <em>Reason:</em> Vestigial post-Hermes — all “reasoning” is either trivial in-band or non-trivial via Task Board. The toggle was meaningful when reasoning was a separate URL/model. - <em>Replaced by:</em> <code>ENABLE_THINKING_FOR_NONTRIVIAL=1</code> semantic (the new question is “should non-trivial queries use thinking mode,” not “should the reasoning expert run”).</p>
+<p><strong>scientist→reasoning rename effort</strong> - <em>Retired:</em> 2026-04-27 (per Mercury addendum verification — superseded by single-model migration) - <em>Reason:</em> Live code uses <code>SCIENTIST</code> consistently throughout. The single-model migration (M5) collapses URL distinction entirely, making the rename moot. Remaining cosmetic occurrences should adopt “scientist” as canonical. - <em>Reference:</em> AIP_HANDOFF_mercury_integration_*</p>
+<h3 id="documentation-artifacts">Documentation artifacts</h3>
+<p><strong>AIP_knowledge.md</strong> as authoritative state document - <em>Retired:</em> 2026-05-14 (superseded; archive recommended) - <em>Reason:</em> Older April snapshot of project state. Has been overridden multiple times in 2026-05 sessions (SillyTavern decision, 3-file profile decision, etc.) and caused confusion when consulted. knowledge.md is the rolling source of truth going forward. - <em>Replaced by:</em> <code>knowledge.md</code> (current rolling state).</p>
+<p><strong><code>AIP_HANDOFF_mercury_integration_*</code></strong> Mercury borrow plan - <em>Retired:</em> 2026-05-11 (silently obsoleted by Hermes adoption; archive recommended) - <em>Reason:</em> The borrow plan was Project_Persona-selective adoption from Mercury (B1 Second Brain memory, B2 daemon, B3 command blocklist, B4 Telegram integration). Hermes Agent now provides all of those as a complete integrated system rather than scattered borrows. - <em>Replaced by:</em> HANDOFF_2026-05-11_0038 Hermes adoption.</p>
+</details>
+<hr />
+<details>
+<p><summary><strong>Document Maintenance</strong> (when and how to update)</summary></p>
+<p>This is a <strong>living document</strong>. Update on: - Status changes (component goes green/red) - New active work begins or current work completes - New issues encountered - Decisions get locked - New handoff record gets created - Critical Path changes - New retired item to capture in Section 7</p>
+<p>Do <strong>not</strong> update for minor edits or routine work — that’s what <code>knowledge.md</code> File Change Tracker is for.</p>
+<p>When creating a new dated handoff: 1. Create the dated <code>HANDOFF_YYYY-MM-DD_HHMM_*.md</code> (frozen record, never edited after) 2. Update this file’s section 6 changelog with one-line summary + link 3. Update sections 1-5 to reflect new state (Critical Path especially) 4. If anything got retired, add to section 7 with the retirement reason 5. Bump Last Updated timestamp at top 6. Regenerate HANDOFF.html: <code>~/Git/Project_Persona/scripts/regen_handoff_html.sh</code></p>
+<p>When the source markdown changes, regenerate the HTML view so the browser-friendly artifact stays in sync.</p>
+</details>
+</body>
+</html>

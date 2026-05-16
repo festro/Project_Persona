@@ -1,57 +1,49 @@
-# Models (user-provided, never committed)
+# ── Models (user-provided, never committed) ──────────
 models/*.gguf
 models/*.bin
 models/*.part
 
-# Virtual environments
+# ── Virtual environments ─────────────────────────────
 env/
 .venv/
 venv/
 env_webui/
+env_hermes/
 
-# Python noise
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# OS / editor noise
-.DS_Store
-Thumbs.db
-*.swp
-*.tmp
-.vscode/
-.idea/
-
-# Runtime state
+# ── Runtime state ────────────────────────────────────
 run/*.pid
 run/*.sock
-run/jobs.jsonl
-run/jobs/
-logs/
-
-# Secrets and tracked configuration
 run/*.env
 !run/llama-servers.env
+!run/config.env
+run/jobs/
+run/jobs.jsonl
+logs/
 
-# Persistent application state
+# ── Persistent application state ─────────────────────
 data/
 inbox/
-services/chromadb/
 openwebui/
 .webui_secret_key
 
-# Vector store / memory artifacts
+# ── Vector store / memory artifacts ──────────────────
 persona/**/chroma/
 persona/**/chroma.sqlite3
 persona/**/memory/chroma/
 persona/global_memory/chroma/
 persona/**/memory/exports/
 persona/**/exports/
+services/chromadb/
 
-# llama.cpp build artifacts
+# ── Hermes-managed per-profile files ─────────────────
+# (locked 2026-05-14 — Hermes writes/maintains these per profile;
+#  template repo only ships empty SOUL.md and .hermes.md placeholders)
+persona/profiles/*/MEMORY.md
+persona/profiles/*/USER.md
+persona/profiles/*/hermes_state.db
+persona/profiles/*/sessions/
+
+# ── llama.cpp build artifacts ────────────────────────
 llama_cpp/build/
 llama_cpp/**/*.o
 llama_cpp/**/*.a
@@ -59,3 +51,31 @@ llama_cpp/**/*.so
 llama_cpp/**/*.dll
 llama_cpp/**/*.dylib
 llama_cpp/**/*.exe
+
+# ── Python noise ─────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── OS / editor noise ────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.vscode/
+.idea/
+
+# ── Agent / job runtime artifacts ────────────────────
+agent_*.json
+job*.json
+*_result.json
+scan_result.json
+tools/
+
+# ── Local archive (stale files moved out of repo root) ─
+# (sandbox couldn't rm directly; user can rm -rf archive/cruft/ when ready)
+archive/cruft/
