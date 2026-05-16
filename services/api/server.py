@@ -178,8 +178,7 @@ BAD_MEMORY_PATTERNS = [
     r"\binternal context\b",
     r"\bretrieved memory\b",
     r"\bexpert notes\b",
-    r"\bchroma\b",
-    r"\bfastembed\b",
+    r"\bqdrant\b",
     r"(?i)\bnext actions\s*:\b",
 ]
 
