@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 
 echo "=== AI Status ==="
@@ -16,8 +16,10 @@ fi
 
 echo ""
 echo "llama.cpp servers:"
-# Prefer env-configured names, but also show any legacy/extra pidfiles.
-declare -a names=("persona" "scientist" "reasoning" "coder")
+# Unified single-model topology: only persona is live.
+# Legacy names kept in the case-exclusion below so stale scientist/reasoning/coder pidfiles
+# do not double-show via the "extra" loop.
+declare -a names=("persona")
 for name in "${names[@]}"; do
   pidfile="$AI_ROOT/run/${name}.pid"
   if [ -f "$pidfile" ]; then
@@ -30,7 +32,7 @@ for name in "${names[@]}"; do
   fi
 done
 
-# Show any other pidfiles (excluding api.pid) for visibility.
+# Show any other pidfiles (excluding api.pid + legacy names) for visibility.
 shopt -s nullglob
 extra=("$AI_ROOT/run/"*.pid)
 shopt -u nullglob
@@ -56,8 +58,7 @@ if [ -f "$ENV_FILE" ]; then
   source "$ENV_FILE"
   echo "  env: $ENV_FILE"
   echo "  host: ${HOST:-127.0.0.1}"
-  echo "  persona:  port=${PERSONA_PORT:-8080} model=${PERSONA_MODEL:-<unset>} ctx=${PERSONA_CTX:-<unset>} gpu_layers=${GPU_LAYERS_PERSONA:-<unset>}"
-  echo "  scientist: port=${SCIENTIST_PORT:-8081} model=${SCIENTIST_MODEL:-<unset>} ctx=${SCIENTIST_CTX:-<unset>} gpu_layers=${GPU_LAYERS_SCIENTIST:-<unset>}"
+  echo "  persona: port=${PERSONA_PORT:-8080} model=${PERSONA_MODEL:-<unset>} ctx=${PERSONA_CTX:-<unset>} gpu_layers=${GPU_LAYERS_PERSONA:-<unset>} parallel=${PERSONA_PARALLEL:-<unset>}"
 else
   echo "  (missing) $ENV_FILE"
 fi
@@ -67,7 +68,7 @@ echo "Models:"
 if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090
   source "$ENV_FILE"
-  for m in "${PERSONA_MODEL:-}" "${SCIENTIST_MODEL:-}"; do
+  for m in "${PERSONA_MODEL:-}"; do
     [ -z "${m:-}" ] && continue
     p="$AI_ROOT/models/$m"
     if [ -f "$p" ]; then
@@ -87,5 +88,4 @@ if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090
   source "$ENV_FILE"
   echo "  Persona:    http://${HOST:-127.0.0.1}:${PERSONA_PORT:-8080}/health"
-  echo "  Scientist:  http://${HOST:-127.0.0.1}:${SCIENTIST_PORT:-8081}/health"
 fi
