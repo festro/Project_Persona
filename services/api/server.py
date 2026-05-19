@@ -39,13 +39,19 @@ DEFAULT_PROFILE = os.getenv("DEFAULT_PROFILE", "default")
 
 LLAMA_HOST = os.getenv("LLAMA_HOST", "127.0.0.1")
 PERSONA_PORT = int(os.getenv("PERSONA_PORT", "8080"))
-SCIENTIST_PORT = int(os.getenv("SCIENTIST_PORT", "8081"))
 
+# Unified llama-server endpoint (single-model topology, DECISION 2026-05-09).
+# SCIENTIST_URL/SCIENTIST_PORT retired 2026-05-17 — role differentiation now happens
+# at the prompt layer (thinking-mode toggle + reasoning_template), not via separate URLs.
 PERSONA_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/completion"
-SCIENTIST_URL = f"http://{LLAMA_HOST}:{SCIENTIST_PORT}/completion"
 
 # Feature toggles
-ASYNC_SCIENTIST_ENABLED = os.getenv("ASYNC_SCIENTIST_ENABLED", "0") == "1"
+# ASYNC_REASONING_ENABLED replaces ASYNC_SCIENTIST_ENABLED (back-compat: old name still read).
+ASYNC_REASONING_ENABLED = (
+    os.getenv("ASYNC_REASONING_ENABLED",
+              os.getenv("ASYNC_SCIENTIST_ENABLED", "0"))
+    == "1"
+)
 RAG_ENABLED = os.getenv("RAG_ENABLED", "0") == "1"
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
 
@@ -86,15 +92,42 @@ JOBS_PERSIST_ENABLED = os.getenv("JOBS_PERSIST_ENABLED", "1") == "1"
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
 JOBS_PERSIST_MAX_LOAD = int(os.getenv("JOBS_PERSIST_MAX_LOAD", "5000"))
 
-# Scientist in-band (optional)
-SCIENTIST_INBAND_ENABLED = os.getenv("SCIENTIST_INBAND_ENABLED", "0") == "1"
-SCIENTIST_INBAND_TOPICS = {
+# Reasoning in-band (optional) — was SCIENTIST_INBAND_* pre-2026-05-17.
+# Routes to the unified llama-server (PERSONA_URL) with a structured prompt template;
+# generates an internal expert-notes block woven into the persona reply.
+REASONING_INBAND_ENABLED = (
+    os.getenv("REASONING_INBAND_ENABLED",
+              os.getenv("SCIENTIST_INBAND_ENABLED", "0"))
+    == "1"
+)
+REASONING_INBAND_TOPICS = {
     t.strip().lower()
-    for t in os.getenv("SCIENTIST_INBAND_TOPICS", "science,biology,coding,math").split(",")
+    for t in os.getenv("REASONING_INBAND_TOPICS",
+                       os.getenv("SCIENTIST_INBAND_TOPICS", "science,biology,coding,math")).split(",")
     if t.strip()
 }
-SCIENTIST_INBAND_MAX_TOKENS = int(os.getenv("SCIENTIST_INBAND_MAX_TOKENS", "256"))
-SCIENTIST_INBAND_TIMEOUT_S = float(os.getenv("SCIENTIST_INBAND_TIMEOUT_S", "45"))
+REASONING_INBAND_MAX_TOKENS = int(
+    os.getenv("REASONING_INBAND_MAX_TOKENS",
+              os.getenv("SCIENTIST_INBAND_MAX_TOKENS", "256"))
+)
+REASONING_INBAND_TIMEOUT_S = float(
+    os.getenv("REASONING_INBAND_TIMEOUT_S",
+              os.getenv("SCIENTIST_INBAND_TIMEOUT_S", "45"))
+)
+
+# Thinking-mode toggle (DECISION 2026-05-09 / Qwen3 prompt-level directives).
+# THINKING_MODE_DEFAULT: "auto" | "on" | "off".
+#   "auto" → /think for topics in THINKING_MODE_TOPICS, /no_think otherwise.
+#   "on"   → /think prepended unconditionally.
+#   "off"  → /no_think prepended unconditionally.
+# Prepended at prompt-build time per Qwen3's documented `/think` and `/no_think` directives.
+# Future T2.2 work may switch to chat_template_kwargs once query_llama migrates to messages format.
+THINKING_MODE_DEFAULT = os.getenv("THINKING_MODE_DEFAULT", "auto").strip().lower()
+THINKING_MODE_TOPICS = {
+    t.strip().lower()
+    for t in os.getenv("THINKING_MODE_TOPICS", "science,biology,coding,math,research").split(",")
+    if t.strip()
+}
 
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
@@ -241,12 +274,21 @@ def _profile_path(profile: str) -> str:
     return os.path.join(PROFILES_DIR, profile)
 
 def ensure_profile_files(profile: str) -> None:
+    """Scaffold the 2-file Hermes-naming profile (locked 2026-05-14).
+
+    SOUL.md   — identity, personality, emotional range, communication style.
+                Also serves as Hermes agent identity when this folder is HERMES_HOME.
+    .hermes.md — hard rules, output format, avatar STATE vocabulary.
+                Highest-priority Hermes context file (tree-walk discovery from CWD).
+
+    style.md / persona.md / system_rules.md are retired — their content collapses
+    into the two files above. Legacy copies live under archive/legacy_profile_files/.
+    """
     p = _profile_path(profile)
     Path(p).mkdir(parents=True, exist_ok=True)
     for fn, default in (
-        ("persona.md", "# Persona\n(define persona here)\n"),
-        ("style.md", "# Style\n(define style rules here)\n"),
-        ("system_rules.md", "# System Rules\n(define hard rules here)\n"),
+        ("SOUL.md", "# Soul\n(identity, personality, emotional range, communication style)\n"),
+        (".hermes.md", "# Hermes Rules\n(hard rules + output format + avatar STATE vocabulary)\n"),
     ):
         fp = os.path.join(p, fn)
         if not os.path.isfile(fp):
@@ -264,13 +306,13 @@ def _read_text(path: str, limit: int = 12000) -> str:
     except FileNotFoundError:
         return ""
 
-def load_profile_wrappers(profile: str) -> Tuple[str, str, str]:
+def load_profile_wrappers(profile: str) -> Tuple[str, str]:
+    """Return (soul_md, hermes_md) for the 2-file Hermes-naming profile."""
     ensure_profile_files(profile)
     p = _profile_path(profile)
     return (
-        _read_text(os.path.join(p, "persona.md")),
-        _read_text(os.path.join(p, "style.md")),
-        _read_text(os.path.join(p, "system_rules.md")),
+        _read_text(os.path.join(p, "SOUL.md")),
+        _read_text(os.path.join(p, ".hermes.md")),
     )
 
 
@@ -447,22 +489,44 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
 # -----------------------
 # Prompt builder
 # -----------------------
-def build_persona_prompt(user_text: str, rag_docs: List[str], *, profile: str, topic: str, scientist_notes: str = "") -> str:
-    persona_md = style_md = rules_md = ""
+def thinking_prefix(topic: str, mode: Optional[str] = None) -> str:
+    """Return the Qwen3 thinking-mode directive line for the given topic.
+
+    Returns "/think\\n", "/no_think\\n" depending on resolved mode.
+    `mode` overrides THINKING_MODE_DEFAULT when explicitly passed.
+    """
+    m = (mode or THINKING_MODE_DEFAULT or "auto").strip().lower()
+    if m == "on":
+        return "/think\n"
+    if m == "off":
+        return "/no_think\n"
+    if (topic or "").strip().lower() in THINKING_MODE_TOPICS:
+        return "/think\n"
+    return "/no_think\n"
+
+
+def build_persona_prompt(
+    user_text: str,
+    rag_docs: List[str],
+    *,
+    profile: str,
+    topic: str,
+    reasoning_notes: str = "",
+    thinking_mode: Optional[str] = None,
+) -> str:
+    soul_md = hermes_md = ""
     if PROFILE_WRAPPERS_ENABLED:
-        persona_md, style_md, rules_md = load_profile_wrappers(profile)
+        soul_md, hermes_md = load_profile_wrappers(profile)
 
     rag_block = format_rag_context(rag_docs)
 
     if PROFILE_WRAPPERS_ENABLED:
         prefix = (
             "You are the user's persona-driven assistant.\n\n"
-            "Persona definition (follow):\n"
-            f"{persona_md or '(persona.md missing)'}\n\n"
-            "Style guide (follow):\n"
-            f"{style_md or '(style.md missing)'}\n\n"
-            "System rules (must follow):\n"
-            f"{rules_md or '(system_rules.md missing)'}\n\n"
+            "Soul (identity, personality, communication style — follow):\n"
+            f"{soul_md or '(SOUL.md missing)'}\n\n"
+            "Hermes rules (hard rules + output format — must follow):\n"
+            f"{hermes_md or '(.hermes.md missing)'}\n\n"
             "Hard output requirements (MUST follow):\n"
             "- Output exactly TWO parts:\n"
             "  1) One short paragraph.\n"
@@ -477,23 +541,24 @@ def build_persona_prompt(user_text: str, rag_docs: List[str], *, profile: str, t
     else:
         prefix = "You are a helpful assistant.\n\n"
 
-    prompt = prefix + f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    prompt = thinking_prefix(topic, thinking_mode) + prefix + f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
     if rag_block:
         prompt += (
             "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
             f"{rag_block}\n\n"
         )
-    if scientist_notes:
-        prompt += f"(Internal expert notes: do not reveal)\n{scientist_notes}\n\n"
+    if reasoning_notes:
+        prompt += f"(Internal expert notes: do not reveal)\n{reasoning_notes}\n\n"
     prompt += "Assistant:\n"
     return prompt
 
 
 # -----------------------
-# Scientist in-band (optional)
+# Reasoning in-band (optional) — was Scientist in-band pre-2026-05-17.
+# Routes to the unified llama-server with a structured "expert notes" prompt template.
 # -----------------------
-def scientist_template(question: str) -> str:
-    return f"""You are "Scientist", a careful research + reasoning assistant.
+def reasoning_template(question: str) -> str:
+    return f"""You are a careful research + reasoning assistant producing internal expert notes.
 
 Output MUST be Markdown with these exact sections:
 
@@ -516,19 +581,19 @@ User question:
 {question}
 """
 
-async def scientist_notes_inband(question: str) -> Tuple[str, Dict[str, Any]]:
+async def reasoning_notes_inband(question: str) -> Tuple[str, Dict[str, Any]]:
     try:
         notes, stats = await query_llama(
-            SCIENTIST_URL,
-            scientist_template(question),
-            SCIENTIST_INBAND_MAX_TOKENS,
+            PERSONA_URL,
+            reasoning_template(question),
+            REASONING_INBAND_MAX_TOKENS,
             0.2,
-            SCIENTIST_INBAND_TIMEOUT_S,
+            REASONING_INBAND_TIMEOUT_S,
             extra={"top_p": 0.9, "repeat_penalty": 1.15},
         )
         return notes, stats
     except Exception as e:
-        return "", {"error": f"inband_scientist_failed: {repr(e)}"}
+        return "", {"error": f"inband_reasoning_failed: {repr(e)}"}
 
 
 # -----------------------
@@ -538,7 +603,6 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
     if not MEMORY_DISTILL_ENABLED:
         return {"enabled": False}
 
-    # If the user says "Remember ..." it's worth trying
     if len((user_text or "").strip()) < 8:
         return {"enabled": True, "skipped": "user_text_too_short"}
 
@@ -556,7 +620,6 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
     except Exception as e:
         return {"enabled": True, "error": f"distill_call_failed: {repr(e)}"}
 
-    # IMPORTANT: parse_facts returns (list, error) and NEVER raises
     facts, err = parse_facts(out)
     facts = facts[:max(0, MEMORY_DISTILL_MAX_FACTS)]
 
@@ -584,12 +647,8 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
 # -----------------------
 app = FastAPI()
 
-# --- Task delegation bridge (local) ---
 import subprocess
-import time
 from pathlib import Path
-# Minimal endpoint to allow a local task manager to coordinate repo work.
-# You can evolve this into LangGraph/CrewAI routing later.
 
 @app.post("/agent/run")
 async def agent_run(payload: dict):
@@ -601,13 +660,6 @@ async def agent_run(payload: dict):
       run/jobs/<task_id>.job.json
       run/jobs/<task_id>.result.json
     """
-    
-
-    import json
-    import subprocess
-    import time
-    from pathlib import Path
-
     task_id = str(payload.get("task_id") or f"job-{int(time.time())}")
     jobs_dir = Path("run") / "jobs"
     jobs_dir.mkdir(parents=True, exist_ok=True)
@@ -654,7 +706,7 @@ async def agent_run(payload: dict):
 async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"error": "internal_server_error", "detail": repr(exc)})
 
-PERSONA_CONCURRENCY = int(os.getenv("PERSONA_CONCURRENCY", "2"))
+PERSONA_CONCURRENCY = int(os.getenv("PERSONA_CONCURRENCY", "4"))
 persona_sem = asyncio.Semaphore(PERSONA_CONCURRENCY)
 
 jobs: Dict[str, Dict[str, Any]] = _load_persisted_jobs()
@@ -701,9 +753,12 @@ class OA_ChatCompletionsReq(BaseModel):
 async def health():
     return {
         "status": "ok",
-        "persona_endpoint": PERSONA_URL,
-        "scientist_endpoint": SCIENTIST_URL,
-        "async_scientist_enabled": ASYNC_SCIENTIST_ENABLED,
+        "unified_endpoint": PERSONA_URL,
+        "async_reasoning_enabled": ASYNC_REASONING_ENABLED,
+        "reasoning_inband_enabled": REASONING_INBAND_ENABLED,
+        "reasoning_inband_topics": sorted(list(REASONING_INBAND_TOPICS)),
+        "thinking_mode_default": THINKING_MODE_DEFAULT,
+        "thinking_mode_topics": sorted(list(THINKING_MODE_TOPICS)),
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
         "embedder_error": _embedder_error,
@@ -734,11 +789,15 @@ async def chat(req: ChatRequest):
     inband_notes = ""
     inband_stats: Dict[str, Any] = {}
     inband_used = False
-    if SCIENTIST_INBAND_ENABLED and topic in SCIENTIST_INBAND_TOPICS:
-        inband_notes, inband_stats = await scientist_notes_inband(req.text)
+    if REASONING_INBAND_ENABLED and topic in REASONING_INBAND_TOPICS:
+        inband_notes, inband_stats = await reasoning_notes_inband(req.text)
         inband_used = bool(inband_notes)
 
-    prompt = build_persona_prompt(req.text, rag_docs, profile=profile, topic=topic, scientist_notes=inband_notes)
+    prompt = build_persona_prompt(
+        req.text, rag_docs,
+        profile=profile, topic=topic,
+        reasoning_notes=inband_notes,
+    )
 
     async with persona_sem:
         reply, stats = await query_llama(PERSONA_URL, prompt, PERSONA_MAX_TOKENS, 0.7, PERSONA_TIMEOUT_S)
@@ -747,7 +806,6 @@ async def chat(req: ChatRequest):
 
     distill_dbg = await distill_and_store_facts(req.text, reply, profile=profile, topic=topic)
 
-    # optional audit log
     if CHAT_LOG_WRITEBACK_ENABLED and PERSONA_WRITEBACK_ENABLED and should_writeback_memory(req.text, reply):
         memory_add(
             f"[chat_log]\n[user]\n{req.text}\n\n[assistant]\n{reply}",
@@ -760,8 +818,9 @@ async def chat(req: ChatRequest):
             "rag_used": rag_used,
             "rag_docs_count": len(rag_docs),
             "rag_kinds": sorted(list(rag_kinds_for_topic(topic))),
-            "scientist_inband_used": inband_used,
-            "scientist_inband_stats": inband_stats,
+            "reasoning_inband_used": inband_used,
+            "reasoning_inband_stats": inband_stats,
+            "thinking_mode_resolved": thinking_prefix(topic).strip() or "(none)",
             "distill": distill_dbg,
         }
 
@@ -770,7 +829,6 @@ async def chat(req: ChatRequest):
 
 @app.post("/chat_submit")
 async def chat_submit(req: SubmitRequest):
-    # kept for compatibility; simple job wrapper
     profile = (req.profile or DEFAULT_PROFILE).strip()
     topic = (req.topic or "chat").strip().lower()
     ensure_profile_files(profile)
@@ -815,7 +873,8 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
     max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)
     temperature = float(req.temperature) if req.temperature is not None else 0.7
 
-    reply, stats = await query_llama(PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S)
+    async with persona_sem:
+        reply, stats = await query_llama(PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S)
     reply = sanitize_persona_reply(reply)
 
     await distill_and_store_facts(user_text, reply, profile=profile, topic=topic)
