@@ -43,8 +43,12 @@ persona/profiles/*/USER.md
 persona/profiles/*/hermes_state.db
 persona/profiles/*/sessions/
 
+# ── Portable Windows runtime (PortableGit + extracted binaries) ─
+portable/
+
 # ── llama.cpp build artifacts ────────────────────────
 llama_cpp/build/
+llama_cpp/windows/
 llama_cpp/**/*.o
 llama_cpp/**/*.a
 llama_cpp/**/*.so
@@ -79,3 +83,6 @@ tools/
 # ── Local archive (stale files moved out of repo root) ─
 # (sandbox couldn't rm directly; user can rm -rf archive/cruft/ when ready)
 archive/cruft/
+
+# ── Transient scp verification hashes ─────────────────
+run/*.sha256*
