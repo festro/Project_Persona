@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 
 mkdir -p "$AI_ROOT/logs" "$AI_ROOT/run"
 
