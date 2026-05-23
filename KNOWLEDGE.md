@@ -1,5 +1,5 @@
 # Project_Persona — Knowledge & Task Tracker
-**Last Updated:** 2026-05-17 1730 UTC
+**Last Updated:** 2026-05-22 1523 UTC
 **Repo:** https://github.com/festro/Project_Persona
 **Domain:** yourdomain.com | **Target OS:** Debian Linux | **Daily Driver:** Windows
 
@@ -61,10 +61,10 @@
 
 | Component | Status | Notes |
 |---|---|---|
-| llama-server (persona) port 8080 — legacy | ❌ Retired 2026-05-16 | Was Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf, 35-layer offload. Superseded by unified Qwen3 on the same port. |
+| llama-server (persona) port 8080 — legacy | ❌ Retired 2026-05-16 | Was Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf, 35-layer offload. Superseded by unified Qwen3 (initially same port; unified moved to 8090 on 2026-05-19). |
 | llama-server (reasoning) port 8081 | ❌ Retired 2026-05-16 | Was Qwen2.5-14B-Instruct-Q5_K_M.gguf, 45-layer offload. Superseded by unified Qwen3 (single-model migration). |
 | llama-server (coder) port 8082 | ❌ Cancelled | Superseded by single-model consolidation. Coding tasks served by Qwen3-30B-A3B in thinking mode. |
-| llama-server (unified) port 8080 | ✅ Running 2026-05-16 | Qwen3-30B-A3B-Instruct-2507 Q5_K_M, 49/49 layers on Vulkan0 (RADV GFX1151), 4 parallel slots × 8192 ctx (32K total), Flash Attention on, q8_0 KV cache. Chat template auto-detected as Hermes 2 Pro. Smoke test: ~63 tok/s gen, ~67 tok/s prompt eval, no `<think>` bleed. See archive/handoffs/HANDOFF_2026-05-16_2337. |
+| llama-server (unified) port 8090 | ✅ M5-validated 2026-05-20 | Qwen3-30B-A3B-Instruct-2507 Q5_K_M, 49/49 layers on Vulkan0 (RADV GFX1151), 4 parallel slots × 8192 ctx (32K total), Flash Attention on, q8_0 KV cache. Chat template auto-detected as Hermes 2 Pro. Smoke test: ~63 tok/s gen, ~67 tok/s prompt eval, no `<think>` bleed. **Bound on 127.0.0.1:8090** (moved from 8080 on 2026-05-19 to avoid host-port collision with an unrelated co-tenant container on EVO-X2). Stability follow-up: see archive/handoffs/HANDOFF_2026-05-19_1130 §Open issues #1 — process has died at least once with no graceful-shutdown evidence; root cause unidentified. See archive/handoffs/HANDOFF_2026-05-16_2337 + 05-19_1130 + 05-20_0102. |
 | FastAPI Companion API port 8000 | ✅ Running | uvicorn, OpenAI-compatible |
 | /v1/chat/completions endpoint | ✅ Verified | OpenAI-compatible streaming — OpenWebUI connects here |
 | /chat endpoint | ✅ Verified | Sync persona reply + optional async reasoning |
@@ -78,7 +78,7 @@
 | Reasoning in-band notes | ⚠️ Off by default | `REASONING_INBAND_ENABLED=0` (back-compat reads `SCIENTIST_INBAND_ENABLED`) — when on, weaves structured expert notes (TL;DR / Key points / Risks / Verify / Next actions) into the persona reply. Routes to PERSONA_URL after M5 (2026-05-17). |
 | Thinking-mode routing | ✅ Live 2026-05-17 (M5) | `THINKING_MODE_DEFAULT=auto` prepends `/think` for topics in `THINKING_MODE_TOPICS` (science,biology,coding,math,research), `/no_think` otherwise. Overridable per-request via `build_persona_prompt(..., thinking_mode=...)`. Resolution visible in `/health` and `/chat` debug. |
 | Multi-profile folder structure | ✅ Loaded by API 2026-05-17 (M5) | Profiles use 2-file Hermes naming on disk (`SOUL.md` + `.hermes.md`); loader switched at M5 session. Folder doubles as Hermes `HERMES_HOME` per profile (locked 2026-05-14). Per-profile Chroma still not wired — global only (separate TODO #4). |
-| OpenWebUI | ✅ Running — **PRIMARY FRONTEND (locked 2026-05-14)** | Separate venv (env_webui/) — data at openwebui/ — port 3000. SillyTavern decision in AIP_knowledge.md superseded — out of scope for Project_Persona. |
+| OpenWebUI | ⚠ Scaffolded — not deployed (verified 2026-05-22) | **PRIMARY FRONTEND decision still locked 2026-05-14** (which frontend), but deployment is currently dormant. Diagnostic 2026-05-22: no listener on :3000, data dir `~/Git/Project_Persona/openwebui/` exists but empty, venv only present at legacy `~/Live/AIStack/Project_Persona/env_webui/` (not migrated to Git workspace). Re-deploy tracked separately. SillyTavern decision in AIP_knowledge.md superseded — out of scope for Project_Persona. |
 | Hermes Agent | ⏳ Planned | Daemon child post-single-model migration. Pulls work from Task Board, executes agent orchestration, writes results back. Replaces Phase 2.5 (AG2) and Phase 9 (CrewAI candidate); reshapes Phase 8 (LangGraph). |
 
 **Known Issues / Caveats**
@@ -138,7 +138,7 @@ Models are not included in the repository. Users provide their own GGUF files an
 
 | Role | Port | Size | Quant | Tested With |
 |---|---|---|---|---|
-| Unified (post 2026-05-16) | 8080 | MoE 30B/3B-active | Q5_K_M | Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf — 4 parallel slots, 32K ctx, Vulkan/RADV iGPU on EVO-X2 |
+| Unified (post 2026-05-16) | 8090 | MoE 30B/3B-active | Q5_K_M | Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf — 4 parallel slots, 32K ctx, Vulkan/RADV iGPU on EVO-X2. Port moved 8080→8090 on 2026-05-19 (host-port conflict). |
 | Persona (legacy, retired 2026-05-16) | 8080 | 7B–13B | Q4_K_M / Q5_K_M | Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf |
 | Reasoning (legacy, retired 2026-05-16) | 8081 | 14B–32B | Q5_K_M / Q8_0 | Qwen2.5-14B-Instruct-Q5_K_M.gguf |
 | Coder | 8082 | 7B–14B | Q4_K_M / Q5_K_M | Cancelled — never validated |
@@ -162,46 +162,47 @@ CODER_MODEL=your-coder-model.gguf
 
 ---
 
-## Runtime Configuration (run/config.env)
-> Renamed from llama-servers.env — scope expanded to cover all runtime config.
-> All tunables live here. Daemon reads on start. No hardcoded values in scripts or server.py.
+## Runtime Configuration
+
+Tunables are currently spread across `run/llama-servers.env` (llama-server flags only) and `scripts/start_api.sh` (API + reasoning + thinking-mode vars). **Consolidation into a single `run/config.env` is TODO #2** — block below shows the *target* shape post-rename, not the live file layout. The unified topology values (PERSONA_*, port 8090, post-M5 reasoning/thinking-mode vars) are accurate; daemon-tier vars are aspirational until Phase 3 lands.
+
+> Convention going forward: all tunables here, daemon reads on start, no hardcoded values in scripts or server.py.
 
 ```
 # ── Network ──────────────────────────────────────────
 HOST=127.0.0.1
 
-# ── Persona server ───────────────────────────────────
-PERSONA_PORT=8080
-PERSONA_MODEL=Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
-PERSONA_CTX=8192
-GPU_LAYERS_PERSONA=35
+# ── Unified llama-server (Qwen3-30B-A3B Q5_K_M, post 2026-05-16) ─
+# Kept under PERSONA_* names for pidfile/status.sh compat (minimal-scope decision).
+PERSONA_PORT=8090                                # moved 8080->8090 on 2026-05-19 (host-port collision)
+PERSONA_MODEL=Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf
+PERSONA_CTX=32768                                # 4 slots * 8192 ctx
+GPU_LAYERS_PERSONA=999                           # offload everything (49/49 layers on Vulkan0)
+PERSONA_PARALLEL=4
 PERSONA_MAX_TOKENS=192
 PERSONA_TIMEOUT_S=120
-PERSONA_CONCURRENCY=2
-
-# ── Reasoning server ─────────────────────────────────
-REASONING_PORT=8081
-REASONING_MODEL=Qwen2.5-14B-Instruct-Q5_K_M.gguf
-REASONING_CTX=12288
-GPU_LAYERS_REASONING=45
-REASONING_MAX_TOKENS=512
-REASONING_TIMEOUT_S=600
-REASONING_FALLBACK_TO_PERSONA=0
-ASYNC_REASONING_ENABLED=0
-ASYNC_REASONING_TOPICS=science,biology,coding,math
-
-# ── Coder server (not yet implemented) ───────────────
-CODER_PORT=8082
-CODER_MODEL=coder.gguf
-CODER_CTX=8192
-GPU_LAYERS_CODER=0
+PERSONA_CONCURRENCY=4                            # bumped 2->4 at M5 (2026-05-17)
 
 # ── Common llama-server flags ────────────────────────
 THREADS=0
 BATCH_SIZE=512
 UBATCH_SIZE=512
-CACHE_TYPE_K=q8_0
+CACHE_TYPE_K=q8_0                                # q8_0 because Vulkan build reports bf16=0
 CACHE_TYPE_V=q8_0
+
+# ── Reasoning routing (in-band, single-model — post M5) ──
+# server.py reads canonical names; back-compat falls back to SCIENTIST_*/ASYNC_SCIENTIST_*.
+ASYNC_REASONING_ENABLED=0
+ASYNC_REASONING_TOPICS=science,biology,coding,math
+REASONING_INBAND_ENABLED=0
+REASONING_INBAND_TOPICS=science,biology,coding,math
+REASONING_INBAND_MAX_TOKENS=512
+REASONING_INBAND_TIMEOUT_S=600
+REASONING_FALLBACK_TO_PERSONA=0
+
+# ── Thinking-mode routing (post M5) ──────────────────
+THINKING_MODE_DEFAULT=auto                       # /think for THINKING_MODE_TOPICS, /no_think otherwise
+THINKING_MODE_TOPICS=science,biology,coding,math,research
 
 # ── API ──────────────────────────────────────────────
 API_PORT=8000
@@ -209,12 +210,12 @@ RAG_ENABLED=1
 RAG_TOP_K=6
 EMBED_MODEL=BAAI/bge-small-en-v1.5
 
-# ── OpenWebUI ────────────────────────────────────────
+# ── OpenWebUI (PRIMARY FRONTEND — currently dormant; see System State) ──
 WEBUI_PORT=3000
 OPENAI_API_BASE_URL=http://127.0.0.1:8000/v1
 OPENAI_API_KEY=local-anything
 
-# ── Daemon ───────────────────────────────────────────
+# ── Daemon (Phase 3 — aspirational until daemon.py lands) ─
 SHUTDOWN_TIMEOUT=10
 STRIKE_WINDOW=300
 STRIKE_BACKOFF_BASE=5
@@ -237,6 +238,34 @@ CONSOLIDATION_SWEEP_DEPTH=500
 TASK_TIME_SCORE_WINDOW=100
 TASK_SURFACE_PRIORITY_THRESHOLD=300
 ```
+
+<details>
+<summary>Legacy dual-server vars (retired 2026-05-16, kept for git-blame context)</summary>
+
+The pre-M5 topology split persona + reasoning + coder across three llama-server instances. Those env vars are no longer used by `server.py` (M5 removed `SCIENTIST_URL`/`SCIENTIST_PORT`; `ASYNC_SCIENTIST_*` / `SCIENTIST_INBAND_*` remain readable only as back-compat fallback — canonical names are `ASYNC_REASONING_*` / `REASONING_INBAND_*` above).
+
+```
+PERSONA_PORT=8080                                          # → unified PERSONA_PORT=8090
+PERSONA_MODEL=Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf       # → Qwen3-30B-A3B Q5_K_M
+PERSONA_CTX=8192                                           # → 32768 (4 slots * 8192)
+GPU_LAYERS_PERSONA=35                                      # → 999 (full offload)
+PERSONA_CONCURRENCY=2                                      # → 4
+
+REASONING_PORT=8081                                        # → no separate server
+REASONING_MODEL=Qwen2.5-14B-Instruct-Q5_K_M.gguf
+REASONING_CTX=12288
+GPU_LAYERS_REASONING=45
+REASONING_MAX_TOKENS=512
+REASONING_TIMEOUT_S=600
+
+CODER_PORT=8082                                            # cancelled — never validated
+CODER_MODEL=coder.gguf
+GPU_LAYERS_CODER=0
+```
+
+</details>
+
+> **env directory:** `~/Git/Project_Persona/env` is currently a symlink chain `→ ~/Live/AIStack/Project_Persona/env → ~/AI/env`. **Transient.** Project_Persona should eventually own a clean Git-rooted venv decoupled from the quarantined Live workspace. Not blocking; carry as bookkeeping.
 
 ---
 
@@ -517,7 +546,7 @@ task_ready          → task board notifies persona layer of completed result
 **Child Process List** (post single-model + Hermes adoption)
 ```
 daemon.py spawns:
-    → llama-unified        (port 8080, Qwen3-30B-A3B, parallel slots)
+    → llama-unified        (port 8090, Qwen3-30B-A3B, parallel slots)
     → companion-api        (port 8000)
     → hermes-agent         (no port — IPC via Task Board, headless mode)
     → open-webui           (port 3000, env_webui/ venv)
@@ -741,7 +770,7 @@ Persona node (server.py, next response cycle)
 | ID | Item | Acceptance | Priority |
 |---|---|---|---|
 | T1.1 | `env_hermes/` separate venv pattern. Same isolation pattern as `env_webui/`. Update `setup_native_stack.sh`, `status.sh`, `doctor.sh` awareness. | venv exists, hermes-agent installable, ops scripts aware | High |
-| T1.2 | Per-profile Hermes `config.yaml` template. `init_profiles.sh` generates safe-config-conformant config (provider:custom → 127.0.0.1:8080, fallback_providers:[], all auxiliary provider:main, tool whitelist) AND Qwen3.6 sampling params (temp/top_p/top_k/presence_penalty per mode). | doctor.sh validates default profile config.yaml against safe-config schema | High |
+| T1.2 | Per-profile Hermes `config.yaml` template. `init_profiles.sh` generates safe-config-conformant config (provider:custom → 127.0.0.1:8090, fallback_providers:[], all auxiliary provider:main, tool whitelist) AND Qwen3.6 sampling params (temp/top_p/top_k/presence_penalty per mode). | doctor.sh validates default profile config.yaml against safe-config schema | High |
 
 **Sequencing within tier:** T1.1 ‖ T1.2 (independent — parallel OK).
 **Gate:** doctor.sh confirms env_hermes installed AND default profile config conforms.
@@ -799,7 +828,7 @@ The vestigial `ASYNC_REASONING_ENABLED` toggle removal (T3.3) intersects with TO
 | # | Item | Priority | Source |
 |---|---|---|---|
 | H1.1 | Read Hermes architecture docs end-to-end | High | Pre-flight |
-| H1.2 | Verify Hermes accepts custom OpenAI-compatible endpoint (unified llama-server :8080) | High | Pre-flight |
+| H1.2 | Verify Hermes accepts custom OpenAI-compatible endpoint (unified llama-server :8090) | High | Pre-flight |
 | H1.3 | Verify Hermes runs headless (no required messaging-platform credentials) | High | Pre-flight |
 | H1.4 | Confirm Hermes session storage path is configurable (must live under `data/`) | Medium | Pre-flight |
 | H1.5 | **Network egress containment — integration test, not config check.** Apply safe-config recipe (handoff Appendix A) + scrub daemon env of cloud creds + run under `tcpdump -i any 'not host 127.0.0.1'`. Force three scenarios: (a) long convo triggering 50% compression, (b) llama-server kill -9 mid-request, (c) llama-server forced 500. Acceptance: zero non-localhost packets across all three. Any egress = hard fail, decision reopened. | High | Pre-flight |
@@ -840,7 +869,7 @@ The vestigial `ASYNC_REASONING_ENABLED` toggle removal (T3.3) intersects with TO
 | M9 | Trim profile wrappers (`SOUL.md`, `.hermes.md`) — `style.md` removal handled separately by TODO #12 | Medium | Migration |
 | M10 | Update `unified_test.sh` — single-endpoint topology, mode-toggle smoke tests | Medium | Migration |
 | M11 | Decommission scientist server, remove obsolete env vars, archive Llama-3.1-8B + Qwen2.5-14B GGUFs | Medium | Migration |
-| M12 | Update README inference table — single-model topology, ports 8080 only | Medium | Migration |
+| M12 | Update README inference table — single-model topology, port 8090 only | Medium | Migration |
 
 ### General Project TODO
 
@@ -945,6 +974,9 @@ The vestigial `ASYNC_REASONING_ENABLED` toggle removal (T3.3) intersects with TO
 | 2026-05-17 | archive/handoffs/ (relocate all dated handoffs), KNOWLEDGE.md, HANDOFF.md | **Handoff layout cleanup.** Repo root was getting noisy with seven dated `HANDOFF_YYYY-MM-DD_*.md` files. Convention going forward: dated frozen handoffs live in `archive/handoffs/`; only the living `HANDOFF.md` + rendered `HANDOFF.html` stay at root. `mv`'d all seven existing dated handoffs (2026-05-09 through 2026-05-17) into `archive/handoffs/`. Copied the 2026-05-16 qwen-test-first-boot handoff from session uploads into `archive/handoffs/` to complete the chain (it had been referenced cross-handoff but never written to the repo). Updated 26 KNOWLEDGE.md references + 25 cross-references inside dated handoffs + 11 in `HANDOFF.md` to use the `archive/handoffs/` prefix. Inline date-only colloquial refs (e.g. "see HANDOFF_2026-05-11 H4") left bare as prose pointers, not file paths. Bare filename references in handoff commit-message-template blocks now also use the new prefix so `git add` commands work from repo root. Future dated handoffs land in `archive/handoffs/` per this same convention. |
 | 2026-05-17 | windows_portable_setup.bat, windows_portable_run.bat, scripts/portable_setup_win.sh, scripts/start_llama_server_win.sh, .gitignore, archive/handoffs/HANDOFF_2026-05-17_1830 | **Windows zero-install portable instance (1900 UTC session).** Two double-click `.bat` entry points at repo root. `windows_portable_setup.bat` runs in cmd.exe using only Windows-bundled `curl.exe` + PowerShell: resolves the latest PortableGit release via GitHub API, downloads + silently extracts to `portable/PortableGit/`, then hands off to portable bash. `scripts/portable_setup_win.sh` runs under that bash to download the latest llama.cpp Windows-Vulkan binary (auto-resolved via GitHub API for `llama-b*-bin-win-vulkan-x64.zip`) and the 26.6 GB `Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf` from `unsloth/Qwen3.6-35B-A3B-GGUF`. Idempotent — skips artifacts already present; partial model download resumes via `curl -C -`. `windows_portable_run.bat` prepends `portable/PortableGit/{bin,usr/bin,mingw64/bin}` to PATH for the session only (no system PATH mutation), converts the project root to POSIX via portable `cygpath`, invokes `scripts/start_llama_server_win.sh` under portable bash with `AI_ROOT` exported. `.gitignore` adds `portable/`. Runbook gains a "Zero-install portable mode" section between Executive Summary and Pre-flight; manual flow (Steps 1-6) preserved as the by-hand alternative. Default model stays `UD-Q5_K_XL.gguf` per the K_XL-first-then-scp plan. See archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md. |
 | 2026-05-17 | services/api/server.py, KNOWLEDGE.md | **M5 server.py single-model migration (1730 UTC session).** SCIENTIST_URL/SCIENTIST_PORT removed; role differentiation moves from URL-based dispatch to prompt layer. Env var migration with back-compat fallback: `ASYNC_SCIENTIST_ENABLED` → `ASYNC_REASONING_ENABLED`; `SCIENTIST_INBAND_*` → `REASONING_INBAND_*` (all four — ENABLED, TOPICS, MAX_TOKENS, TIMEOUT_S). `scientist_template()` → `reasoning_template()`; `scientist_notes_inband()` → `reasoning_notes_inband()` POSTing to `PERSONA_URL`. New `thinking_prefix(topic, mode)` helper resolves `/think` / `/no_think` per `THINKING_MODE_DEFAULT` and `THINKING_MODE_TOPICS`. `build_persona_prompt()` gains `reasoning_notes=`, `thinking_mode=`. `PERSONA_CONCURRENCY` default 2→4; `/v1/chat/completions` gated by `persona_sem`. `/health` returns `unified_endpoint`, `async_reasoning_enabled`, `reasoning_inband_*`, `thinking_mode_*` (drops `scientist_endpoint`). `/chat` debug surfaces `reasoning_inband_used/stats`, `thinking_mode_resolved`. **Persona file loader switched to 2-file Hermes naming in same session** (2026-05-14 lock honored): `ensure_profile_files()` now scaffolds `SOUL.md` + `.hermes.md` (drops `persona.md`/`style.md`/`system_rules.md`); `load_profile_wrappers()` returns 2-tuple; prompt prefix uses Soul/Hermes sections and drops Style guide section. Closes TODO #3 + Phase 1 incomplete "Wire SOUL.md + .hermes.md into build_persona_prompt()". KNOWLEDGE.md: M5 marked Done; TODO #3 marked Done; M8 deferred to T2.4; System State table extended (Multi-profile row promoted to ✅, two new rows for Reasoning in-band and Thinking-mode); PERSONA_CONCURRENCY caveat resolved; build_persona_prompt placeholder caveat resolved. See archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md. |
+| 2026-05-19 | run/llama-servers.env, scripts/start_api.sh, scripts/stop_api.sh (EVO-X2 only — uncommitted at session end) | **EVO-X2 M5 validation (1130 UTC session).** Three sed-patches applied directly on EVO-X2 to land M5 end-to-end: (1) `run/llama-servers.env` PERSONA_PORT 8080→8090 (avoid collision with co-tenant container holding host :8080); (2) `scripts/start_api.sh` AI_ROOT default flipped from `$HOME/Live/AIStack/...` → `$HOME/Git/Project_Persona/` (was loading the pre-M5 server.py from the quarantined Live workspace); (3) `scripts/stop_api.sh` same path fix (without it, the api pidfile in the Git workspace couldn't be found). llama-server died once during the session with no graceful-shutdown signature — root cause unidentified, suspect list carried forward (pkill pattern, OOM killer, watchdog, nohup detach). See archive/handoffs/HANDOFF_2026-05-19_1130_evox2-m5-validation.md. |
+| 2026-05-20 | run/llama-servers.env, scripts/start_api.sh, scripts/stop_api.sh, scripts/load_test_m2b.py, archive/handoffs/HANDOFF_2026-05-19_1130, archive/handoffs/HANDOFF_2026-05-20_0102 | **EVO-X2 M5 commit + push (0102 PDT / 0802 UTC session).** Pulled the three 05-19 in-flight EVO-X2 patches back to Windows for tar-over-ssh diff verification (per single-tar file-modification convention) — diffs matched 05-19 description exactly. Caught a bonus mode flip on `scripts/load_test_m2b.py` (0644→0755) and surfaced two pre-existing oddities in `start_api.sh` (dead `MEMORY_DISTILL_ENABLED` export below the `nohup` fork on line 104; pre-M5 `SCIENTIST_*` env-var names still throughout lines 41-74 — work via back-compat fallback but documentation drift; both deferred as item #4 in the handoff). Single commit `61790de` lands all four file changes; handoff archive commit `8177b20` lands both dated handoffs. EVO-X2 fast-forwarded to origin/main. M5 officially declared done. llama-server stability ghost did NOT recur this session. See archive/handoffs/HANDOFF_2026-05-20_0102_m5-validated-evox2.md. |
+| 2026-05-22 | KNOWLEDGE.md | **Documentation drift cleanup (1523 UTC session).** Full sweep per HANDOFF_2026-05-20_0102 §Step 3: (1) Last Updated header bumped 2026-05-17→2026-05-22. (2) System State llama-server unified row rewritten: port 8080→8090 with rationale + cross-refs + stability follow-up note. (3) System State OpenWebUI row corrected from `✅ Running` to `⚠ Scaffolded — not deployed` — diagnostic on EVO-X2 confirmed no listener on :3000, data dir empty, venv only in legacy `~/Live/AIStack/Project_Persona/env_webui/`. (4) Inference roles table (line 141), child process diagram (line 520), T1.2 (line 744), H1.2 (line 802), M12 (line 843) all updated 8080→8090. (5) Runtime Configuration block rewritten: target shape now reflects unified Qwen3 topology (PERSONA_PORT=8090, full offload, 4 slots, M5 reasoning/thinking-mode vars); legacy dual-server vars moved to a collapsed `<details>` block for git-blame reference; new note clarifies that vars are currently spread across `run/llama-servers.env` + `scripts/start_api.sh` until TODO #2 consolidation. (6) New transient-status note for the `~/Git/Project_Persona/env → ~/Live/AIStack/... → ~/AI/env` symlink chain. (7) This File Change Tracker block extended with 05-19, 05-20, 05-22 entries. **Important correction:** the 05-19/20 handoffs framed the port move as "to avoid OpenWebUI Docker on :8080" — diagnostic 2026-05-22 showed the actual squatter is an unrelated co-tenant container; OpenWebUI is dormant. Wording updated everywhere to reflect that. **Important regression:** diagnostic also showed llama-server is currently down on EVO-X2 (no listener on :8090) — §Open issues #1 recurrence. Revival + diagnostic tracked separately, not part of this commit. |
 
 ---
 
