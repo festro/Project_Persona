@@ -3,7 +3,7 @@
 Short-term shared memory. See `knowledge.md` for project scope and
 `changelog.md` for history.
 
-Last updated: 2026-06-03 2108 UTC by Claude
+Last updated: 2026-06-03 2112 UTC by Claude
 
 ## Rules of the road
 
@@ -37,32 +37,36 @@ Last updated: 2026-06-03 2108 UTC by Claude
 
 ## Live EVO-X2 state (checked 2026-06-03 2108 UTC, over SSH)
 
-- Entire stack is DOWN. `scripts/status.sh`: API not running; persona
-  llama-server shows a STALE pidfile (`run/persona.pid`); nothing listening on
-  8090/8000/3000; no llama-server process. Not restarted since the 05-23 M2b run.
+- Entire stack is DOWN, by a CLEAN shutdown -- not a crash. Logs confirm: api.log
+  ends "Application shutdown complete"; persona.log ends "operator(): cleaning up
+  before exit..." + memory breakdown (llama graceful signal path). No OOM/segfault
+  (journalctl -k empty). Stack was cleanly stopped after the 05-23 M2b run and
+  never restarted.
+- The STALE `run/persona.pid` is just an orphaned pidfile (stopped via direct
+  signal / Ctrl-C, not `stop_llama_servers.sh`), NOT a stability-ghost recurrence.
 - Model confirmed Instruct-2507: config + on-disk file
   `Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf` (21G) present. No Qwen3.6 on
   EVO-X2 (that file is Windows-portable-only). KNOWLEDGE.md was correct.
 - OpenWebUI not deployed (:3000 not listening). KNOWLEDGE.md was correct.
-- The stale pidfile is the unclean-shutdown fingerprint of the stability ghost:
-  it died ungracefully after the 05-23 revival and stayed down.
 
 ## Next (in order)
 
-1. Bring the stack back up and capture the death cause. Clear the stale pidfile
-   (`scripts/clean.sh` or `rm run/persona.pid`), start llama-server then API
-   (`scripts/start_llama_servers.sh`, `scripts/start_api.sh`), confirm
-   `curl 127.0.0.1:8090/health` and `:8000/health`. Before restarting, grab the
-   last llama log (`logs/`) and `dmesg | tail` for OOM-killer / segfault
-   evidence on the prior death -- the stability ghost has no root cause yet.
-2. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
+1. Restart the stack (it just needs starting -- nothing crashed). Clear the
+   orphan pidfile (`scripts/clean.sh` or `rm run/persona.pid`), start llama-server
+   then API (`scripts/start_llama_servers.sh`, `scripts/start_api.sh`), confirm
+   `curl 127.0.0.1:8090/health` and `:8000/health`.
+2. Pidfile hygiene fix: `stop_llama_servers.sh` should remove `run/persona.pid`
+   on a direct stop, and/or `start_llama_servers.sh` should clear a stale pidfile
+   whose PID is dead before refusing to start. Low effort, prevents the false
+   "stale pidfile" status.
+3. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
    T0 gate already PASSED) OR keep hardening the validated Instruct-2507 stack
    (M6, then Hermes H1). Pick one and record it as a dated decision.
-3. API gaps surfaced by the code read: either implement streaming in
+4. API gaps surfaced by the code read: either implement streaming in
    /v1/chat/completions or stop advertising `stream`; re-enable or remove
    /chat_submit; make /agent/run non-blocking (run_in_executor) or fold it into
    the planned Task Board; fix `prompt_tokens: 0`.
-4. Housekeeping fix-its (from 05-23): `load_test_m2b.py` DEFAULT_ENDPOINT drift
+5. Housekeeping fix-its (from 05-23): `load_test_m2b.py` DEFAULT_ENDPOINT drift
    8080 -> 8090; `start_api.sh` cosmetic SCIENTIST_* banner; min-1 bucket race in
    `bucketize_by_minute`.
 
@@ -88,7 +92,8 @@ Last updated: 2026-06-03 2108 UTC by Claude
   `D:\Projects\Tools\PortableGit\cmd`); the Linux sandbox mount corrupts the
   index.
 - llama-server "stability ghost": died once 05-19/20 (no graceful-shutdown
-  signature), held through the 05-23 M2b run, but is DOWN again as of 06-03 with
-  a stale pidfile -- so it recurred after 05-23. Still no root cause. See Next #1.
+  signature), still unexplained. It did NOT recur on 05-23 or since -- the 06-03
+  down-state was a clean shutdown (logs verified), not the ghost. Watch for it on
+  future sustained runs, but it is not the current problem.
 - `looks_degenerate()` + self-repair loop never landed; land with T2.4 `<think>`
   stripping or formally drop.

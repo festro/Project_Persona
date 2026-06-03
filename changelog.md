@@ -14,6 +14,24 @@ Conventions:
 
 ---
 
+## 2026-06-03 2112 UTC -- CORRECTION: 05-23 shutdown was clean, not the ghost (Brandon + Claude)
+
+- Pulled EVO-X2 logs. Both api.log and persona.log show a GRACEFUL shutdown at
+  ~05-23 0921: api.log ends "Application shutdown complete / Finished server
+  process [1813299]"; persona.log ends "operator(): cleaning up before exit..."
+  with a memory-breakdown dump (llama-server's clean signal-handler path). No
+  OOM / segfault (journalctl -k empty).
+- Corrects the 2026-06-03 2108 entry below: the down-state is NOT an ungraceful
+  stability-ghost recurrence. The stack was cleanly stopped after the M2b run and
+  never restarted. The 05-19/20 ghost remains a separate, still-unexplained event;
+  it did not recur on 05-23.
+- The stale `run/persona.pid` is orphaned pidfile hygiene, not a crash:
+  llama-server was stopped by a direct signal / Ctrl-C rather than
+  `stop_llama_servers.sh`, so the wrapper never removed the pidfile. Minor real
+  issue: stop-path vs pidfile cleanup (and/or start should clear stale pidfiles).
+- Aside: old coder/reasoning/scientist logs (Apr 1) still present because the
+  Phase 3 daemon "wipe logs on start" contract is not implemented yet.
+
 ## 2026-06-03 2108 UTC -- EVO-X2 live state checked over SSH (Brandon + Claude)
 
 - Ran status + health checks on EVO-X2. Whole stack DOWN: API not running,
