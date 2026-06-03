@@ -3,7 +3,7 @@
 Short-term shared memory. See `knowledge.md` for project scope and
 `changelog.md` for history.
 
-Last updated: 2026-06-03 2112 UTC by Claude
+Last updated: 2026-06-03 2118 UTC by Claude
 
 ## Rules of the road
 
@@ -35,38 +35,41 @@ Last updated: 2026-06-03 2112 UTC by Claude
     blocking `subprocess.run(timeout=300)` inside async (line 684); `usage`
     hardcodes `prompt_tokens: 0` (line 888).
 
-## Live EVO-X2 state (checked 2026-06-03 2108 UTC, over SSH)
+## Live EVO-X2 state (restored 2026-06-03 2118 UTC, over SSH)
 
-- Entire stack is DOWN, by a CLEAN shutdown -- not a crash. Logs confirm: api.log
-  ends "Application shutdown complete"; persona.log ends "operator(): cleaning up
-  before exit..." + memory breakdown (llama graceful signal path). No OOM/segfault
-  (journalctl -k empty). Stack was cleanly stopped after the 05-23 M2b run and
-  never restarted.
-- The STALE `run/persona.pid` is just an orphaned pidfile (stopped via direct
-  signal / Ctrl-C, not `stop_llama_servers.sh`), NOT a stability-ghost recurrence.
+- Stack is UP and healthy. Restarted via `start_llama_servers.sh` (cleared the
+  orphan pidfile itself, new pid 20606) + `start_api.sh` (pid 20683).
+  :8090/health = ok, :8000/health all green (embedder_ok, chroma_ok, rag_enabled,
+  persona_concurrency=4, thinking_mode=auto). End-to-end smoke via
+  /v1/chat/completions returned a real completion.
+- Earlier down-state (since 05-23) was a CLEAN shutdown, not a crash: api.log
+  ended "Application shutdown complete"; persona.log ended "operator(): cleaning
+  up before exit..." + memory breakdown. No OOM/segfault. Stack was simply stopped
+  after the M2b run and not restarted; the stale pidfile was an orphan, NOT a
+  stability-ghost recurrence.
 - Model confirmed Instruct-2507: config + on-disk file
-  `Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf` (21G) present. No Qwen3.6 on
-  EVO-X2 (that file is Windows-portable-only). KNOWLEDGE.md was correct.
+  `Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf` (21G). No Qwen3.6 on EVO-X2
+  (that file is Windows-portable-only). KNOWLEDGE.md was correct.
 - OpenWebUI not deployed (:3000 not listening). KNOWLEDGE.md was correct.
+- Smoke test surfaced two known items: usage.prompt_tokens=0 (counter bug), and
+  the persona leaked its "Next actions" output scaffolding twice on a trivial
+  greeting (mild repetition -- the looks_degenerate / trivial-routing territory).
 
 ## Next (in order)
 
-1. Restart the stack (it just needs starting -- nothing crashed). Clear the
-   orphan pidfile (`scripts/clean.sh` or `rm run/persona.pid`), start llama-server
-   then API (`scripts/start_llama_servers.sh`, `scripts/start_api.sh`), confirm
-   `curl 127.0.0.1:8090/health` and `:8000/health`.
-2. Pidfile hygiene fix: `stop_llama_servers.sh` should remove `run/persona.pid`
-   on a direct stop, and/or `start_llama_servers.sh` should clear a stale pidfile
-   whose PID is dead before refusing to start. Low effort, prevents the false
-   "stale pidfile" status.
-3. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
+1. Fix AI_ROOT drift in `scripts/stop_llama_servers.sh` and `scripts/clean.sh`:
+   both still default AI_ROOT to the legacy `$HOME/Live/AIStack/Project_Persona`,
+   while `start_llama_servers.sh` uses `$HOME/Git/Project_Persona`. Run without
+   AI_ROOT exported they target the wrong workspace (same bug fixed in
+   start_api/stop_api on 05-19). Flip both defaults to `$HOME/Git/Project_Persona`.
+2. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
    T0 gate already PASSED) OR keep hardening the validated Instruct-2507 stack
    (M6, then Hermes H1). Pick one and record it as a dated decision.
-4. API gaps surfaced by the code read: either implement streaming in
+3. API gaps surfaced by the code read: either implement streaming in
    /v1/chat/completions or stop advertising `stream`; re-enable or remove
    /chat_submit; make /agent/run non-blocking (run_in_executor) or fold it into
    the planned Task Board; fix `prompt_tokens: 0`.
-5. Housekeeping fix-its (from 05-23): `load_test_m2b.py` DEFAULT_ENDPOINT drift
+4. Housekeeping fix-its (from 05-23): `load_test_m2b.py` DEFAULT_ENDPOINT drift
    8080 -> 8090; `start_api.sh` cosmetic SCIENTIST_* banner; min-1 bucket race in
    `bucketize_by_minute`.
 

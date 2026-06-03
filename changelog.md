@@ -14,6 +14,17 @@ Conventions:
 
 ---
 
+## 2026-06-03 2118 UTC -- Restarted EVO-X2 stack; healthy (Brandon + Claude)
+
+- Restarted via `scripts/start_llama_servers.sh` (auto-cleared the orphan pidfile,
+  new persona pid 20606) and `scripts/start_api.sh` (pid 20683). :8090/health ok,
+  :8000/health all green, /v1/chat/completions smoke returned a real completion.
+- Found AI_ROOT drift while reading scripts: `stop_llama_servers.sh` and
+  `clean.sh` still default AI_ROOT to the legacy `$HOME/Live/AIStack/Project_Persona`
+  (start_llama_servers.sh uses `$HOME/Git/Project_Persona`). Logged as todo Next #1.
+- Smoke reconfirmed usage.prompt_tokens=0 and showed mild output repetition (the
+  persona emitted its "Next actions" scaffolding twice on a trivial greeting).
+
 ## 2026-06-03 2112 UTC -- CORRECTION: 05-23 shutdown was clean, not the ghost (Brandon + Claude)
 
 - Pulled EVO-X2 logs. Both api.log and persona.log show a GRACEFUL shutdown at
