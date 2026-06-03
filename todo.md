@@ -3,7 +3,7 @@
 Short-term shared memory. See `knowledge.md` for project scope and
 `changelog.md` for history.
 
-Last updated: 2026-06-03 2118 UTC by Claude
+Last updated: 2026-06-03 2120 UTC by Claude
 
 ## Rules of the road
 
