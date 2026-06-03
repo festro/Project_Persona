@@ -3,7 +3,7 @@
 Short-term shared memory. See `knowledge.md` for project scope and
 `changelog.md` for history.
 
-Last updated: 2026-06-03 0439 UTC by Claude
+Last updated: 2026-06-03 2108 UTC by Claude
 
 ## Rules of the road
 
@@ -35,13 +35,26 @@ Last updated: 2026-06-03 0439 UTC by Claude
     blocking `subprocess.run(timeout=300)` inside async (line 684); `usage`
     hardcodes `prompt_tokens: 0` (line 888).
 
+## Live EVO-X2 state (checked 2026-06-03 2108 UTC, over SSH)
+
+- Entire stack is DOWN. `scripts/status.sh`: API not running; persona
+  llama-server shows a STALE pidfile (`run/persona.pid`); nothing listening on
+  8090/8000/3000; no llama-server process. Not restarted since the 05-23 M2b run.
+- Model confirmed Instruct-2507: config + on-disk file
+  `Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf` (21G) present. No Qwen3.6 on
+  EVO-X2 (that file is Windows-portable-only). KNOWLEDGE.md was correct.
+- OpenWebUI not deployed (:3000 not listening). KNOWLEDGE.md was correct.
+- The stale pidfile is the unclean-shutdown fingerprint of the stability ghost:
+  it died ungracefully after the 05-23 revival and stayed down.
+
 ## Next (in order)
 
-1. Live EVO-X2 checks (only things not resolvable from the repo): is
-   llama-server up on :8090 (05-22 said down, 05-23 revived; current unknown),
-   which model is actually loaded, and is OpenWebUI deployed (KNOWLEDGE.md said
-   dormant as of 05-22). Run `scripts/status.sh`; `curl -s 127.0.0.1:8090/health`;
-   `curl -s 127.0.0.1:8000/health`; check listener on :3000.
+1. Bring the stack back up and capture the death cause. Clear the stale pidfile
+   (`scripts/clean.sh` or `rm run/persona.pid`), start llama-server then API
+   (`scripts/start_llama_servers.sh`, `scripts/start_api.sh`), confirm
+   `curl 127.0.0.1:8090/health` and `:8000/health`. Before restarting, grab the
+   last llama log (`logs/`) and `dmesg | tail` for OOM-killer / segfault
+   evidence on the prior death -- the stability ghost has no root cause yet.
 2. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
    T0 gate already PASSED) OR keep hardening the validated Instruct-2507 stack
    (M6, then Hermes H1). Pick one and record it as a dated decision.
@@ -74,7 +87,8 @@ Last updated: 2026-06-03 0439 UTC by Claude
 - git on D:\Projects repos must run Windows-side (portable git at
   `D:\Projects\Tools\PortableGit\cmd`); the Linux sandbox mount corrupts the
   index.
-- llama-server "stability ghost" (died once 05-19/20, no graceful-shutdown
-  signature) did NOT recur during the 05-23 M2b run. Watch for it.
+- llama-server "stability ghost": died once 05-19/20 (no graceful-shutdown
+  signature), held through the 05-23 M2b run, but is DOWN again as of 06-03 with
+  a stale pidfile -- so it recurred after 05-23. Still no root cause. See Next #1.
 - `looks_degenerate()` + self-repair loop never landed; land with T2.4 `<think>`
   stripping or formally drop.

@@ -14,6 +14,20 @@ Conventions:
 
 ---
 
+## 2026-06-03 2108 UTC -- EVO-X2 live state checked over SSH (Brandon + Claude)
+
+- Ran status + health checks on EVO-X2. Whole stack DOWN: API not running,
+  llama-server not running (stale `run/persona.pid` left behind), nothing
+  listening on 8090/8000/3000.
+- Confirmed deployed model is Instruct-2507: config + on-disk file
+  `Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf` (21G) present; no Qwen3.6 on
+  EVO-X2. OpenWebUI confirmed not deployed (:3000 down). Both confirm the 05-23
+  KNOWLEDGE.md state.
+- Stale pidfile is the unclean-shutdown signature of the stability ghost: the
+  stack died ungracefully after the 05-23 M2b revival and stayed down. Root cause
+  still unidentified. Closed the three live-check items in todo.md; new top
+  action is a clean restart with log/dmesg capture of the prior death.
+
 ## 2026-06-03 0439 UTC -- Reconciled the KNOWLEDGE/HANDOFF discrepancy (Claude)
 
 - Resolved the conflict between the archived KNOWLEDGE.md (05-23) and HANDOFF.md
