@@ -3,7 +3,7 @@
 Living reference for what Project_Persona is and how it works. See `todo.md` for
 current state and `changelog.md` for history. Conventions: see `D:\Projects\WORKFLOW.md`.
 
-Last updated: 2026-06-03 0301 UTC by Claude
+Last updated: 2026-06-03 0439 UTC by Claude
 
 ## Elevator pitch
 
@@ -58,6 +58,16 @@ multi-server split (persona 8080 + reasoning 8081 + coder 8082) is retired.
 Request path: client -> FastAPI companion API (port 8000) -> unified
 llama-server (port 8090). The API exposes OpenAI-compatible endpoints; a
 front-end (OpenWebUI, currently dormant) connects through them.
+
+API surface (verified against `services/api/server.py` 2026-06-03). The working
+path is `/chat` (sync persona reply with RAG and optional in-band reasoning) and
+`/v1/chat/completions` (OpenAI-compatible, non-streaming -- it accepts a `stream`
+field but ignores it and returns a single JSON body; `usage.prompt_tokens` is
+hardcoded to 0). `/health` reports config and component status. `/chat_submit`
+is a disabled stub (returns "disabled in this build"). `/agent/run` shells out to
+`tools/taskman2.py` via a blocking `subprocess.run(timeout=300)` inside the async
+handler, so it blocks the event loop; it is a stopgap separate from the planned
+Task Board. `/jobs/{id}` and `/v1/models` exist.
 
 ### Stable architectural decisions
 

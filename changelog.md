@@ -14,6 +14,28 @@ Conventions:
 
 ---
 
+## 2026-06-03 0439 UTC -- Reconciled the KNOWLEDGE/HANDOFF discrepancy (Claude)
+
+- Resolved the conflict between the archived KNOWLEDGE.md (05-23) and HANDOFF.md
+  (05-16) using code, config, and git history rather than assuming the newer doc
+  wins. Each was right about different things.
+- Deployment: KNOWLEDGE.md correct. `run/llama-servers.env` confirms
+  PERSONA_MODEL=Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf and PERSONA_PORT=8090;
+  M2b PASSED 05-23. HANDOFF.md's :8080 / "model not downloaded" is stale.
+- Qwen3.6 track: the T0.1 GO/NO-GO arch test RAN and PASSED 2026-05-18 (git commit
+  "Windows zero-install portable instance + Qwen3.6 T0.1 prototype (PASSED)"). The
+  Windows `models/` dir holds only Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf (26.6 GB), used
+  by the portable flow. HANDOFF.md's "run T0.1" critical path is therefore stale.
+  T1-T3 swap work was never started; the swap is a parked-but-viable upgrade.
+- API behavior: HANDOFF.md correct, KNOWLEDGE.md System State stale. Verified in
+  `services/api/server.py`: /v1/chat/completions ignores `stream`, returns one
+  JSON body (lines 861-890), prompt_tokens hardcoded 0 (line 888); /chat_submit
+  disabled (line 837); /agent/run blocking subprocess.run(timeout=300) (line 684).
+- Two model files coexist by design: native EVO-X2 flow uses Instruct-2507, the
+  Windows portable flow uses Qwen3.6. Updated knowledge.md (API surface note) and
+  todo.md (remaining open items reduced to live EVO-X2 checks + a model-track
+  decision + API gap fixes).
+
 ## 2026-06-03 0301 UTC -- Workflow-compliance restructure (Claude)
 
 - Split the pre-convention `KNOWLEDGE.md` (1022 lines) and living `HANDOFF.md`

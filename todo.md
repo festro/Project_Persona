@@ -3,7 +3,7 @@
 Short-term shared memory. See `knowledge.md` for project scope and
 `changelog.md` for history.
 
-Last updated: 2026-06-03 0301 UTC by Claude
+Last updated: 2026-06-03 0439 UTC by Claude
 
 ## Rules of the road
 
@@ -13,61 +13,68 @@ Last updated: 2026-06-03 0301 UTC by Claude
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Just finished (2026-06-03, Claude -- workflow-compliance restructure)
+## Just finished (2026-06-03, Claude)
 
-- Split the old `KNOWLEDGE.md` + living `HANDOFF.md` into the three-file
-  convention: `knowledge.md` (scope/arch), `todo.md` (this), `changelog.md`
-  (history). Converted everything to ASCII; stripped inline comments from
-  config blocks; added the root `WORKFLOW.md` pointer.
-- Archived the originals to `archive/pre-workflow/` (KNOWLEDGE.md, HANDOFF.md,
-  HANDOFF.html).
-- Prior work session (2026-05-23, before this restructure): M2b sustained-load
-  baseline PASSED -- 30-min run at concurrency 4 on EVO-X2, 2066/2066 OK,
-  gen_tps_mean 28.26 per slot (~113 tok/s aggregate), per-minute throughput
-  flat, stability ghost did not recur. Report: `logs/m2b_2026-05-23_0723.json`.
+- Adopted the three-file WORKFLOW convention (knowledge/todo/changelog), ASCII,
+  archived originals to `archive/pre-workflow/`. Git index repaired and committed
+  (6d1c25e, case fix 0b7d1f2). That work is DONE.
+- Reconciled the KNOWLEDGE.md (05-23) vs HANDOFF.md (05-16) discrepancy against
+  code + config + git history (see `changelog.md` 0439 entry for full table).
+  Outcome: the two docs are each right about different things.
+  - Deployment (EVO-X2): KNOWLEDGE.md is correct. Unified Qwen3-30B-A3B
+    -Instruct-2507 Q5_K_M on :8090 (config confirms PERSONA_MODEL + PERSONA_PORT),
+    M2b PASSED 05-23. HANDOFF.md's :8080 / "model not downloaded" is stale.
+  - Qwen3.6 track: T0.1 GO/NO-GO actually RAN and PASSED 2026-05-18 (git commit).
+    The Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf (26.6 GB) is the model present in the
+    Windows `models/` dir, used by the portable prototype. So HANDOFF.md's "run
+    T0.1" critical path is stale -- it is done. T1-T3 swap work was never started.
+  - API behavior: HANDOFF.md is correct, KNOWLEDGE.md System State was stale.
+    Verified in `services/api/server.py`: /v1/chat/completions ignores the
+    `stream` field and returns one JSON body (no streaming, line 861-890);
+    /chat_submit returns "disabled in this build" (line 837); /agent/run runs a
+    blocking `subprocess.run(timeout=300)` inside async (line 684); `usage`
+    hardcodes `prompt_tokens: 0` (line 888).
 
 ## Next (in order)
 
-1. RECONCILE the current-state discrepancy between the two archived living docs
-   before trusting either downstream. `archive/pre-workflow/KNOWLEDGE.md`
-   (2026-05-23) says: unified Qwen3-30B-A3B-INSTRUCT-2507 is deployed on :8090,
-   M2b is done, next is M6/Hermes-H1. `archive/pre-workflow/HANDOFF.md`
-   (2026-05-16) says: the critical path is still the QWEN3.6 T0.1 GO/NO-GO arch
-   test and OpenWebUI is "running". These contradict each other on (a) which
-   model is actually deployed, (b) whether T0.1 has been run, (c) OpenWebUI
-   status. Determine ground truth on EVO-X2 (`scripts/status.sh`; check listener
-   on :8090; inspect the loaded model file), then correct this file.
-2. (Pending step 1) If Instruct-2507 path is real: resume at M6 -- parallelize
-   RAG retrieval + worker dispatch with `asyncio.gather`, replacing the serial
-   in-band reasoning call. Alternatively start the Hermes H1 pre-flight block
-   (H1.1 read docs -> H1.5 egress integration test with packet capture).
-3. Housekeeping fix-its surfaced 2026-05-23: `scripts/load_test_m2b.py`
-   DEFAULT_ENDPOINT drift (8080 -> 8090); `start_api.sh` cosmetic SCIENTIST_*
-   banner; `prompt_tokens=0` in API responses (token-counter bug?); min-1
-   bucket race in `bucketize_by_minute`.
-4. Repair the git index: `.git/index` is corrupt and a stale `.git/index.lock`
-   exists (could not be cleared from the sandbox). See `changelog.md` top entry
-   for the exact commands, then stage and commit this restructure.
+1. Live EVO-X2 checks (only things not resolvable from the repo): is
+   llama-server up on :8090 (05-22 said down, 05-23 revived; current unknown),
+   which model is actually loaded, and is OpenWebUI deployed (KNOWLEDGE.md said
+   dormant as of 05-22). Run `scripts/status.sh`; `curl -s 127.0.0.1:8090/health`;
+   `curl -s 127.0.0.1:8000/health`; check listener on :3000.
+2. DECISION (now a real fork, not stale docs): pursue the Qwen3.6 swap (T1-T3;
+   T0 gate already PASSED) OR keep hardening the validated Instruct-2507 stack
+   (M6, then Hermes H1). Pick one and record it as a dated decision.
+3. API gaps surfaced by the code read: either implement streaming in
+   /v1/chat/completions or stop advertising `stream`; re-enable or remove
+   /chat_submit; make /agent/run non-blocking (run_in_executor) or fold it into
+   the planned Task Board; fix `prompt_tokens: 0`.
+4. Housekeeping fix-its (from 05-23): `load_test_m2b.py` DEFAULT_ENDPOINT drift
+   8080 -> 8090; `start_api.sh` cosmetic SCIENTIST_* banner; min-1 bucket race in
+   `bucketize_by_minute`.
 
 ## Blocked / waiting
 
-- Hermes adoption (H1-H6) -- gated on single-model migration completing. M5 is
-  done and M2b passed; confirm M6 status during step 1 above before starting H1.
-- T4 deferred/opt-in items (dual-memory unification, vision pathway, MTP /
-  speculative decoding) -- each has a documented trigger; none active.
-- TODO #36 -- re-evaluate Qwen3.5/3.6 after ~2026-08, gated on bartowski
-  publishing a Qwen3.5 imatrix Q5_K_M GGUF AND llama.cpp confirming qwen3_5_moe
-  arch support.
+- Hermes adoption (H1-H6) -- gated on single-model migration; M5 done, M2b passed.
+  Confirm M6 before starting H1.
+- T4 deferred/opt-in items (dual-memory unification, vision, MTP / speculative
+  decoding) -- each has a documented trigger; none active.
+- TODO #36 -- re-evaluate Qwen3.5/3.6 maturity after ~2026-08 (separate from the
+  T0-passed Qwen3.6 swap track in Next #2).
 
 ## Notes for next editor
 
-- The git repo index is currently corrupt (see Next #4) -- do not run git from
-  the Linux sandbox; use the Windows-side git.
-- llama-server "stability ghost": the process died at least once (05-19/20) with
-  no graceful-shutdown signature; root cause unidentified. It did NOT recur
-  during the 05-23 M2b run. Watch for it.
-- Peak-load thermal was never captured for M2b (only a post-test idle sample).
-  Parallel-log `sensors` during the next baseline pass.
-- `looks_degenerate()` + self-repair loop were spec'd historically but never
-  landed in `services/api/server.py`. Decision: land alongside T2.4 `<think>`
-  stripping or formally drop. Do not treat as live behavior.
+- Two model files / two flows by design: native EVO-X2 flow
+  (`run/llama-servers.env`) uses Instruct-2507; the Windows portable flow
+  (`scripts/portable_setup_win.sh`) uses Qwen3.6. The Windows `models/` dir only
+  has the Qwen3.6 file, so the native env there points at a model that is not
+  present -- expected, not a bug.
+- KNOWLEDGE.md's per-endpoint "Verified" rows were never re-checked against code;
+  do not trust status rows without a code/runtime check (lesson from this recon).
+- git on D:\Projects repos must run Windows-side (portable git at
+  `D:\Projects\Tools\PortableGit\cmd`); the Linux sandbox mount corrupts the
+  index.
+- llama-server "stability ghost" (died once 05-19/20, no graceful-shutdown
+  signature) did NOT recur during the 05-23 M2b run. Watch for it.
+- `looks_degenerate()` + self-repair loop never landed; land with T2.4 `<think>`
+  stripping or formally drop.
