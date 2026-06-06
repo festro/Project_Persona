@@ -23,6 +23,14 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
+# Load consolidated runtime tunables (sampling presets, thinking-mode); overrides the above
+CONFIG_ENV="$AI_ROOT/run/config.env"
+if [ -f "$CONFIG_ENV" ]; then
+  set -a
+  source "$CONFIG_ENV"
+  set +a
+fi
+
 
 if [ ! -x "$AI_ROOT/env/bin/uvicorn" ]; then
   echo "ERROR: uvicorn not found at $AI_ROOT/env/bin/uvicorn"

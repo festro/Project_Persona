@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import uuid
 import asyncio
@@ -9,7 +10,7 @@ from typing import Dict, Any, Optional, List, Literal, AsyncGenerator, Tuple
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
 
 from memory_distiller import build_distill_prompt, parse_facts
@@ -127,6 +128,35 @@ THINKING_MODE_TOPICS = {
     t.strip().lower()
     for t in os.getenv("THINKING_MODE_TOPICS", "science,biology,coding,math,research").split(",")
     if t.strip()
+}
+
+def _env_float(name: str, default: str) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+def _env_int(name: str, default: str) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return int(default)
+
+SAMPLING_PRESETS: Dict[str, Dict[str, Any]] = {
+    "no_think": {
+        "temperature": _env_float("SAMPLING_DEFAULT_TEMP", "0.7"),
+        "top_p": _env_float("SAMPLING_DEFAULT_TOP_P", "0.8"),
+        "top_k": _env_int("SAMPLING_DEFAULT_TOP_K", "20"),
+        "min_p": _env_float("SAMPLING_DEFAULT_MIN_P", "0.0"),
+        "presence_penalty": _env_float("SAMPLING_DEFAULT_PRESENCE_PENALTY", "1.5"),
+    },
+    "think": {
+        "temperature": _env_float("SAMPLING_THINK_TEMP", "0.6"),
+        "top_p": _env_float("SAMPLING_THINK_TOP_P", "0.95"),
+        "top_k": _env_int("SAMPLING_THINK_TOP_K", "20"),
+        "min_p": _env_float("SAMPLING_THINK_MIN_P", "0.0"),
+        "presence_penalty": _env_float("SAMPLING_THINK_PRESENCE_PENALTY", "0.0"),
+    },
 }
 
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
@@ -483,26 +513,44 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
         data = r.json()
     content = (data.get("content") or "").strip()
     tokens_generated = int(data.get("tokens_predicted") or 0)
-    return content, {"tokens_generated": tokens_generated}
+    tokens_evaluated = int(data.get("tokens_evaluated") or 0)
+    return content, {"tokens_generated": tokens_generated, "tokens_evaluated": tokens_evaluated}
 
 
 # -----------------------
 # Prompt builder
 # -----------------------
-def thinking_prefix(topic: str, mode: Optional[str] = None) -> str:
-    """Return the Qwen3 thinking-mode directive line for the given topic.
+def resolve_think(topic: str, mode: Optional[str] = None) -> str:
+    """Resolve the thinking mode to "think" or "no_think".
 
-    Returns "/think\\n", "/no_think\\n" depending on resolved mode.
+    Single source of truth for both the Qwen3 directive and the sampling preset.
     `mode` overrides THINKING_MODE_DEFAULT when explicitly passed.
     """
     m = (mode or THINKING_MODE_DEFAULT or "auto").strip().lower()
     if m == "on":
-        return "/think\n"
+        return "think"
     if m == "off":
-        return "/no_think\n"
+        return "no_think"
     if (topic or "").strip().lower() in THINKING_MODE_TOPICS:
-        return "/think\n"
-    return "/no_think\n"
+        return "think"
+    return "no_think"
+
+
+def thinking_prefix(topic: str, mode: Optional[str] = None) -> str:
+    """Return the Qwen3 thinking-mode directive line ("/think\\n" or "/no_think\\n")."""
+    return "/think\n" if resolve_think(topic, mode) == "think" else "/no_think\n"
+
+
+def sampling_for(topic: str, mode: Optional[str] = None) -> Tuple[str, float, Dict[str, Any]]:
+    """Return (preset_key, temperature, extra) for the resolved thinking mode.
+
+    `extra` carries top_p/top_k/min_p/presence_penalty for query_llama.
+    """
+    key = resolve_think(topic, mode)
+    preset = SAMPLING_PRESETS[key]
+    temperature = float(preset["temperature"])
+    extra = {k: preset[k] for k in ("top_p", "top_k", "min_p", "presence_penalty")}
+    return key, temperature, extra
 
 
 def build_persona_prompt(
@@ -670,7 +718,7 @@ async def agent_run(payload: dict):
     job_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     cmd = [
-        "python3",
+        sys.executable,
         "tools/taskman2.py",
         str(job_path),
         "--repo",
@@ -681,7 +729,10 @@ async def agent_run(payload: dict):
     ]
 
     try:
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
+        p = await asyncio.to_thread(
+            subprocess.run, cmd,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300,
+        )
         stdout = (p.stdout or "")[-4000:]
         stderr = (p.stderr or "")[-4000:]
         return {
@@ -724,12 +775,7 @@ class ChatRequest(BaseModel):
     topic: str = "chat"
     profile: str = "default"
     debug: bool = False
-
-class SubmitRequest(BaseModel):
-    text: str
-    topic: str = "chat"
-    profile: str = "default"
-    debug: bool = False
+    thinking_mode: Optional[str] = None
 
 class OA_Message(BaseModel):
     role: Literal["system", "user", "assistant"] = "user"
@@ -744,11 +790,22 @@ class OA_ChatCompletionsReq(BaseModel):
     topic: Optional[str] = None
     profile: Optional[str] = None
     debug: Optional[bool] = False
+    thinking_mode: Optional[str] = None
 
 
 # -----------------------
 # Routes
 # -----------------------
+@app.get("/")
+async def root():
+    return {"service": "project_persona", "status": "ok", "docs": "/docs", "health": "/health"}
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)
+
+
 @app.get("/health")
 async def health():
     return {
@@ -759,6 +816,7 @@ async def health():
         "reasoning_inband_topics": sorted(list(REASONING_INBAND_TOPICS)),
         "thinking_mode_default": THINKING_MODE_DEFAULT,
         "thinking_mode_topics": sorted(list(THINKING_MODE_TOPICS)),
+        "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
         "embedder_error": _embedder_error,
@@ -797,10 +855,16 @@ async def chat(req: ChatRequest):
         req.text, rag_docs,
         profile=profile, topic=topic,
         reasoning_notes=inband_notes,
+        thinking_mode=req.thinking_mode,
     )
 
+    preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode)
+
     async with persona_sem:
-        reply, stats = await query_llama(PERSONA_URL, prompt, PERSONA_MAX_TOKENS, 0.7, PERSONA_TIMEOUT_S)
+        reply, stats = await query_llama(
+            PERSONA_URL, prompt, PERSONA_MAX_TOKENS, temperature, PERSONA_TIMEOUT_S,
+            extra=sampling_extra,
+        )
 
     reply = sanitize_persona_reply(reply)
 
@@ -820,22 +884,13 @@ async def chat(req: ChatRequest):
             "rag_kinds": sorted(list(rag_kinds_for_topic(topic))),
             "reasoning_inband_used": inband_used,
             "reasoning_inband_stats": inband_stats,
-            "thinking_mode_resolved": thinking_prefix(topic).strip() or "(none)",
+            "thinking_mode_resolved": thinking_prefix(topic, req.thinking_mode).strip() or "(none)",
+            "sampling_preset": preset_key,
+            "sampling": {"temperature": temperature, **sampling_extra},
             "distill": distill_dbg,
         }
 
     return {"text": reply, "persona": True, "debug": debug}
-
-
-@app.post("/chat_submit")
-async def chat_submit(req: SubmitRequest):
-    profile = (req.profile or DEFAULT_PROFILE).strip()
-    topic = (req.topic or "chat").strip().lower()
-    ensure_profile_files(profile)
-
-    job_id = str(uuid.uuid4())
-    _job_set(job_id, {"kind": "persona", "status": "complete", "result": "chat_submit is disabled in this build."})
-    return {"persona_job": job_id}
 
 
 @app.get("/jobs/{job_id}")
@@ -869,22 +924,51 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
     if RAG_ENABLED:
         rag_docs = memory_query(user_text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic))
 
-    prompt = build_persona_prompt(user_text, rag_docs, profile=profile, topic=topic)
+    prompt = build_persona_prompt(user_text, rag_docs, profile=profile, topic=topic, thinking_mode=req.thinking_mode)
     max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)
-    temperature = float(req.temperature) if req.temperature is not None else 0.7
+    preset_key, preset_temp, sampling_extra = sampling_for(topic, req.thinking_mode)
+    temperature = float(req.temperature) if req.temperature is not None else preset_temp
 
     async with persona_sem:
-        reply, stats = await query_llama(PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S)
+        reply, stats = await query_llama(
+            PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S,
+            extra=sampling_extra,
+        )
     reply = sanitize_persona_reply(reply)
 
     await distill_and_store_facts(user_text, reply, profile=profile, topic=topic)
 
+    cmpl_id = f"chatcmpl-{uuid.uuid4().hex}"
+    created = int(time.time())
+    model = req.model or "project_persona"
+    prompt_tokens = int(stats.get("tokens_evaluated", 0))
+    completion_tokens = int(stats.get("tokens_generated", 0))
+
+    if req.stream:
+        def _sse(obj: Dict[str, Any]) -> str:
+            return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
+
+        async def event_stream() -> AsyncGenerator[str, None]:
+            base = {"id": cmpl_id, "object": "chat.completion.chunk", "created": created, "model": model}
+            yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
+            for piece in re.findall(r"\S+\s*|\s+", reply):
+                if not piece:
+                    continue
+                yield _sse({**base, "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}]})
+            yield _sse({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
     return {
-        "id": f"chatcmpl-{uuid.uuid4().hex}",
+        "id": cmpl_id,
         "object": "chat.completion",
-        "created": int(time.time()),
-        "model": req.model or "project_persona",
+        "created": created,
+        "model": model,
         "choices": [{"index": 0, "message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}],
-        "usage": {"prompt_tokens": 0, "completion_tokens": int(stats.get("tokens_generated", 0)),
-                  "total_tokens": int(stats.get("tokens_generated", 0))},
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        },
     }

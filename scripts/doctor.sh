@@ -4,7 +4,7 @@
 # Deep mode: ./doctor.sh --deep
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 ENV_FILE="$AI_ROOT/run/llama-servers.env"
 HOST="${HOST:-127.0.0.1}"
 
@@ -89,52 +89,62 @@ info "Python venv checks"
 [ -x "$AI_ROOT/env/bin/uvicorn" ] && ok "Venv uvicorn: $AI_ROOT/env/bin/uvicorn" || warn "uvicorn missing in venv"
 echo ""
 
+info "Hermes venv checks (T1.1)"
+HERMES_VENV="$AI_ROOT/env_hermes"
+HERMES_INSTALLED=0
+if [ -x "$HERMES_VENV/bin/python" ]; then
+  ok "env_hermes venv: $HERMES_VENV"
+  if [ -x "$HERMES_VENV/bin/hermes" ]; then
+    ok "hermes binary present in env_hermes"
+    HERMES_INSTALLED=1
+  else
+    warn "hermes not installed in env_hermes (pip install hermes-agent)"
+  fi
+else
+  warn "env_hermes venv missing: $HERMES_VENV (run setup_native_stack.sh)"
+fi
+echo ""
+
 info "llama.cpp binary check"
 LLAMA_BIN="$AI_ROOT/llama_cpp/build/bin/llama-server"
 [ -x "$LLAMA_BIN" ] && ok "llama-server binary present: $LLAMA_BIN" || warn "llama-server binary missing: $LLAMA_BIN"
 echo ""
 
-info "Load ports & models from env (if available)"
-PERSONA_PORT=8080
-SCIENTIST_PORT=8081
-PERSONA_MODEL="persona.gguf"
-SCIENTIST_MODEL="scientist.gguf"
+info "Load port & model from env (if available)"
+PERSONA_PORT=8090
+PERSONA_MODEL="Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf"
 
 if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090
   source "$ENV_FILE"
-  PERSONA_PORT="${PERSONA_PORT:-8080}"
-  SCIENTIST_PORT="${SCIENTIST_PORT:-8081}"
-  PERSONA_MODEL="${PERSONA_MODEL:-persona.gguf}"
-  SCIENTIST_MODEL="${SCIENTIST_MODEL:-scientist.gguf}"
+  PERSONA_PORT="${PERSONA_PORT:-8090}"
+  PERSONA_MODEL="${PERSONA_MODEL:-Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf}"
   HOST="${HOST:-127.0.0.1}"
-  ok "Loaded ports/models from env"
+  ok "Loaded port/model from env"
 else
-  warn "Using default ports/models (env missing)"
+  warn "Using default port/model (env missing)"
 fi
 
-echo "Ports:  persona=$PERSONA_PORT scientist=$SCIENTIST_PORT"
-echo "Models: $PERSONA_MODEL $SCIENTIST_MODEL"
+echo "Port:  persona=$PERSONA_PORT"
+echo "Model: $PERSONA_MODEL"
 echo ""
 
 info "Model file presence"
-for m in "$PERSONA_MODEL" "$SCIENTIST_MODEL"; do
-  if [ -f "$AI_ROOT/models/$m" ]; then
-    size="$(du -h "$AI_ROOT/models/$m" | awk '{print $1}')"
-    ok "Model present: models/$m ($size)"
-  else
-    warn "Model missing: models/$m"
-  fi
-done
+if [ -f "$AI_ROOT/models/$PERSONA_MODEL" ]; then
+  size="$(du -h "$AI_ROOT/models/$PERSONA_MODEL" | awk '{print $1}')"
+  ok "Model present: models/$PERSONA_MODEL ($size)"
+else
+  warn "Model missing: models/$PERSONA_MODEL"
+fi
 echo ""
 
-info "Profile wrapper files check (default profile)"
+info "Profile files check (default profile)"
 DEFAULT_PROFILE="${DEFAULT_PROFILE:-default}"
 PBASE="$PROFILES_DIR/$DEFAULT_PROFILE"
 if [ -d "$PBASE" ]; then
   ok "Default profile dir exists: $PBASE"
-  for f in persona.md style.md system_rules.md; do
-    [ -f "$PBASE/$f" ] && ok "Wrapper present: $DEFAULT_PROFILE/$f" || warn "Wrapper missing: $DEFAULT_PROFILE/$f"
+  for f in SOUL.md .hermes.md config.yaml; do
+    [ -f "$PBASE/$f" ] && ok "Profile file present: $DEFAULT_PROFILE/$f" || warn "Profile file missing: $DEFAULT_PROFILE/$f"
   done
 else
   warn "Default profile dir missing: $PBASE"
@@ -161,7 +171,6 @@ check_pid() {
   fi
 }
 check_pid "persona" || true
-check_pid "scientist" || true
 check_pid "api" || true
 echo ""
 
@@ -182,7 +191,6 @@ check_llama_health() {
 }
 
 check_llama_health "persona" "$PERSONA_PORT" || true
-check_llama_health "scientist" "$SCIENTIST_PORT" || true
 
 API_HOST="127.0.0.1"
 API_PORT="8000"
@@ -212,7 +220,6 @@ smoke_completion() {
 }
 
 smoke_completion "persona" "$PERSONA_PORT"
-smoke_completion "scientist" "$SCIENTIST_PORT"
 echo ""
 
 info "RAG directories sanity"
@@ -227,6 +234,100 @@ if [ -f "$JOBS_FILE" ]; then
   tail -n 1 "$JOBS_FILE" >/dev/null 2>&1 && ok "Jobs file readable" || warn "Jobs file not readable"
 else
   warn "Jobs file not found yet (will be created after first job): $JOBS_FILE"
+fi
+echo ""
+
+info "Safe-config conformance (T1 gate)"
+DEFAULT_PROFILE="${DEFAULT_PROFILE:-default}"
+DEFAULT_CFG="$PROFILES_DIR/$DEFAULT_PROFILE/config.yaml"
+T1_GATE="unknown"
+
+pick_python_with_yaml() {
+  for cand in "$AI_ROOT/env_hermes/bin/python" "$AI_ROOT/env/bin/python" python3; do
+    if command -v "$cand" >/dev/null 2>&1 || [ -x "$cand" ]; then
+      if "$cand" -c "import yaml" >/dev/null 2>&1; then
+        echo "$cand"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+if [ ! -f "$DEFAULT_CFG" ]; then
+  warn "Default profile config.yaml missing: $DEFAULT_CFG (run init_profiles.sh)"
+  T1_GATE="fail"
+else
+  PYBIN="$(pick_python_with_yaml || true)"
+  if [ -n "${PYBIN:-}" ]; then
+    if "$PYBIN" - "$DEFAULT_CFG" <<'PYEOF'
+import sys, yaml
+with open(sys.argv[1]) as f:
+    c = yaml.safe_load(f) or {}
+errors = []
+model = c.get('model') or {}
+if model.get('provider') != 'custom':
+    errors.append("model.provider must be 'custom'")
+base = str(model.get('base_url') or '')
+if not (base.startswith('http://127.0.0.1:') or base.startswith('http://localhost:')):
+    errors.append("model.base_url must be a local endpoint (127.0.0.1/localhost)")
+api_key = str(model.get('api_key') or '')
+if api_key and api_key not in ('not-needed', 'local', 'local-key') and not api_key.startswith('${'):
+    errors.append("model.api_key looks like a real secret; secrets belong in .env")
+fb = c.get('fallback_model')
+if fb not in (None, {}, '', [], False):
+    errors.append("fallback_model must be empty (no cloud failover)")
+aux = c.get('auxiliary') or {}
+for name, spec in aux.items():
+    spec = spec or {}
+    if spec.get('provider') != 'main':
+        errors.append("auxiliary.%s.provider must be 'main'" % name)
+tools = c.get('tools') or {}
+disabled = set(tools.get('disabled') or [])
+missing = {'web_search', 'web_extract', 'web_crawl'} - disabled
+if missing:
+    errors.append("tools.disabled missing egress tools: %s" % ','.join(sorted(missing)))
+if not any(str(t).startswith('browser') for t in disabled):
+    errors.append("tools.disabled must disable browser_* tools")
+if errors:
+    for e in errors:
+        print("  VIOLATION: " + e)
+    sys.exit(1)
+sys.exit(0)
+PYEOF
+    then
+      ok "Default profile config.yaml conforms to safe-config schema"
+      T1_GATE="pass"
+    else
+      err "Default profile config.yaml FAILED safe-config conformance"
+      T1_GATE="fail"
+    fi
+  else
+    warn "No python with PyYAML available; running grep-based fallback checks"
+    fail=0
+    grep -Eq '^[[:space:]]*provider:[[:space:]]*custom' "$DEFAULT_CFG" || { err "model.provider: custom not found"; fail=1; }
+    grep -Eq 'base_url:[[:space:]]*http://(127\.0\.0\.1|localhost):' "$DEFAULT_CFG" || { err "local base_url not found"; fail=1; }
+    grep -Eq 'fallback_model:[[:space:]]*\{\}' "$DEFAULT_CFG" || { err "empty fallback_model not found"; fail=1; }
+    for t in web_search web_extract web_crawl; do
+      grep -Eq "^[[:space:]]*-[[:space:]]*$t([[:space:]]|$)" "$DEFAULT_CFG" || { err "tools.disabled missing $t"; fail=1; }
+    done
+    grep -Eq "^[[:space:]]*-[[:space:]]*browser" "$DEFAULT_CFG" || { err "tools.disabled missing browser_* tools"; fail=1; }
+    if [ "$fail" = "0" ]; then
+      ok "Default profile config.yaml passes grep-based safe-config checks"
+      T1_GATE="pass"
+    else
+      T1_GATE="fail"
+    fi
+  fi
+fi
+
+echo ""
+echo "T1 GATE: env_hermes_installed=$([ "$HERMES_INSTALLED" = "1" ] && echo yes || echo no) safe_config=$T1_GATE"
+if [ "${STRICT_GATE:-0}" = "1" ]; then
+  if [ "$T1_GATE" != "pass" ] || [ "$HERMES_INSTALLED" != "1" ]; then
+    err "STRICT_GATE=1 and T1 gate not fully green"
+    exit 2
+  fi
 fi
 echo ""
 

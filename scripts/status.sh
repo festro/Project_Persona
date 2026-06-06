@@ -82,6 +82,27 @@ else
 fi
 
 echo ""
+echo "Hermes:"
+HERMES_VENV="$AI_ROOT/env_hermes"
+if [ -x "$HERMES_VENV/bin/python" ]; then
+  echo "  ✓ env_hermes venv present"
+  if [ -x "$HERMES_VENV/bin/hermes" ]; then
+    echo "  ✓ hermes binary present"
+  else
+    echo "  - hermes binary not installed in env_hermes"
+  fi
+else
+  echo "  - env_hermes venv missing (run setup_native_stack.sh)"
+fi
+DEFAULT_PROFILE="${DEFAULT_PROFILE:-default}"
+DEFAULT_CFG="$AI_ROOT/persona/profiles/$DEFAULT_PROFILE/config.yaml"
+if [ -f "$DEFAULT_CFG" ]; then
+  echo "  ✓ $DEFAULT_PROFILE/config.yaml present"
+else
+  echo "  - $DEFAULT_PROFILE/config.yaml missing (run init_profiles.sh)"
+fi
+
+echo ""
 echo "Endpoints:"
 echo "  API:        http://127.0.0.1:8000/docs"
 if [ -f "$ENV_FILE" ]; then

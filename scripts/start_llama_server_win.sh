@@ -92,6 +92,7 @@ export GGML_VK_VISIBLE_DEVICES=0
   --device Vulkan0 \
   --parallel "$PARALLEL" \
   --cont-batching \
+  --jinja \
   > "$LOG_FILE" 2>&1 &
 
 echo $! > "$PID_FILE"

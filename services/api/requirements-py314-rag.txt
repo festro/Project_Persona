@@ -1,0 +1,2 @@
+onnxruntime>=1.26.0
+fastembed>=0.7.0

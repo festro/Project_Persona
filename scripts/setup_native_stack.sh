@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 CPU_ONLY="${CPU_ONLY:-0}"   # set CPU_ONLY=1 to force CPU
 SKIP_DEPS="${SKIP_DEPS:-0}" # set SKIP_DEPS=1 to skip apt installs
+SKIP_HERMES="${SKIP_HERMES:-0}" # set SKIP_HERMES=1 to skip the env_hermes venv
 
 echo "==> Creating AI root structure at $AI_ROOT"
 mkdir -p "$AI_ROOT"/{bin,models,persona,logs,run,services/{api},scripts,llama_cpp}
@@ -90,45 +91,60 @@ EOF
 echo "==> Installing API dependencies into venv"
 pip install -r "$AI_ROOT/services/api/requirements.txt"
 
-echo "==> Writing llama server env config (safe defaults)"
-cat > "$AI_ROOT/run/llama-servers.env" <<'EOF'
-# Common settings
-CTX_SIZE=8192
-THREADS=0
-BATCH_SIZE=256
+deactivate || true
+
+if [ "$SKIP_HERMES" != "1" ]; then
+  echo "==> Creating isolated Hermes Agent venv (env_hermes)"
+  HERMES_VENV="$AI_ROOT/env_hermes"
+  python3 -m venv "$HERMES_VENV"
+  # shellcheck disable=SC1091
+  source "$HERMES_VENV/bin/activate"
+  python -m pip install --upgrade pip wheel setuptools
+  if pip install hermes-agent; then
+    echo "OK: hermes-agent installed into $HERMES_VENV"
+  else
+    echo "WARN: 'pip install hermes-agent' failed. Install Hermes into $HERMES_VENV"
+    echo "      manually, or use the git installer per the Hermes docs, then re-run doctor.sh."
+  fi
+  deactivate || true
+else
+  echo "==> SKIP_HERMES=1 set; skipping env_hermes venv"
+fi
+
+ENV_OUT="$AI_ROOT/run/llama-servers.env"
+if [ -f "$ENV_OUT" ] && [ "${FORCE_ENV:-0}" != "1" ]; then
+  echo "==> Existing $ENV_OUT found; leaving it untouched"
+  echo "    (set FORCE_ENV=1 to overwrite; a timestamped .bak is kept)"
+else
+  if [ -f "$ENV_OUT" ]; then
+    cp -a "$ENV_OUT" "$ENV_OUT.bak.$(date -u +%Y%m%d_%H%M%S)"
+    echo "==> Backed up existing env to $ENV_OUT.bak.*"
+  fi
+  echo "==> Writing unified single-model llama server env config"
+  cat > "$ENV_OUT" <<EOF
 HOST=127.0.0.1
-
-# Ports
-PERSONA_PORT=8080
-REASONING_PORT=8081
-CODER_PORT=8082
-
-# Models (filenames under ~/AI/models)
-PERSONA_MODEL=persona.gguf
-REASONING_MODEL=reasoning.gguf
-CODER_MODEL=coder.gguf
-
-# Global GPU layers fallback
-GPU_LAYERS=0
-
-# Per-model context (recommended)
-PERSONA_CTX=8192
-CODER_CTX=8192
-REASONING_CTX=4096
-
-# Per-model GPU layers (start conservative; tune via benchmarking)
-GPU_LAYERS_PERSONA=0
-GPU_LAYERS_CODER=0
-GPU_LAYERS_REASONING=0
+THREADS=0
+BATCH_SIZE=512
+UBATCH_SIZE=512
+CACHE_TYPE_K=q8_0
+CACHE_TYPE_V=q8_0
+PERSONA_PORT=8090
+PERSONA_MODEL=Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf
+PERSONA_CTX=32768
+GPU_LAYERS_PERSONA=999
+PERSONA_PARALLEL=4
+LLAMA_LIB_DIR=$AI_ROOT/llama_cpp/build/bin
 EOF
+fi
 
 echo "==> Done."
 echo ""
 echo "Next steps:"
-echo "  1) Put GGUF models in: $AI_ROOT/models/"
-echo "     - persona.gguf"
-echo "     - reasoning.gguf"
-echo "     - coder.gguf"
-echo "  2) Start llama servers: $AI_ROOT/scripts/start_llama_servers.sh"
-echo "  3) Start API:          $AI_ROOT/scripts/start_api.sh"
-echo "  4) Bench:              $AI_ROOT/scripts/bench.sh"
+echo "  1) Put the unified GGUF model in: $AI_ROOT/models/"
+echo "     - Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf"
+echo "       (or edit PERSONA_MODEL in run/llama-servers.env)"
+echo "  2) Init persona profiles:  $AI_ROOT/scripts/init_profiles.sh"
+echo "  3) Start llama server:     $AI_ROOT/scripts/start_llama_servers.sh"
+echo "  4) Start API:              $AI_ROOT/scripts/start_api.sh"
+echo "  5) Health + T1 gate:       $AI_ROOT/scripts/doctor.sh"
+echo "  6) Load test:              $AI_ROOT/scripts/load_test_m2b.py"
