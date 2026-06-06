@@ -1,0 +1,18 @@
+# Optional embedding extra (Phase 0.5 dependency tiers) -- the HEAVY tier.
+#
+# Installs sentence-transformers, which pulls torch. torch is the heaviest,
+# most arch-variable dependency in the stack, so it is NOT in the default
+# requirements.txt. Install this only on a node that wants the
+# sentence-transformers embedding backend (e.g. an arch where the
+# fastembed/onnxruntime wheel does not load).
+#
+# Usage:
+#   pip install -r services/api/requirements.txt
+#   pip install -r services/api/requirements-embed-torch.txt
+# Then set the backend (in run/config.env or the environment):
+#   EMBED_BACKEND=sentence-transformers   (force it)
+#   EMBED_BACKEND=auto                     (fastembed first, this as fallback)
+#
+# Lean nodes do NOT install this file; they run fastembed/onnxruntime only.
+
+sentence-transformers>=2.6.0,<4.0.0

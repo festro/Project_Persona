@@ -28,6 +28,11 @@ try:
 except Exception:
     TextEmbedding = None
 
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    SentenceTransformer = None
+
 
 # -----------------------
 # Config
@@ -57,6 +62,12 @@ RAG_ENABLED = os.getenv("RAG_ENABLED", "0") == "1"
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
+# Embedding backend selection (Phase 0.5 dependency tiers):
+#   auto                  -> try fastembed (lean/onnxruntime), then sentence-transformers
+#   fastembed             -> fastembed only (lean node default; no torch)
+#   sentence-transformers -> sentence-transformers only (requires the torch extra)
+# sentence-transformers is an OPT-IN extra (services/api/requirements-embed-torch.txt).
+EMBED_BACKEND = os.getenv("EMBED_BACKEND", "auto").strip().lower()
 
 # Retrieval defaults: facts only (chat logs are audit-only)
 RAG_KINDS_FOR_CHAT = {
@@ -169,17 +180,49 @@ os.makedirs(os.path.join(AI_ROOT, "run"), exist_ok=True)
 # Embeddings + Chroma
 # -----------------------
 _embedder = None
+_embedder_backend: Optional[str] = None
 _embedder_error: Optional[str] = None
 
-if TextEmbedding is None:
-    _embedder_error = "fastembed_not_available"
-else:
+
+def _init_fastembed():
+    if TextEmbedding is None:
+        return None, "fastembed_not_available"
     try:
-        _embedder = TextEmbedding(model_name=EMBED_MODEL)
-        _ = list(_embedder.embed(["warmup"]))[0]
+        emb = TextEmbedding(model_name=EMBED_MODEL)
+        _ = list(emb.embed(["warmup"]))[0]
+        return emb, None
     except Exception as e:
-        _embedder = None
-        _embedder_error = f"embedder_init_failed: {repr(e)}"
+        return None, f"fastembed_init_failed: {repr(e)}"
+
+
+def _init_sentence_transformers():
+    if SentenceTransformer is None:
+        return None, "sentence_transformers_not_available"
+    try:
+        emb = SentenceTransformer(EMBED_MODEL)
+        _ = emb.encode(["warmup"])[0]
+        return emb, None
+    except Exception as e:
+        return None, f"sentence_transformers_init_failed: {repr(e)}"
+
+
+_init_errors = []
+if EMBED_BACKEND in ("auto", "fastembed"):
+    _embedder, _err = _init_fastembed()
+    if _embedder is not None:
+        _embedder_backend = "fastembed"
+    elif _err:
+        _init_errors.append(_err)
+
+if _embedder is None and EMBED_BACKEND in ("auto", "sentence-transformers", "sentence_transformers", "st"):
+    _embedder, _err = _init_sentence_transformers()
+    if _embedder is not None:
+        _embedder_backend = "sentence-transformers"
+    elif _err:
+        _init_errors.append(_err)
+
+if _embedder is None:
+    _embedder_error = "; ".join(_init_errors) or f"no_embedder_for_backend:{EMBED_BACKEND}"
 
 _chroma_ok = False
 _chroma_error: Optional[str] = None
@@ -202,6 +245,8 @@ else:
 def _embed(text: str) -> List[float]:
     if _embedder is None:
         raise RuntimeError(_embedder_error or "embedder_unavailable")
+    if _embedder_backend == "sentence-transformers":
+        return _embedder.encode([text])[0].tolist()
     return list(_embedder.embed([text]))[0].tolist()
 
 
@@ -819,6 +864,7 @@ async def health():
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
+        "embedder_backend": _embedder_backend,
         "embedder_error": _embedder_error,
         "chroma_ok": _chroma_ok,
         "chroma_error": _chroma_error,

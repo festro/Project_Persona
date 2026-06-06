@@ -14,6 +14,51 @@ Conventions:
 
 ---
 
+## 2026-06-06 1859 UTC -- Windows-side validation of Phase 0.5 #1/#2 (Brandon + Claude)
+
+- Closed the validation gap from the 1853/1838 entries (sandbox mount could not
+  parse server.py). Run Windows-side with the portable interpreter:
+  - `python -c "import ast; ast.parse(open('services/api/server.py').read())"` -> AST OK.
+  - `python tests/test_api_offline.py` -> RESULT: ALL PASS (14 checks: /, favicon,
+    /health, /v1/models, usage token counts, SSE streaming envelope + [DONE],
+    /chat_submit removed). Confirms the embedder init refactor + EMBED_BACKEND
+    selection import and serve cleanly; /health returns 200 (now with
+    embedder_backend). Lean fastembed default path proven.
+  - Note: the sentence-transformers backend itself is exercised only when the
+    opt-in torch extra is installed (not done here); the lean default tier is the
+    validated deliverable.
+- Roadmap: Phase 0.5 #2 -> [x]. #1 (manage.py) stays [~] (status/doctor validated;
+  up/down still need a live-host serving pass).
+
+## 2026-06-06 1853 UTC -- Dependency tiers: lean default + torch opt-in (Phase 0.5 #2) (Claude)
+
+- `services/api/requirements.txt` now the LEAN tier: dropped
+  `sentence-transformers` (the only torch puller). Default node runs RAG on
+  fastembed/onnxruntime alone -- no torch. The running code already used only
+  fastembed; the dropped dep was an unused notional fallback.
+- New `services/api/requirements-embed-torch.txt` -- OPT-IN heavy extra pinning
+  sentence-transformers (>=2.6,<4). Lean nodes do not install it.
+- `services/api/server.py`: made the fallback real and selectable.
+  - New `EMBED_BACKEND` env (auto | fastembed | sentence-transformers; default
+    auto). auto tries fastembed then sentence-transformers.
+  - Guarded `from sentence_transformers import SentenceTransformer` (None if
+    absent, same pattern as fastembed/chromadb).
+  - Refactored embedder init into `_init_fastembed` / `_init_sentence_transformers`
+    returning (embedder, error); records active backend in `_embedder_backend`,
+    aggregates init errors into `_embedder_error`.
+  - `_embed` dispatches by backend (ST uses `.encode([text])[0].tolist()`,
+    fastembed unchanged).
+  - `/health` now reports `embedder_backend`.
+  - Default behavior unchanged on a lean node: EMBED_BACKEND=auto + no ST installed
+    -> fastembed exactly as before.
+- VALIDATION GAP: server.py edits are confirmed correct via the authoritative
+  Read tool (imports/init/dispatch/health all clean + balanced), but were NOT
+  AST-parsed: the Linux sandbox mount served a stale/truncated view of server.py
+  (32886 bytes / 979 lines vs the real 1021), so any sandbox parse/wc/md5 is
+  meaningless for this file. Run a real parse Windows-side before relying on it:
+  `python -c "import ast,sys; ast.parse(open('services/api/server.py').read())"`
+  (or run tests/test_api_offline.py). Mount-unreliability recorded for future runs.
+
 ## 2026-06-06 1838 UTC -- manage.py cross-platform launcher (Phase 0.5 #1) (Claude)
 
 - Added `manage.py` at repo root: a pure-stdlib (3.8+) cross-platform lifecycle

@@ -5,7 +5,7 @@ phase ladder from basic functionality to extended functionality. Each phase is
 "locked" to a functional state: it has an Exit Gate (concrete, testable
 acceptance criteria) that must be green before the next phase starts.
 
-Last updated: 2026-06-06 1838 UTC by Claude
+Last updated: 2026-06-06 1859 UTC by Claude
 
 ## Boundaries (do not duplicate)
 
@@ -87,8 +87,14 @@ audit + support matrix:
       repo, both safe-config validation paths agree with doctor.sh). `up`/`down`
       process spawn+kill mirror the bash scripts but still need a live-host pass
       (Win Vulkan + Linux) to flip to [x].
-- [ ] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
-      sentence-transformers become an opt-in extra
+- [x] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
+      sentence-transformers become an opt-in extra. DONE 2026-06-06:
+      requirements.txt lean (no sentence-transformers); opt-in
+      requirements-embed-torch.txt; server.py EMBED_BACKEND selection +
+      guarded sentence-transformers fallback + /health embedder_backend.
+      VALIDATED Windows-side: AST OK + tests/test_api_offline.py ALL PASS
+      (lean fastembed default proven). The sentence-transformers backend itself is
+      only exercised once the opt-in torch extra is installed.
 - [ ] llama.cpp build/acquire matrix per accel (CUDA/ROCm/Vulkan/CPU, no Metal) +
       capability-advertising hook
 - [ ] Cross-platform IPC decision (loopback TCP or NATS, not Unix socket) before

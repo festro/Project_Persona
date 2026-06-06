@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-06 1838 UTC by Claude
+Last updated: 2026-06-06 1859 UTC by Claude
 
 ## Rules of the road
 
@@ -17,6 +17,13 @@ Last updated: 2026-06-06 1838 UTC by Claude
 
 ## Just finished (2026-06-06, Claude)
 
+- Phase 0.5 #2 DONE (code): dependency tiers. requirements.txt is now the lean
+  tier (dropped sentence-transformers; fastembed/onnxruntime only, no torch). New
+  opt-in `services/api/requirements-embed-torch.txt`. server.py gained
+  EMBED_BACKEND (auto|fastembed|sentence-transformers) + a guarded ST fallback +
+  `/health` embedder_backend. Default lean behavior unchanged. VALIDATED
+  Windows-side: AST OK + tests/test_api_offline.py ALL PASS. Roadmap Phase 0.5 #2
+  now [x]. See changelog 1859/1853.
 - Phase 0.5 #1 DONE (code) + offline-validated: `manage.py` at repo root --
   pure-stdlib cross-platform `up/down/status/doctor`, retires the bash-only
   lifecycle. Ports start_llama_server_win.sh+start_api.sh / stop_llama_servers.sh /

@@ -247,6 +247,7 @@ def api_env(root, cfg):
         "MEMORY_DISTILL_ENABLED": cfg.get("MEMORY_DISTILL_ENABLED", "1"),
         "RAG_TOP_K": cfg.get("RAG_TOP_K", "6"),
         "EMBED_MODEL": cfg.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5"),
+        "EMBED_BACKEND": cfg.get("EMBED_BACKEND", "auto"),
         "ANONYMIZED_TELEMETRY": cfg.get("ANONYMIZED_TELEMETRY", "False"),
     }
     for key in (
