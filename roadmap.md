@@ -183,22 +183,25 @@ persona replies over both the native and OpenAI-compatible paths.
       (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile
       collection ("mem_<profile>") via _get_collection; off = the single shared
       RAG_GLOBAL_COLLECTION exactly as before. /health rag_per_profile +
-      rag_collections. Off-mount verified (name logic 8/8; server AST+COMPILE OK).
-      CAVEAT: turning it on does not migrate existing global_memory rows. Live
-      validation pending.
-- [~] Topic routing policy -- CODE DONE 2026-06-07 (OFF by default): deterministic
-      keyword classify_topic(text) + resolve_topic precedence (topic="auto" always
-      classifies; explicit non-chat respected; "chat"/absent classifies only when
-      TOPIC_ROUTING=1). Resolved topic drives thinking/sampling/RAG/inband downstream.
-      /health topic_routing(+topics); /chat debug topic_routing. Off-mount verified
-      (logic 14/14; server AST+COMPILE OK). Live validation pending.
+      rag_collections. VALIDATED: offline suite 56/56 (name logic + health). LIVE
+      SMOKE remaining: actual mem_<profile> creation/isolation under
+      RAG_PER_PROFILE=1 (offline runs RAG_ENABLED=0). CAVEAT: turning it on does not
+      migrate existing global_memory rows.
+- [x] Topic routing policy -- DONE 2026-06-07 (OFF by default): deterministic keyword
+      classify_topic(text) + resolve_topic precedence (topic="auto" always classifies;
+      explicit non-chat respected; "chat"/absent classifies only when TOPIC_ROUTING=1).
+      Resolved topic drives thinking/sampling/RAG/inband downstream. /health
+      topic_routing(+topics); /chat debug topic_routing. VALIDATED: offline suite 56/56
+      (auto->math drives the think preset through the real endpoint).
 - [~] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
       2026-06-07: stdlib-sqlite3 services/api/taskboard.py (init/task_set upsert-
       merge/task_get/task_list/delete/count + one-time jobs.jsonl migration); server
       wired (TASKS_DB config, init at startup, /agent/run records run->ok/error/
       timeout, /jobs list + /jobs/{id} from the board, /health task_store). Off-mount
-      verified (taskboard 15/15; server AST+COMPILE OK). Full offline suite + live
-      smoke pending.
+      verified (taskboard 15/15; server AST+COMPILE OK). VALIDATED: offline suite
+      56/56 (/jobs CRUD + health task_store). LIVE SMOKE remaining: a real /agent/run
+      (taskman2 subprocess) recording into the board -- the one path the offline suite
+      can't exercise.
 
 Exit Gate: llama-server live on :8090; `/chat` and `/v1/chat/completions` return
 real persona replies; a "chat" topic resolves no_think and

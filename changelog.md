@@ -14,6 +14,18 @@ Conventions:
 
 ---
 
+## 2026-06-07 1617 PDT -- Offline suite 56/56 across the Phase 1 batch (Brandon + Claude)
+
+- Ran tests/test_api_offline.py on the portable 3.11.9: ALL PASS, 56/56. Exercises
+  the gate, preserve, Task Board (/jobs CRUD + health), per-profile collection naming,
+  and topic routing (auto->math drives the think preset) through the real /chat + /v1
+  endpoints. Clears the validation debt from stacking three default-off features.
+- roadmap Topic routing -> [x] (offline coverage is complete + rides the proven Exit
+  Gate). Task Board and per-profile Chroma stay [~]: their offline coverage is green
+  but each still has ONE live-only gap -- a real /agent/run subprocess recording into
+  the board, and actual mem_<profile> collection creation/isolation under
+  RAG_PER_PROFILE=1 (offline runs with RAG_ENABLED=0). Both are confirmatory smokes.
+
 ## 2026-06-07 1613 PDT -- Topic routing policy, OFF by default (Brandon + Claude)
 
 - server.py: classify_topic(text) -- deterministic keyword classifier (coding/math/

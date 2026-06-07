@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1613 PDT by Claude
+Last updated: 2026-06-07 1617 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,12 @@ Last updated: 2026-06-07 1613 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- Offline suite 56/56 across the batch (changelog 1617): gate + preserve + Task Board
+  + per-profile naming + topic routing all green through the real endpoints. roadmap
+  Topic routing -> [x]. Task Board + per-profile stay [~] -- each has ONE live-only
+  smoke left (real /agent/run subprocess into the board; mem_<profile> creation under
+  RAG_PER_PROFILE=1). NOT committed (doc update).
 
 - Topic routing policy (changelog 1613): classify_topic + resolve_topic (OFF default).
   topic="auto" always classifies; explicit non-chat respected; chat/absent classifies
