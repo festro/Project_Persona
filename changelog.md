@@ -14,6 +14,13 @@ Conventions:
 
 ---
 
+## 2026-06-07 1140 PDT -- Handoff written (handoff_persona_20260607_1140) (Brandon + Claude)
+
+- Froze the session into archive/handoffs/handoff_persona_20260607_1140.md:
+  timestamp->Pacific conversion + handoff renames, the cross-project WORKFLOW/AGENTS
+  standard, the Phase 0.5 #4 IPC decision, Windows-side manage.py validation, and the
+  two verified manage.py fixes -- all in commit 8088ff2. Next session: Phase 1 / T2.2.
+
 ## 2026-06-07 1129 PDT -- manage.py fix-its verified live (Brandon + Claude)
 
 - Confirmed both 1125 fixes on Daemonic-PC: `manage.py up` printed "API /health

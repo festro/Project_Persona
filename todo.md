@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1129 PDT by Claude
+Last updated: 2026-06-07 1140 PDT by Claude
 
 ## Rules of the road
 
@@ -17,6 +17,8 @@ Last updated: 2026-06-07 1129 PDT by Claude
 
 ## Just finished (2026-06-07, Claude)
 
+- Handoff written: `archive/handoffs/handoff_persona_20260607_1140.md` (frozen
+  session snapshot; commit 8088ff2). Next session starts at Phase 1 / T2.2.
 - Windows-side manage.py VALIDATED (changelog 1105): on Daemonic-PC (RX 9060 XT),
   status/capabilities/doctor all green under portable 3.11.9 -- config.toml read;
   run/node_capabilities.json written (accel detect+select=vulkan, tier1 AMD RX 9060
