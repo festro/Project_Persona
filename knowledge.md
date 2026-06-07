@@ -74,10 +74,19 @@ first, then chunked -- a pseudo-stream, not token-by-token from the model);
 status; `/` returns a small status JSON (service/health/docs) and `/favicon.ico`
 returns 204. `/agent/run` shells out to `tools/taskman2.py` via
 `subprocess.run(timeout=300)` offloaded with `asyncio.to_thread`, so it no longer
-blocks the event loop; it is a stopgap separate from the planned Task Board.
-`/jobs/{id}` and `/v1/models` exist. The `/chat_submit` disabled stub was removed
-2026-06-05 (the jobs persistence helpers remain for a future real async-job
-implementation).
+blocks the event loop; it is a stopgap orchestration entry, narrower than the
+planned Phase 3 daemon. As of 2026-06-07 it RECORDS each run into the Task Board
+(running -> ok/error/timeout). `/jobs` (list) + `/jobs/{id}` and `/v1/models`
+exist. The `/chat_submit` disabled stub was removed 2026-06-05.
+
+Task Board persistence (2026-06-07): `services/api/taskboard.py` -- a stdlib
+sqlite3 store at `TASKS_DB` (default `AI_ROOT/data/tasks.db`) -- replaces the old
+in-memory jobs dict + `run/jobs.jsonl` event log. One row per job_id with a merged
+JSON `state` + queryable `status` + timestamps; `task_set` upsert-merges. Fresh
+connection per call + WAL (the API touches it from `to_thread` worker threads, so
+no shared connection; file-backed by design). On startup `init_db` one-time
+migrates an existing `jobs.jsonl` (kept only as the migration source). This is the
+near-term store; the broader Phase 3/10 Task Board semantics build on it.
 
 ### Stable architectural decisions
 

@@ -160,6 +160,24 @@ check("/v1 default has no reasoning_content", "reasoning_content" not in msg)
 
 server.query_llama = fake_query_llama
 
+tb = server.taskboard
+check("health task_store present", "task_store" in client.get("/health").json())
+
+r = client.get("/jobs/does-not-exist")
+check("/jobs/<missing> -> not_found", r.json().get("status") == "not_found")
+
+tb.task_set("jobA", {"status": "running", "kind": "agent_run"})
+tb.task_set("jobA", {"status": "ok", "returncode": 0})
+r = client.get("/jobs/jobA")
+jb = r.json()
+check("/jobs/<id> upsert-merged", jb.get("status") == "ok" and jb.get("kind") == "agent_run")
+check("/jobs/<id> has timestamps", "_created_at" in jb and "_updated_at" in jb)
+
+r = client.get("/jobs?limit=10")
+ids = [j["job_id"] for j in r.json().get("jobs", [])]
+check("/jobs list includes jobA", "jobA" in ids)
+check("/jobs list carries status", any(j["job_id"] == "jobA" and j["status"] == "ok" for j in r.json()["jobs"]))
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)

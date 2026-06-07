@@ -181,7 +181,13 @@ persona replies over both the native and OpenAI-compatible paths.
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
 - [ ] Per-profile Chroma collections connected to the API (on disk, not wired)
 - [ ] Topic routing policy
-- [ ] Task Board (`data/tasks.db`) replaces the in-memory jobs dict
+- [~] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
+      2026-06-07: stdlib-sqlite3 services/api/taskboard.py (init/task_set upsert-
+      merge/task_get/task_list/delete/count + one-time jobs.jsonl migration); server
+      wired (TASKS_DB config, init at startup, /agent/run records run->ok/error/
+      timeout, /jobs list + /jobs/{id} from the board, /health task_store). Off-mount
+      verified (taskboard 15/15; server AST+COMPILE OK). Full offline suite + live
+      smoke pending.
 
 Exit Gate: llama-server live on :8090; `/chat` and `/v1/chat/completions` return
 real persona replies; a "chat" topic resolves no_think and

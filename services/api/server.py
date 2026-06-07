@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
 
+import taskboard
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -99,10 +100,10 @@ MEMORY_DISTILL_TIMEOUT_S = float(os.getenv("MEMORY_DISTILL_TIMEOUT_S", "30"))
 # Keep chat logs for audit/history (not retrieved by default)
 CHAT_LOG_WRITEBACK_ENABLED = os.getenv("CHAT_LOG_WRITEBACK_ENABLED", "1") == "1"
 
-# Jobs persistence
-JOBS_PERSIST_ENABLED = os.getenv("JOBS_PERSIST_ENABLED", "1") == "1"
+# Task Board (SQLite) -- replaces the in-memory jobs dict + run/jobs.jsonl.
+TASKS_DB = os.getenv("TASKS_DB", os.path.join(AI_ROOT, "data", "tasks.db"))
+# Legacy event-log path, kept only as a one-time migration source for the board.
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
-JOBS_PERSIST_MAX_LOAD = int(os.getenv("JOBS_PERSIST_MAX_LOAD", "5000"))
 
 # Reasoning in-band (optional) — was SCIENTIST_INBAND_* pre-2026-05-17.
 # Routes to the unified llama-server (PERSONA_URL) with a structured prompt template;
@@ -424,46 +425,9 @@ def load_profile_wrappers(profile: str) -> Tuple[str, str]:
 
 
 # -----------------------
-# Jobs persistence
+# Task Board (SQLite) -- see services/api/taskboard.py
 # -----------------------
-def _persist_job_event(job_id: str, patch: Dict[str, Any]) -> None:
-    if not JOBS_PERSIST_ENABLED:
-        return
-    try:
-        event = {"ts": int(time.time()), "job_id": job_id, "patch": patch}
-        Path(os.path.dirname(JOBS_PERSIST_PATH)).mkdir(parents=True, exist_ok=True)
-        with open(JOBS_PERSIST_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(event, ensure_ascii=False) + "\n")
-    except Exception:
-        return
-
-def _load_persisted_jobs() -> Dict[str, Dict[str, Any]]:
-    if not JOBS_PERSIST_ENABLED:
-        return {}
-    if not os.path.isfile(JOBS_PERSIST_PATH):
-        return {}
-    jobs_local: Dict[str, Dict[str, Any]] = {}
-    try:
-        with open(JOBS_PERSIST_PATH, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        if len(lines) > JOBS_PERSIST_MAX_LOAD:
-            lines = lines[-JOBS_PERSIST_MAX_LOAD:]
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                evt = json.loads(line)
-                jid = evt.get("job_id")
-                patch = evt.get("patch") or {}
-                if not jid:
-                    continue
-                jobs_local.setdefault(jid, {}).update(patch)
-            except Exception:
-                continue
-    except Exception:
-        return {}
-    return jobs_local
+taskboard.init_db(TASKS_DB, migrate_jsonl=JOBS_PERSIST_PATH)
 
 
 # -----------------------
@@ -858,6 +822,12 @@ async def agent_run(payload: dict):
 
     job_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    _job_set(task_id, {
+        "status": "running", "kind": "agent_run",
+        "job_file": str(job_path), "result_file": str(result_path),
+        "started_at": int(time.time()),
+    })
+
     cmd = [
         sys.executable,
         "tools/taskman2.py",
@@ -876,7 +846,7 @@ async def agent_run(payload: dict):
         )
         stdout = (p.stdout or "")[-4000:]
         stderr = (p.stderr or "")[-4000:]
-        return {
+        result = {
             "status": "ok" if p.returncode == 0 else "error",
             "task_id": task_id,
             "returncode": p.returncode,
@@ -885,14 +855,19 @@ async def agent_run(payload: dict):
             "stdout_tail": stdout,
             "stderr_tail": stderr,
         }
+        _job_set(task_id, {"status": result["status"], "returncode": p.returncode,
+                           "finished_at": int(time.time())})
+        return result
     except subprocess.TimeoutExpired:
-        return {
+        result = {
             "status": "timeout",
             "task_id": task_id,
             "job_file": str(job_path),
             "result_file": str(result_path),
             "message": "taskman2 exceeded 300s timeout",
         }
+        _job_set(task_id, {"status": "timeout", "finished_at": int(time.time())})
+        return result
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
@@ -901,11 +876,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 PERSONA_CONCURRENCY = int(os.getenv("PERSONA_CONCURRENCY", "4"))
 persona_sem = asyncio.Semaphore(PERSONA_CONCURRENCY)
 
-jobs: Dict[str, Dict[str, Any]] = _load_persisted_jobs()
-
 def _job_set(job_id: str, patch: Dict[str, Any]) -> None:
-    jobs.setdefault(job_id, {}).update(patch)
-    _persist_job_event(job_id, patch)
+    taskboard.task_set(job_id, patch)
 
 
 # -----------------------
@@ -975,6 +947,7 @@ async def health():
         "chat_log_writeback_enabled": CHAT_LOG_WRITEBACK_ENABLED,
         "rag_kinds_for_chat": sorted(list(RAG_KINDS_FOR_CHAT)),
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
+        "task_store": {"db": TASKS_DB, "count": taskboard.count()},
     }
 
 
@@ -1051,9 +1024,14 @@ async def chat(req: ChatRequest):
     return {"text": reply, "persona": True, "reasoning": reasoning if preserve else "", "debug": debug}
 
 
+@app.get("/jobs")
+async def list_jobs(limit: int = 50):
+    return {"jobs": taskboard.task_list(limit=limit)}
+
+
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: str):
-    job = jobs.get(job_id)
+    job = taskboard.task_get(job_id)
     if not job:
         return {"status": "not_found"}
     return job

@@ -84,6 +84,11 @@ job*.json
 scan_result.json
 tools/
 
+# ── Task Board SQLite store (default data/ already ignored; guard overrides) ─
+tasks.db
+tasks.db-wal
+tasks.db-shm
+
 # ── Local archive (stale files moved out of repo root) ─
 # (sandbox couldn't rm directly; user can rm -rf archive/cruft/ when ready)
 archive/cruft/

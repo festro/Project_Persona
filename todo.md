@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1222 PDT by Claude
+Last updated: 2026-06-07 1236 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,15 @@ Last updated: 2026-06-07 1222 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- Task Board / SQLite (changelog 1236): new services/api/taskboard.py (stdlib
+  sqlite3) replaces the in-memory jobs dict + jobs.jsonl. server wired: TASKS_DB
+  (default AI_ROOT/data/tasks.db), init+migrate at startup, /agent/run now records
+  run->ok/error/timeout, new GET /jobs list, /jobs/{id} + /health task_store from the
+  board. +6 offline checks; taskboard harness 15/15; server AST+COMPILE OK off-mount.
+  Phase 1 Task Board -> [~]. NOT committed. Pending: full offline suite (~40) + a live
+  /agent/run smoke Windows-side. NOTE: /agent/run behavior CHANGED (now persists to
+  the board) -- verify a real taskman2 run shows up in GET /jobs.
 
 - Phase 1 EXIT GATE PROVEN live on Qwen3.6 (changelog 1222) via new
   tests/exit_gate_live.py (stdlib live check): ALL REQUIRED PASS -- /health green,

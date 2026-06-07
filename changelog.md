@@ -14,6 +14,36 @@ Conventions:
 
 ---
 
+## 2026-06-07 1236 PDT -- Task Board (SQLite) replaces the jobs dict (Brandon + Claude)
+
+- New services/api/taskboard.py: stdlib sqlite3 store (no deps). One row per job_id
+  with a merged JSON state blob + queryable status + created/updated timestamps.
+  API: init_db (idempotent + one-time jobs.jsonl migration), task_set (upsert-merge,
+  same semantics as the old jobs.setdefault().update()), task_get, task_list,
+  task_delete, count, migrate_from_jsonl. Fresh connection per call + WAL +
+  busy_timeout so the API's to_thread worker threads are safe (sqlite3 forbids
+  cross-thread connection sharing); store is therefore file-backed by design.
+- server.py wired: removed the in-memory `jobs` dict + _load_persisted_jobs/
+  _persist_job_event (jobs.jsonl event log); TASKS_DB config (default
+  AI_ROOT/data/tasks.db, env override) with JOBS_PERSIST_PATH kept only as the
+  migration source. taskboard.init_db() at import. _job_set() is now a thin
+  taskboard.task_set wrapper.
+- Behavior gain: /agent/run now RECORDS into the board (status running ->
+  ok/error/timeout, returncode, started/finished_at), so /jobs/{id} reflects agent
+  runs (previously it only saw the jsonl-loaded retained jobs, never agent runs).
+  New GET /jobs (list, ?limit) endpoint. /jobs/{id} reads the board. /health adds
+  task_store {db, count}.
+- Dropped config: JOBS_PERSIST_ENABLED, JOBS_PERSIST_MAX_LOAD (event-log only).
+- .gitignore: data/ already ignored (covers the default db); added tasks.db +
+  -wal/-shm guards for TASKS_DB overrides.
+- tests/test_api_offline.py: +6 Task Board checks (/health task_store, /jobs missing
+  -> not_found, upsert-merge via /jobs/{id}, timestamps, /jobs list membership +
+  status). Plus a standalone taskboard harness 15/15 (migration, merge, idempotent
+  re-init, unicode) run off-mount.
+- Verified: taskboard 15/15 standalone; server.py AST+COMPILE OK (spliced
+  authoritative full file, 1118 lines -- the mount truncates at ~1074); test block
+  AST OK. Full FastAPI offline suite + live smoke pending Windows-side (Brandon).
+
 ## 2026-06-07 1222 PDT -- Phase 1 Exit Gate PROVEN live on Qwen3.6 (Brandon + Claude)
 
 - Ran tests/exit_gate_live.py against the live stack (llama-server :8090 Qwen3.6 pid
