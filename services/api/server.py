@@ -61,6 +61,14 @@ ASYNC_REASONING_ENABLED = (
 )
 RAG_ENABLED = os.getenv("RAG_ENABLED", "0") == "1"
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
+# Per-profile RAG (2026-06-07). OFF by default: all add/query use the single shared
+# collection (RAG_GLOBAL_COLLECTION) exactly as before. With RAG_PER_PROFILE=1,
+# add/query are scoped to a per-profile collection ("mem_<profile>") so each persona
+# retrieves only its own memory. NOTE: turning this on does NOT move existing rows
+# out of the shared collection -- pre-existing memory stays in RAG_GLOBAL_COLLECTION
+# and is not seen under per-profile scoping until migrated.
+RAG_PER_PROFILE = os.getenv("RAG_PER_PROFILE", "0").strip().lower() in ("1", "true", "yes", "on")
+RAG_GLOBAL_COLLECTION = os.getenv("RAG_GLOBAL_COLLECTION", "global_memory")
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 # Embedding backend selection (Phase 0.5 dependency tiers):
@@ -259,7 +267,8 @@ if _embedder is None:
 
 _chroma_ok = False
 _chroma_error: Optional[str] = None
-_collection = None
+_client_chroma = None
+_collections: Dict[str, Any] = {}
 
 if chromadb is None:
     _chroma_error = "chromadb_not_available"
@@ -268,11 +277,39 @@ else:
         _client_chroma = chromadb.PersistentClient(
             path=GLOBAL_CHROMA_DIR
         )
-        _collection = _client_chroma.get_or_create_collection("global_memory")
+        # Ensure the shared collection exists; per-profile ones are created lazily.
+        _collections[RAG_GLOBAL_COLLECTION] = _client_chroma.get_or_create_collection(RAG_GLOBAL_COLLECTION)
         _chroma_ok = True
     except Exception as e:
         _chroma_ok = False
         _chroma_error = f"chroma_init_failed: {repr(e)}"
+
+
+def _collection_name(profile: Optional[str]) -> str:
+    """Resolve the Chroma collection name for a profile.
+
+    RAG_PER_PROFILE off (or no profile) -> the shared RAG_GLOBAL_COLLECTION.
+    On -> "mem_<sanitized-profile>" so each persona is isolated.
+    """
+    if not RAG_PER_PROFILE or not profile:
+        return RAG_GLOBAL_COLLECTION
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "_", profile.strip())[:200] or "default"
+    return f"mem_{safe}"
+
+
+def _get_collection(profile: Optional[str] = None):
+    """Lazily get-or-create and cache the collection for `profile`."""
+    if not _chroma_ok or _client_chroma is None:
+        return None
+    name = _collection_name(profile)
+    coll = _collections.get(name)
+    if coll is None:
+        try:
+            coll = _client_chroma.get_or_create_collection(name)
+            _collections[name] = coll
+        except Exception:
+            return None
+    return coll
 
 
 def _embed(text: str) -> List[float]:
@@ -283,8 +320,9 @@ def _embed(text: str) -> List[float]:
     return list(_embedder.embed([text]))[0].tolist()
 
 
-def memory_add(text: str, meta: Dict[str, Any]) -> None:
-    if not _chroma_ok or _collection is None:
+def memory_add(text: str, meta: Dict[str, Any], *, profile: Optional[str] = None) -> None:
+    coll = _get_collection(profile)
+    if not _chroma_ok or coll is None:
         return
     if _embedder is None:
         return
@@ -296,7 +334,7 @@ def memory_add(text: str, meta: Dict[str, Any]) -> None:
                 safe_meta[k] = v
             else:
                 safe_meta[k] = str(v)
-        _collection.add(
+        coll.add(
             ids=[str(uuid.uuid4())],
             documents=[text],
             embeddings=[vec],
@@ -346,8 +384,9 @@ def filter_bad_memories(docs: List[str]) -> List[str]:
         out.append(s)
     return out
 
-def memory_query(text: str, k: int, kind_filter: Optional[set[str]] = None) -> List[str]:
-    if not _chroma_ok or _collection is None:
+def memory_query(text: str, k: int, kind_filter: Optional[set[str]] = None, *, profile: Optional[str] = None) -> List[str]:
+    coll = _get_collection(profile)
+    if not _chroma_ok or coll is None:
         return []
     if _embedder is None:
         return []
@@ -362,7 +401,7 @@ def memory_query(text: str, k: int, kind_filter: Optional[set[str]] = None) -> L
                 where = {"kind": kinds[0]}
             elif len(kinds) > 1:
                 where = {"$or": [{"kind": kk} for kk in kinds]}
-        res = _collection.query(
+        res = coll.query(
             query_embeddings=[vec],
             n_results=k,
             include=["documents"],
@@ -789,6 +828,7 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
         memory_add(
             f,
             {"kind": "fact", "source": "distiller", "profile": profile, "topic": topic, "ts": int(time.time())},
+            profile=profile,
         )
         stored += 1
 
@@ -940,6 +980,8 @@ async def health():
         "embedder_error": _embedder_error,
         "chroma_ok": _chroma_ok,
         "chroma_error": _chroma_error,
+        "rag_per_profile": RAG_PER_PROFILE,
+        "rag_collections": sorted(_collections.keys()),
         "persona_concurrency": PERSONA_CONCURRENCY,
         "profile_wrappers_enabled": PROFILE_WRAPPERS_ENABLED,
         "persona_writeback_enabled": PERSONA_WRITEBACK_ENABLED,
@@ -960,7 +1002,7 @@ async def chat(req: ChatRequest):
     rag_docs: List[str] = []
     rag_used = False
     if RAG_ENABLED:
-        rag_docs = memory_query(req.text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic))
+        rag_docs = memory_query(req.text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic), profile=profile)
         rag_used = bool(rag_docs)
 
     inband_notes = ""
@@ -995,6 +1037,7 @@ async def chat(req: ChatRequest):
         memory_add(
             f"[chat_log]\n[user]\n{req.text}\n\n[assistant]\n{reply}",
             {"kind": "chat_log", "source": "persona", "profile": profile, "topic": topic, "ts": int(time.time())},
+            profile=profile,
         )
 
     debug = {}
@@ -1058,7 +1101,7 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
 
     rag_docs: List[str] = []
     if RAG_ENABLED:
-        rag_docs = memory_query(user_text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic))
+        rag_docs = memory_query(user_text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic), profile=profile)
 
     prompt = build_persona_prompt(user_text, rag_docs, profile=profile, topic=topic, thinking_mode=req.thinking_mode)
     max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)

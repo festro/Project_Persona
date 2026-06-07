@@ -178,6 +178,17 @@ ids = [j["job_id"] for j in r.json().get("jobs", [])]
 check("/jobs list includes jobA", "jobA" in ids)
 check("/jobs list carries status", any(j["job_id"] == "jobA" and j["status"] == "ok" for j in r.json()["jobs"]))
 
+check("collection_name global when off", server._collection_name("alice") == server.RAG_GLOBAL_COLLECTION)
+_saved_pp = server.RAG_PER_PROFILE
+server.RAG_PER_PROFILE = True
+check("collection_name per-profile when on", server._collection_name("alice") == "mem_alice")
+check("collection_name None -> global", server._collection_name(None) == server.RAG_GLOBAL_COLLECTION)
+check("collection_name sanitizes unsafe", server._collection_name("a/b c") == "mem_a_b_c")
+server.RAG_PER_PROFILE = _saved_pp
+h = client.get("/health").json()
+check("health rag_per_profile present", "rag_per_profile" in h)
+check("health rag_collections is list", isinstance(h.get("rag_collections"), list))
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)

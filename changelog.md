@@ -14,6 +14,25 @@ Conventions:
 
 ---
 
+## 2026-06-07 1243 PDT -- Per-profile Chroma collections, OFF by default (Brandon + Claude)
+
+- server.py: RAG retrieval/writeback can now be scoped per persona. New
+  _collection_name(profile) + _get_collection(profile) (lazy get-or-create + cache);
+  the single module-global _collection is gone, replaced by a _collections dict keyed
+  by collection name. memory_add/memory_query gained a keyword `profile`; /chat, /v1,
+  distill, and chat-log writeback all pass the active profile.
+- Config: RAG_PER_PROFILE (default 0 = off -> all add/query use the shared
+  RAG_GLOBAL_COLLECTION "global_memory", behavior unchanged) and RAG_GLOBAL_COLLECTION.
+  On -> "mem_<sanitized-profile>" collections. CAVEAT: enabling does NOT move existing
+  global_memory rows; pre-existing memory is invisible under per-profile scoping until
+  migrated (documented; a migration helper is a follow-up).
+- Observability: /health adds rag_per_profile + rag_collections (cached names).
+- tests/test_api_offline.py: +6 checks (collection_name off/on/None/sanitize; health
+  rag_per_profile + rag_collections). Env-independent (no chroma needed). Standalone
+  name-logic harness 8/8.
+- Verified: server.py AST+COMPILE OK (spliced authoritative full file, 1161 lines;
+  mount truncates at ~1063). Full offline suite + live smoke pending Windows-side.
+
 ## 2026-06-07 1236 PDT -- Task Board (SQLite) replaces the jobs dict (Brandon + Claude)
 
 - New services/api/taskboard.py: stdlib sqlite3 store (no deps). One row per job_id

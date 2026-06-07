@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1236 PDT by Claude
+Last updated: 2026-06-07 1243 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,14 @@ Last updated: 2026-06-07 1236 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- Per-profile Chroma (changelog 1243): RAG_PER_PROFILE (OFF default) routes
+  memory_add/query to "mem_<profile>" collections via _get_collection; off = shared
+  global_memory as before. profile threaded through /chat, /v1, distill, writeback.
+  /health rag_per_profile + rag_collections. +6 offline checks; name logic 8/8; server
+  AST+COMPILE OK. Phase 1 per-profile Chroma -> [~]. NOT committed. CAVEAT: enabling
+  does not migrate existing global_memory rows (migration helper = follow-up). Pending:
+  full offline suite + live smoke (set RAG_PER_PROFILE=1, confirm mem_<profile>).
 
 - Task Board / SQLite (changelog 1236): new services/api/taskboard.py (stdlib
   sqlite3) replaces the in-memory jobs dict + jobs.jsonl. server wired: TASKS_DB

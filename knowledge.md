@@ -125,11 +125,16 @@ distillation state. `tasks.db` is the Task Board. Both portable with the project
 folder.
 
 ChromaDB / RAG layer. Persistent vector store via fastembed with embedding
-model `BAAI/bge-small-en-v1.5`. Global collection is wired; per-profile
-collections exist on disk but are not yet connected to the API. Chunk and
-collection metadata schemas support the Phase 6 sorting line and Phase 7
-consolidation (alias chains, provisional/mature lifecycle, relationship links).
-Qdrant is the planned replacement (Phase 2a).
+model `BAAI/bge-small-en-v1.5`. The shared collection (`RAG_GLOBAL_COLLECTION`,
+default `global_memory`) is always wired. As of 2026-06-07 per-profile collections
+are connected behind `RAG_PER_PROFILE` (default OFF): when on, `memory_add`/
+`memory_query` route through `_get_collection(profile)` to `mem_<profile>`, so each
+persona retrieves only its own memory; off keeps the single shared collection and
+prior behavior. Enabling does NOT migrate existing `global_memory` rows -- a
+one-time per-profile migration is a follow-up. Chunk and collection metadata schemas
+support the Phase 6 sorting line and Phase 7 consolidation (alias chains,
+provisional/mature lifecycle, relationship links). Qdrant is the planned
+replacement (Phase 2a).
 
 NATS-based IPC. The Phase 3 daemon supervises a local nats-server (JetStream R=1,
 loopback) as a child process and uses it as the control-plane bus; a stdlib

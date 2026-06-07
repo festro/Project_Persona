@@ -179,7 +179,13 @@ persona replies over both the native and OpenAI-compatible paths.
       <think> at the persona surface by default. Remaining T2.4 = the --jinja
       messages migration (shared with the deferred T2.2->B work).
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
-- [ ] Per-profile Chroma collections connected to the API (on disk, not wired)
+- [~] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
+      (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile
+      collection ("mem_<profile>") via _get_collection; off = the single shared
+      RAG_GLOBAL_COLLECTION exactly as before. /health rag_per_profile +
+      rag_collections. Off-mount verified (name logic 8/8; server AST+COMPILE OK).
+      CAVEAT: turning it on does not migrate existing global_memory rows. Live
+      validation pending.
 - [ ] Topic routing policy
 - [~] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
       2026-06-07: stdlib-sqlite3 services/api/taskboard.py (init/task_set upsert-
