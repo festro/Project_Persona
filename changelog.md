@@ -14,6 +14,15 @@ Conventions:
 
 ---
 
+## 2026-06-07 0329 UTC -- Handoff written (handoff_persona_20260607_0329) (Brandon + Claude)
+
+- Froze the whole session (manage.py bootstrap consolidation: detection + TOML +
+  toggle/test/panel + Phase A fixes + GPU auto-fit + Phase C bash retirement, all
+  live-validated on Windows and pushed as b75a853 + 5649466) into
+  `archive/handoffs/handoff_persona_20260607_0329.md`. Standalone: state, decisions,
+  known issues, run commands, and the forward roadmap (Linux/ARM live pass, IPC
+  decision, manage.py setup, Phase 1 live /chat proof).
+
 ## 2026-06-07 0323 UTC -- Phase C: retire the bash lifecycle scripts (Brandon + Claude)
 
 - Milestone commit b75a853 (the consolidation arc) pushed to origin/main first.
