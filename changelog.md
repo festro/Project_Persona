@@ -14,6 +14,32 @@ Conventions:
 
 ---
 
+## 2026-06-07 1222 PDT -- Phase 1 Exit Gate PROVEN live on Qwen3.6 (Brandon + Claude)
+
+- Ran tests/exit_gate_live.py against the live stack (llama-server :8090 Qwen3.6 pid
+  15820 + API :8000 pid 15504): ALL REQUIRED PASS. /health green (embedder_ok +
+  chroma_ok); chat->no_think, science/coding/math/research->think (preset + directive);
+  preserve off strips reasoning; /v1 stream SSE+[DONE]; /v1 non-stream prompt_tokens>0.
+- T2.3 preserve CONFIRMED LIVE: /v1 preserve returned a populated reasoning_content --
+  split_reasoning() extracted a real Qwen3.6 <think> block and surfaced it. Proof the
+  preserve path works against the actual model, not just the faked offline suite.
+- One soft WARN: the /chat preserve check saw reasoning_chars=0 (model answered that
+  prompt with no <think>). Expected -- Qwen3's /think is a soft/advisory switch, so a
+  simple prompt may skip reasoning; the check WARNs by design and the /v1 pass shows
+  the path is sound. Generation variance, not a defect.
+- roadmap Phase 1 Exit Gate annotated PROVEN. Remaining Phase 1 feature items (M6,
+  per-profile Chroma wiring, topic routing, Task Board) still open.
+
+## 2026-06-07 1215 PDT -- Live Exit Gate validation script (Brandon + Claude)
+
+- Added tests/exit_gate_live.py: stdlib-only (urllib) live check against a running
+  stack (manage.py up). Covers the roadmap Phase 1 Exit Gate in one command --
+  /health green, chat->no_think / science|coding|math|research->think, T2.3 preserve
+  on/off, /v1 stream SSE + [DONE], /v1 non-stream prompt_tokens>0, /v1
+  reasoning_content under preserve. Model-dependent reasoning checks are SOFT (WARN,
+  not FAIL) so it still passes on a non-thinking model. Off-mount COMPILE OK; run
+  Windows-side with the stack up. NOT yet committed.
+
 ## 2026-06-07 1212 PDT -- T2.3 validated 35/35 Windows-side (Brandon + Claude)
 
 - Ran tests/test_api_offline.py on the portable 3.11.9 interpreter: ALL PASS, 35/35

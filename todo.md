@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1212 PDT by Claude
+Last updated: 2026-06-07 1222 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,14 @@ Last updated: 2026-06-07 1212 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- Phase 1 EXIT GATE PROVEN live on Qwen3.6 (changelog 1222) via new
+  tests/exit_gate_live.py (stdlib live check): ALL REQUIRED PASS -- /health green,
+  topic resolution, preserve off, /v1 stream + prompt_tokens. T2.3 preserve CONFIRMED
+  LIVE (/v1 reasoning_content populated by a real <think>). One soft WARN = /think is
+  advisory and the model skipped reasoning on one /chat prompt (variance, not a bug).
+  Phase 1 stays [~] (M6, per-profile Chroma, topic routing, Task Board still open).
+  exit_gate_live.py NOT yet committed.
 
 - T2.3 preserve_thinking, Path A (changelog 1208): split_reasoning() extracts in-band
   <think> before sanitizing (also fixes the latent <think>-leak pre-Qwen3.6);
@@ -247,6 +255,15 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
    jobs helpers.
 
 ## Housekeeping fix-its
+
+- 2026-06-07 (low, CONFIRM): live persona.log shows `new slot, n_ctx = 4096` across
+  4 slots on the Qwen3.6 run -- implies live --ctx-size ~16384, not the documented
+  PERSONA_CTX=32768 target (which at --parallel 4 should give ~8192/slot). Could be
+  an intentional 16 GB VRAM fit or config drift. Confirm against run/config.toml.
+- 2026-06-07 (info, WATCH): persona.log has recurring `W slot update_slots: erased
+  invalidated context checkpoint` paired with `speculative decoding will use
+  checkpoints` (Qwen3.6 MTP). Expected churn under parallel mixed prompts; low
+  prompt-cache reuse. Not an error -- watch if it correlates with latency.
 
 - DONE 2026-06-07 (verified live): API /health readiness race -- doctor --deep right
   after `up` saw API /health down while `test health` moments later showed it OK

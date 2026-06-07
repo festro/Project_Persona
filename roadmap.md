@@ -188,6 +188,8 @@ real persona replies; a "chat" topic resolves no_think and
 science/coding/math/research resolve think (verify via `/chat` debug
 `sampling_preset`); live `stream=true` produces SSE chunks + [DONE] and non-zero
 `prompt_tokens`; `/health` green with embedder_ok=true and chroma_ok=true.
+PROVEN 2026-06-07 (changelog 1222) on Qwen3.6 via tests/exit_gate_live.py: ALL
+REQUIRED PASS. Phase stays [~] until the remaining feature items below close.
 
 ## Phase 2 -- Frontend and UX  [ ] NOT STARTED
 
