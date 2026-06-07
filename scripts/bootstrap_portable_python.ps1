@@ -70,5 +70,6 @@ if ($Run) {
   Write-Host "==> Launching API on http://127.0.0.1:8000 (Ctrl-C to stop)"
   & $Py -m uvicorn "server:app" --app-dir (Join-Path $RepoRoot "services\api") --host 127.0.0.1 --port 8000
 } else {
-  Write-Host "==> Done. To launch the API:  .\scripts\bootstrap_portable_python.bat -Run"
+  Write-Host "==> Done. Launch the full stack:  portable\python\python.exe manage.py up"
+  Write-Host "    (API only:  portable\python\python.exe manage.py up --api-only,  or this script with -Run)"
 }

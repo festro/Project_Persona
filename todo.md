@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 0253 UTC by Claude
+Last updated: 2026-06-07 0323 UTC by Claude
 
 ## Rules of the road
 
@@ -17,6 +17,16 @@ Last updated: 2026-06-07 0253 UTC by Claude
 
 ## Just finished (2026-06-07, Claude)
 
+- COMMITTED + PUSHED: the consolidation arc is on origin/main as b75a853 (21 files).
+- Phase C done (changelog 0323): archived 11 bash lifecycle scripts to
+  scripts/archive/ (start/stop/llama/api/status/doctor/smoke_agent/unified_test) --
+  core lifecycle is now manage.py-only, no bash. Reference cleanup in
+  setup_native_stack.sh + bootstrap ps1; `.gitignore` adds *.log. Scientist/M2
+  remnants left with the archived scripts.
+  NEXT options: Phase 0.5 #4 cross-platform IPC decision (loopback TCP vs NATS)
+  before the Phase 3 daemon; finish Phase 1 live proof (/chat persona reply +
+  streaming + per-topic sampling, embedder_ok/chroma_ok on /health); or M5
+  `manage.py setup` to remove the last bash (portable_setup_win.sh + Debian bits).
 - LIVE end-to-end validation on Windows (changelog 0253): panel toggle brought the
   whole stack up (Qwen3.6 :8090 + API :8000) and tore it down cleanly; test playbook
   green incl. live /agent/run; thinking mode active. Closes the "stand up Qwen3.6 on

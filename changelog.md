@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-07 0323 UTC -- Phase C: retire the bash lifecycle scripts (Brandon + Claude)
+
+- Milestone commit b75a853 (the consolidation arc) pushed to origin/main first.
+- Archived to scripts/archive/ (superseded by manage.py): start_all, stop_all,
+  start_llama_servers, start_llama_server_win, start_api, stop_api,
+  stop_llama_servers, status, doctor, smoke_agent, unified_test. Core lifecycle is
+  now manage.py-only -- no bash required. (git mv run Windows-side.)
+- Reference cleanup so nothing points at moved files: setup_native_stack.sh "next
+  steps" now say `manage.py up/status/doctor/test` (and config.toml, not the .env);
+  bootstrap_portable_python.ps1 "done" hint points at `manage.py up`. load_test_m2b.py
+  stays (invoked by `manage.py test load`); init_profiles.sh stays.
+- The scientist/reasoning/coder pidfile + SCIENTIST_* remnants (M2) left with the
+  archived stop/status scripts; manage.py never carried them.
+- `.gitignore`: added `*.log` (logs/ was already ignored) -- belt-and-suspenders for
+  stray logs outside logs/.
+
 ## 2026-06-07 0302 UTC -- Panel: detached/background mode + status visibility (Brandon + Claude)
 
 - `manage.py panel` was foreground-only (died when its terminal closed). Added:

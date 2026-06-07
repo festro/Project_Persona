@@ -5,7 +5,7 @@ phase ladder from basic functionality to extended functionality. Each phase is
 "locked" to a functional state: it has an Exit Gate (concrete, testable
 acceptance criteria) that must be green before the next phase starts.
 
-Last updated: 2026-06-07 0253 UTC by Claude
+Last updated: 2026-06-07 0323 UTC by Claude
 
 ## Boundaries (do not duplicate)
 
@@ -86,8 +86,9 @@ audit + support matrix:
       capabilities/test/panel) replacing the bash/ps1 split (no bash for core
       lifecycle). LIVE-VALIDATED on Windows (RX 9060 XT) 2026-06-07: toggle brought
       the full stack up on :8090/:8000 and tore it down cleanly; test playbook green
-      incl. live /agent/run; web panel drove it. Pure stdlib. Linux/ARM64 live pass
-      still pending to flip to [x].
+      incl. live /agent/run; web panel drove it. Pure stdlib. Bash lifecycle scripts
+      archived to scripts/archive/ (Phase C 2026-06-07) -- core lifecycle is now
+      manage.py-only. Linux/ARM64 live pass still pending to flip to [x].
 - [x] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
       sentence-transformers become an opt-in extra. DONE 2026-06-06:
       requirements.txt lean (no sentence-transformers); opt-in

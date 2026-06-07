@@ -33,7 +33,7 @@ changelog.md                  reverse-chronological history
 WORKFLOW.md                   one-line pointer to D:\Projects\WORKFLOW.md
 windows_portable_*.bat        zero-install Windows portable entry points
 run/                          runtime config (config.toml primary, read via tomllib; llama-servers.env/config.env legacy fallback) + pidfiles + node_capabilities.json
-scripts/                      ops scripts (bash lifecycle, tests, setup, bootstrap); manage.py supersedes the start/stop/status/doctor scripts cross-platform
+scripts/                      setup/bootstrap + tests (init_profiles, setup_native_stack, bootstrap_portable_python, load_test); the bash lifecycle scripts were archived to scripts/archive/ (superseded by manage.py)
 docs/                         design/reference notes (portability_audit, llama_build_matrix, distributed_nodes, py314_compatibility)
 services/api/                 FastAPI companion API (server.py, memory_distiller.py)
 services/chromadb/            ChromaDB RAG service code
