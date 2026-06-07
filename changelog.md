@@ -14,6 +14,38 @@ Conventions:
 
 ---
 
+## 2026-06-07 1155 PDT -- T2.2 validated 22/22 Windows-side (Brandon + Claude)
+
+- Ran tests/test_api_offline.py on the portable 3.11.9 interpreter: ALL PASS, 22/22
+  (was 14/14 + the 8 new gate checks). Gate logic exercised through the real /chat +
+  /v1 endpoints (only query_llama faked). roadmap T2.2 -> [x].
+- Known cosmetic warning persists: StarletteDeprecationWarning (httpx vs httpx2 in
+  the FastAPI TestClient) -- still the open low-pri fix-it, not a failure.
+
+## 2026-06-07 1151 PDT -- T2.2 thinking gate, Path A (Brandon + Claude)
+
+- DECISION (Path A): T2.2 stays on the /think//no_think prefix + raw /completion
+  flow; the chat_template_kwargs/messages migration is deferred to T2.4 (same
+  --jinja reasoning_content world). Rationale: do the messages rework once, where
+  the post-hoc sanitizer cleanup is its payoff.
+- server.py: new OFF-by-default thinking gate. classify_triviality(text) -> a
+  deterministic, stdlib-only (no model call) (is_nontrivial, signals) verdict from
+  code fences, multi-question, multi-sentence, length, and a reasoning-keyword set.
+- resolve_think / thinking_prefix / sampling_for gain an optional `text` arg.
+  With THINKING_AUTO_GATE=1 the gate PROMOTES a non-thinking-topic request (e.g.
+  "chat") to think when non-trivial; explicit on/off and the THINKING_MODE_TOPICS
+  set keep their deterministic mapping (so the Phase 1 exit-gate proof is
+  unchanged with the gate off, the default).
+- Config: THINKING_AUTO_GATE, THINKING_GATE_TRIVIAL_MAX_WORDS (6),
+  THINKING_GATE_COMPLEX_MIN_WORDS (30), THINKING_GATE_KEYWORDS.
+- Observability: /health adds `thinking_auto_gate`; /chat debug adds
+  `thinking_gate` {enabled, is_nontrivial, signals}.
+- tests/test_api_offline.py: +8 gate checks (gate-on/off, promote/demote, thinking
+  topic still deterministic). Offline suite goes 14/14 -> 22/22 when run live.
+- Verified: AST + py_compile OK on a completeness-verified off-mount copy (1087
+  lines, edit markers present); standalone logic harness 14/14 against the extracted
+  classify_triviality/resolve_think. LIVE /chat debug validation pending (Brandon).
+
 ## 2026-06-07 1140 PDT -- Handoff written (handoff_persona_20260607_1140) (Brandon + Claude)
 
 - Froze the session into archive/handoffs/handoff_persona_20260607_1140.md:

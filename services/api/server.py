@@ -170,6 +170,30 @@ SAMPLING_PRESETS: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# T2.2 thinking gate (2026-06-07). A deterministic per-request triviality
+# classifier that refines the coarse THINKING_MODE_TOPICS bucket in "auto" mode.
+# OFF by default: with the gate off, resolve_think behaves exactly as before
+# (explicit on/off override, then topic-in-THINKING_MODE_TOPICS -> think, else
+# no_think) so the Phase 1 exit-gate proof is unchanged. With THINKING_AUTO_GATE=1
+# the gate may PROMOTE a non-thinking-topic request (e.g. "chat") to think when the
+# text is non-trivial. Explicit on/off and the thinking topics keep their
+# deterministic mapping -- the gate only refines the otherwise-flat "everything
+# else -> no_think" bucket.
+THINKING_AUTO_GATE = os.getenv("THINKING_AUTO_GATE", "0").strip().lower() in ("1", "true", "yes", "on")
+THINKING_GATE_TRIVIAL_MAX_WORDS = _env_int("THINKING_GATE_TRIVIAL_MAX_WORDS", "6")
+THINKING_GATE_COMPLEX_MIN_WORDS = _env_int("THINKING_GATE_COMPLEX_MIN_WORDS", "30")
+THINKING_GATE_KEYWORDS = {
+    t.strip().lower()
+    for t in os.getenv(
+        "THINKING_GATE_KEYWORDS",
+        "why,how,explain,compare,contrast,analyze,analyse,derive,prove,calculate,"
+        "compute,debug,optimize,optimise,design,plan,evaluate,reason,implications,"
+        "trade-off,tradeoff,pros and cons,step by step,step-by-step,"
+        "difference between,walk me through,break down",
+    ).split(",")
+    if t.strip()
+}
+
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
 os.makedirs(PROFILES_DIR, exist_ok=True)
@@ -565,11 +589,45 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
 # -----------------------
 # Prompt builder
 # -----------------------
-def resolve_think(topic: str, mode: Optional[str] = None) -> str:
+def classify_triviality(text: str) -> Tuple[bool, List[str]]:
+    """Classify a request as non-trivial (reasoning-worthy) or trivial.
+
+    Deterministic and stdlib-only -- runs per request, so no model call. Returns
+    (is_nontrivial, signals); `signals` lists the cues that fired so the decision
+    is auditable from /chat debug. Drives the T2.2 thinking gate.
+    """
+    t = (text or "").strip()
+    low = t.lower()
+    words = re.findall(r"\w+", low)
+    n = len(words)
+    signals: List[str] = []
+
+    if "```" in t or re.search(r"\bdef \w+\s*\(|\bclass \w+\s*[:(]|\bimport \w+", t):
+        signals.append("code")
+    if t.count("?") >= 2:
+        signals.append("multi_question")
+    if len(re.findall(r"[.!?]+", t)) >= 3:
+        signals.append("multi_sentence")
+    if n >= THINKING_GATE_COMPLEX_MIN_WORDS:
+        signals.append("long")
+    hits = sorted(k for k in THINKING_GATE_KEYWORDS if k in low)
+    if hits:
+        signals.append("keyword:" + ",".join(hits))
+
+    if signals:
+        return True, signals
+    if n <= THINKING_GATE_TRIVIAL_MAX_WORDS:
+        return False, ["short"]
+    return False, ["default_trivial"]
+
+
+def resolve_think(topic: str, mode: Optional[str] = None, text: Optional[str] = None) -> str:
     """Resolve the thinking mode to "think" or "no_think".
 
     Single source of truth for both the Qwen3 directive and the sampling preset.
-    `mode` overrides THINKING_MODE_DEFAULT when explicitly passed.
+    `mode` overrides THINKING_MODE_DEFAULT when explicitly passed. `text`, when
+    supplied and THINKING_AUTO_GATE is on, lets the triviality gate promote a
+    non-thinking-topic request to think in the "auto" path.
     """
     m = (mode or THINKING_MODE_DEFAULT or "auto").strip().lower()
     if m == "on":
@@ -578,20 +636,22 @@ def resolve_think(topic: str, mode: Optional[str] = None) -> str:
         return "no_think"
     if (topic or "").strip().lower() in THINKING_MODE_TOPICS:
         return "think"
+    if THINKING_AUTO_GATE and text:
+        return "think" if classify_triviality(text)[0] else "no_think"
     return "no_think"
 
 
-def thinking_prefix(topic: str, mode: Optional[str] = None) -> str:
+def thinking_prefix(topic: str, mode: Optional[str] = None, text: Optional[str] = None) -> str:
     """Return the Qwen3 thinking-mode directive line ("/think\\n" or "/no_think\\n")."""
-    return "/think\n" if resolve_think(topic, mode) == "think" else "/no_think\n"
+    return "/think\n" if resolve_think(topic, mode, text) == "think" else "/no_think\n"
 
 
-def sampling_for(topic: str, mode: Optional[str] = None) -> Tuple[str, float, Dict[str, Any]]:
+def sampling_for(topic: str, mode: Optional[str] = None, text: Optional[str] = None) -> Tuple[str, float, Dict[str, Any]]:
     """Return (preset_key, temperature, extra) for the resolved thinking mode.
 
     `extra` carries top_p/top_k/min_p/presence_penalty for query_llama.
     """
-    key = resolve_think(topic, mode)
+    key = resolve_think(topic, mode, text)
     preset = SAMPLING_PRESETS[key]
     temperature = float(preset["temperature"])
     extra = {k: preset[k] for k in ("top_p", "top_k", "min_p", "presence_penalty")}
@@ -634,7 +694,7 @@ def build_persona_prompt(
     else:
         prefix = "You are a helpful assistant.\n\n"
 
-    prompt = thinking_prefix(topic, thinking_mode) + prefix + f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    prompt = thinking_prefix(topic, thinking_mode, user_text) + prefix + f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
     if rag_block:
         prompt += (
             "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
@@ -861,6 +921,7 @@ async def health():
         "reasoning_inband_topics": sorted(list(REASONING_INBAND_TOPICS)),
         "thinking_mode_default": THINKING_MODE_DEFAULT,
         "thinking_mode_topics": sorted(list(THINKING_MODE_TOPICS)),
+        "thinking_auto_gate": THINKING_AUTO_GATE,
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
@@ -904,7 +965,7 @@ async def chat(req: ChatRequest):
         thinking_mode=req.thinking_mode,
     )
 
-    preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode)
+    preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode, req.text)
 
     async with persona_sem:
         reply, stats = await query_llama(
@@ -924,15 +985,21 @@ async def chat(req: ChatRequest):
 
     debug = {}
     if req.debug:
+        gate_nontrivial, gate_signals = classify_triviality(req.text)
         debug = {
             "rag_used": rag_used,
             "rag_docs_count": len(rag_docs),
             "rag_kinds": sorted(list(rag_kinds_for_topic(topic))),
             "reasoning_inband_used": inband_used,
             "reasoning_inband_stats": inband_stats,
-            "thinking_mode_resolved": thinking_prefix(topic, req.thinking_mode).strip() or "(none)",
+            "thinking_mode_resolved": thinking_prefix(topic, req.thinking_mode, req.text).strip() or "(none)",
             "sampling_preset": preset_key,
             "sampling": {"temperature": temperature, **sampling_extra},
+            "thinking_gate": {
+                "enabled": THINKING_AUTO_GATE,
+                "is_nontrivial": gate_nontrivial,
+                "signals": gate_signals,
+            },
             "distill": distill_dbg,
         }
 
@@ -972,7 +1039,7 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
 
     prompt = build_persona_prompt(user_text, rag_docs, profile=profile, topic=topic, thinking_mode=req.thinking_mode)
     max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)
-    preset_key, preset_temp, sampling_extra = sampling_for(topic, req.thinking_mode)
+    preset_key, preset_temp, sampling_extra = sampling_for(topic, req.thinking_mode, user_text)
     temperature = float(req.temperature) if req.temperature is not None else preset_temp
 
     async with persona_sem:

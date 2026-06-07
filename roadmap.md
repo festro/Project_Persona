@@ -156,7 +156,13 @@ persona replies over both the native and OpenAI-compatible paths.
 - [x] Global RAG wired (fastembed bge-small-en-v1.5 + Chroma global_memory) +
       memory distillation/writeback
 - [x] /agent/run non-blocking (asyncio.to_thread) -- stopgap, pre-Task-Board
-- [ ] T2.2 enable_thinking via chat_template_kwargs (fallback: /think prefix)
+- [x] T2.2 thinking gate -- DECISION 2026-06-07 (Path A): keep the /think//no_think
+      prefix on the raw /completion flow; add an OFF-by-default per-request
+      triviality gate (THINKING_AUTO_GATE) that promotes a non-thinking-topic
+      request to think when non-trivial. VALIDATED Windows-side: offline suite
+      22/22 (real /chat + /v1 endpoints, gate logic live). The
+      chat_template_kwargs/messages migration is folded into T2.4 (its --jinja
+      reasoning_content split is the same world).
 - [ ] T2.3 preserve_thinking for Hermes-originated requests
 - [-] T2.4 in-band <think> chokepoint -- RE-SCOPE: llama.cpp emits reasoning in
       `reasoning_content` under --jinja, so the user channel is already clean

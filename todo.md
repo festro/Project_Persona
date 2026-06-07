@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1140 PDT by Claude
+Last updated: 2026-06-07 1155 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,15 @@ Last updated: 2026-06-07 1140 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- T2.2 thinking gate, Path A (changelog 1151): chose the prefix path over the
+  messages migration (latter folded into T2.4). server.py gains classify_triviality
+  + an OFF-by-default THINKING_AUTO_GATE that promotes non-trivial non-thinking-topic
+  requests to think; resolve_think/thinking_prefix/sampling_for take an optional
+  `text`. /health -> thinking_auto_gate; /chat debug -> thinking_gate. +8 offline
+  checks. VALIDATED Windows-side: tests/test_api_offline.py 22/22 (changelog 1155).
+  Handoff: handoff_persona_20260607_1151.md. roadmap T2.2 -> [x]. NOT yet committed
+  (commit staged for Brandon).
 
 - Handoff written: `archive/handoffs/handoff_persona_20260607_1140.md` (frozen
   session snapshot; commit 8088ff2). Next session starts at Phase 1 / T2.2.
@@ -207,10 +216,12 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
    keys are schema-PROVISIONAL (current docs did not confirm them).
 3. T2 (core integration). T2.1 DONE 2026-06-05 (per-mode sampling presets in
    server.py + run/config.env; see changelog 0108). Remaining:
-   - T2.2: wire `enable_thinking` via `chat_template_kwargs` (needs query_llama on
-     the messages format, or fall back to the current `/think`//`/no_think`
-     prefix). Gate: trivial -> no <think>, non-trivial -> <think>. Best exercised
-     once Qwen3.6 is the served model (Instruct-2507 has no thinking mode).
+   - T2.2: DONE 2026-06-07 Path A (changelog 1151/1155) -- prefix path + OFF-by-
+     default THINKING_AUTO_GATE (trivial -> no_think, non-trivial -> think).
+     Validated Windows-side: offline suite 22/22. Remaining: commit + push, then an
+     optional live-model spot check (set THINKING_AUTO_GATE=1, POST /chat debug=true
+     with Qwen3.6 served) folded into the Phase 1 Exit Gate proof. The
+     chat_template_kwargs/messages migration is now T2.4's.
    - T2.3: wire `preserve_thinking: true` for Hermes-originated requests.
    - T2.4: RE-SCOPE first -- llama.cpp emits reasoning in `reasoning_content` under
      --jinja, so the user channel is already <think>-free server-side. Decide if a

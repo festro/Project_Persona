@@ -171,6 +171,12 @@ Sampling is no longer hardcoded -- server.py resolves think/no_think once
 (`resolve_think`) and applies a matching `SAMPLING_PRESETS` preset
 (temperature + top_p/top_k/min_p/presence_penalty) on `/chat` and
 `/v1/chat/completions`; `/v1` still honors an explicit request `temperature`.
+As of T2.2 (2026-06-07) an OFF-by-default thinking gate (`THINKING_AUTO_GATE`)
+can refine the coarse topic bucket: `classify_triviality()` gives a deterministic
+per-request verdict (keywords, length, code/multi-question cues) and, in the
+`auto` path, promotes a non-thinking-topic request to think when non-trivial.
+Explicit on/off and `THINKING_MODE_TOPICS` stay deterministic; gate off = prior
+behavior.
 Defaults mirror the per-profile Hermes config.yaml (Qwen3.6 sampling guidance).
 Target unified-topology values:
 
@@ -186,6 +192,7 @@ CACHE_TYPE_K=q8_0
 CACHE_TYPE_V=q8_0
 THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
+THINKING_AUTO_GATE=0
 API_PORT=8000
 RAG_ENABLED=1
 EMBED_MODEL=BAAI/bge-small-en-v1.5

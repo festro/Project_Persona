@@ -89,6 +89,29 @@ check("stream reconstructs non-empty content", len(content) > 0)
 r = client.post("/chat_submit", json={"text": "hi"})
 check("/chat_submit removed -> 404", r.status_code == 404)
 
+check("classify_triviality trivial 'hi'", server.classify_triviality("hi") == (False, ["short"]))
+check(
+    "classify_triviality non-trivial 'why'",
+    server.classify_triviality("Explain why the sky is blue and how Rayleigh scattering works")[0] is True,
+)
+
+server.THINKING_AUTO_GATE = False
+r = client.post("/chat", json={"text": "Explain why and how this works in detail", "topic": "chat", "debug": True})
+gate = r.json().get("debug", {}).get("thinking_gate", {})
+check("gate off -> reports disabled", gate.get("enabled") is False)
+check("gate off -> chat resolves no_think", r.json()["debug"]["thinking_mode_resolved"] == "/no_think")
+check("gate classifies non-trivial regardless", gate.get("is_nontrivial") is True)
+
+server.THINKING_AUTO_GATE = True
+r = client.post("/chat", json={"text": "Explain why and how this works in detail", "topic": "chat", "debug": True})
+check("gate on -> non-trivial chat promotes to think", r.json()["debug"]["thinking_mode_resolved"] == "/think")
+check("gate on -> non-trivial chat uses think preset", r.json()["debug"]["sampling_preset"] == "think")
+r = client.post("/chat", json={"text": "hi", "topic": "chat", "debug": True})
+check("gate on -> trivial chat stays no_think", r.json()["debug"]["thinking_mode_resolved"] == "/no_think")
+r = client.post("/chat", json={"text": "hi", "topic": "science", "debug": True})
+check("gate on -> thinking topic still deterministic think", r.json()["debug"]["thinking_mode_resolved"] == "/think")
+server.THINKING_AUTO_GATE = False
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)
