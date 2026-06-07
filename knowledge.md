@@ -201,7 +201,13 @@ via `TOPIC_ROUTING`): `classify_topic(text)` is a deterministic keyword classifi
 and `resolve_topic` decides the effective topic -- `topic="auto"` always
 classifies, an explicit non-chat topic is respected, and a missing/`chat` topic
 classifies only when routing is on. The resolved topic then drives the
-thinking/sampling preset, RAG kinds, and in-band reasoning selection.
+thinking/sampling preset, RAG kinds, and in-band reasoning selection. Generation
+path (T2.4, off by default via `PERSONA_USE_MESSAGES`): both endpoints call
+`persona_generate()`, which off keeps the raw `/completion` + `/think`-prefix flow
+and on switches to `/v1/chat/completions` with `messages` +
+`chat_template_kwargs{enable_thinking}` (needs `--jinja`); under
+`--reasoning-format deepseek` the server returns reasoning in `reasoning_content`,
+with `split_reasoning()` as the in-band fallback.
 Defaults mirror the per-profile Hermes config.yaml (Qwen3.6 sampling guidance).
 Target unified-topology values:
 
@@ -218,6 +224,7 @@ CACHE_TYPE_V=q8_0
 THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
 TOPIC_ROUTING=0
+PERSONA_USE_MESSAGES=0
 THINKING_AUTO_GATE=0
 PRESERVE_THINKING_DEFAULT=0
 API_PORT=8000

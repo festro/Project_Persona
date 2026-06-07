@@ -173,11 +173,17 @@ persona replies over both the native and OpenAI-compatible paths.
       DESIGN NOTE: preserve mode also skips the lossy persona
       two-part sanitizer (agent loops want the full answer) -- revisit if persona
       formatting is ever wanted alongside preserved reasoning.
-- [-] T2.4 in-band <think> chokepoint -- RE-SCOPE: llama.cpp emits reasoning in
-      `reasoning_content` under --jinja, so the user channel is already clean. The
-      non-jinja in-band path is now handled too: split_reasoning() (T2.3) strips
-      <think> at the persona surface by default. Remaining T2.4 = the --jinja
-      messages migration (shared with the deferred T2.2->B work).
+- [~] T2.4 --jinja messages migration -- CODE DONE 2026-06-07 (OFF by default,
+      PERSONA_USE_MESSAGES). New query_llama_messages (POST /v1/chat/completions with
+      chat_template_kwargs{enable_thinking}; parses content + reasoning_content +
+      usage), build_persona_messages (system/user split, no /think prefix), and a
+      persona_generate() helper that both /chat and /v1 call -- messages path when on,
+      the proven raw /completion path (byte-identical) when off. Server reasoning_content
+      preferred; split_reasoning is the in-band fallback. /health persona_use_messages
+      + persona_chat_url. Off-mount verified (functions AST OK; parse logic 6/6; endpoint
+      wiring balanced). LIVE VALIDATION REQUIRED -- the only piece that can't be proven
+      offline (real --jinja reasoning_content split). Once green it can retire the
+      post-hoc sanitizer on the messages path.
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
 - [~] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
       (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile

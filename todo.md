@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1617 PDT by Claude
+Last updated: 2026-06-07 1635 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,18 @@ Last updated: 2026-06-07 1617 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- T2.4 --jinja messages migration (changelog 1635): PERSONA_USE_MESSAGES (OFF default).
+  query_llama_messages (POST /v1/chat/completions + chat_template_kwargs{enable_thinking},
+  parses reasoning_content) + build_persona_messages (system/user split) + persona_generate
+  helper both endpoints call. Off = byte-identical raw /completion path; on = messages,
+  server reasoning_content preferred, split_reasoning fallback. /health
+  persona_use_messages(+url). +8 offline checks; parse logic 6/6; functions AST OK.
+  roadmap T2.4 -> [~]. NOT committed. LIVE VALIDATION REQUIRED (the real --jinja split
+  is the one thing offline can't prove): set PERSONA_USE_MESSAGES=1, POST /chat
+  preserve_thinking=true on a thinking topic, confirm reasoning comes from the server's
+  reasoning_content and content is <think>-free. Then it can retire the sanitizer on
+  that path.
 
 - Offline suite 56/56 across the batch (changelog 1617): gate + preserve + Task Board
   + per-profile naming + topic routing all green through the real endpoints. roadmap

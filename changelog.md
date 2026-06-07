@@ -14,6 +14,34 @@ Conventions:
 
 ---
 
+## 2026-06-07 1635 PDT -- T2.4 --jinja messages migration, OFF by default (Brandon + Claude)
+
+- server.py: the persona can now generate via the chat-completions/messages path.
+  New query_llama_messages(url, messages, ..., enable_thinking, extra) POSTs the
+  OpenAI-compatible /v1/chat/completions on the llama-server with
+  chat_template_kwargs{enable_thinking} and parses choices[0].message.content +
+  reasoning_content + usage (mapped to the same stats keys as query_llama).
+- build_persona_messages(): system/user split mirroring build_persona_prompt's
+  persona block, minus the /think prefix and trailing "Assistant:" (the chat template
+  owns the assistant turn; thinking is the enable_thinking kwarg).
+- persona_generate(): single helper that both /chat and /v1 now call. Off (default,
+  PERSONA_USE_MESSAGES) -> the proven raw /completion + /think-prefix path,
+  byte-identical. On -> messages path; the server's reasoning_content is preferred,
+  split_reasoning() is the in-band fallback. This is the refactor that de-duplicates
+  the two endpoints' generation call.
+- Config: PERSONA_USE_MESSAGES (default 0) + PERSONA_CHAT_URL (/v1/chat/completions on
+  PERSONA_PORT). Confirmed against the vendored server README: --jinja default-on,
+  --reasoning-format deepseek -> reasoning_content, chat_template_kwargs{enable_thinking}.
+- Observability: /health adds persona_use_messages + persona_chat_url.
+- tests/test_api_offline.py: +8 checks (build_persona_messages structure + no think
+  prefix; messages path via a monkeypatched query_llama_messages -> preserve surfaces
+  server reasoning, default sanitizes, /v1 reasoning_content; health field).
+- Verified: new functions AST OK (head parse to the distill boundary); query_llama_
+  messages parse logic 6/6 standalone; both endpoint call sites read-back balanced.
+- LIVE VALIDATION REQUIRED: the real --jinja reasoning_content behavior is the one
+  piece offline can't cover. Default off keeps the proven path until then. roadmap
+  T2.4 -> [~].
+
 ## 2026-06-07 1617 PDT -- Offline suite 56/56 across the Phase 1 batch (Brandon + Claude)
 
 - Ran tests/test_api_offline.py on the portable 3.11.9: ALL PASS, 56/56. Exercises

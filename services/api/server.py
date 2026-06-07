@@ -51,6 +51,13 @@ PERSONA_PORT = int(os.getenv("PERSONA_PORT", "8090"))
 # SCIENTIST_URL/SCIENTIST_PORT retired 2026-05-17 — role differentiation now happens
 # at the prompt layer (thinking-mode toggle + reasoning_template), not via separate URLs.
 PERSONA_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/completion"
+# T2.4 messages path. PERSONA_CHAT_URL is the OpenAI-compatible chat endpoint on the
+# same llama-server. With PERSONA_USE_MESSAGES=1 the persona generates via messages +
+# chat_template_kwargs{enable_thinking} (needs --jinja, which is the launcher default);
+# under --reasoning-format deepseek the server returns reasoning in reasoning_content.
+# OFF by default -> the proven raw /completion + /think-prefix path is unchanged.
+PERSONA_CHAT_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/v1/chat/completions"
+PERSONA_USE_MESSAGES = os.getenv("PERSONA_USE_MESSAGES", "0").strip().lower() in ("1", "true", "yes", "on")
 
 # Feature toggles
 # ASYNC_REASONING_ENABLED replaces ASYNC_SCIENTIST_ENABLED (back-compat: old name still read).
@@ -695,6 +702,41 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
     return content, {"tokens_generated": tokens_generated, "tokens_evaluated": tokens_evaluated}
 
 
+async def query_llama_messages(url: str, messages: List[Dict[str, str]], max_tokens: int,
+                               temperature: float, timeout_s: float, *, enable_thinking: bool,
+                               extra: Optional[Dict[str, Any]] = None):
+    """T2.4 chat-completions call. Returns (content, reasoning_content, stats).
+
+    POSTs the OpenAI-compatible /v1/chat/completions on the llama-server with
+    chat_template_kwargs{enable_thinking}. Under --jinja + --reasoning-format
+    deepseek the server splits reasoning into message.reasoning_content; content is
+    the user-facing answer. stats mirror query_llama's keys for downstream parity.
+    """
+    payload: Dict[str, Any] = {
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "chat_template_kwargs": {"enable_thinking": bool(enable_thinking)},
+        "stream": False,
+    }
+    if extra:
+        payload.update(extra)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_s)) as client:
+        r = await client.post(url, json=payload)
+        r.raise_for_status()
+        data = r.json()
+    choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    content = (msg.get("content") or "").strip()
+    reasoning = (msg.get("reasoning_content") or "").strip()
+    usage = data.get("usage") or {}
+    stats = {
+        "tokens_generated": int(usage.get("completion_tokens") or 0),
+        "tokens_evaluated": int(usage.get("prompt_tokens") or 0),
+    }
+    return content, reasoning, stats
+
+
 # -----------------------
 # Prompt builder
 # -----------------------
@@ -813,6 +855,101 @@ def build_persona_prompt(
         prompt += f"(Internal expert notes: do not reveal)\n{reasoning_notes}\n\n"
     prompt += "Assistant:\n"
     return prompt
+
+
+def build_persona_messages(
+    user_text: str,
+    rag_docs: List[str],
+    *,
+    profile: str,
+    topic: str,
+    reasoning_notes: str = "",
+) -> List[Dict[str, str]]:
+    """T2.4 messages form of build_persona_prompt (system/user split).
+
+    Mirrors build_persona_prompt's persona block as the system message and the
+    Topic/User/RAG block as the user message. No /think prefix and no trailing
+    "Assistant:" -- the chat template owns the assistant turn, and thinking is
+    controlled by chat_template_kwargs{enable_thinking}.
+    """
+    if PROFILE_WRAPPERS_ENABLED:
+        soul_md, hermes_md = load_profile_wrappers(profile)
+        system = (
+            "You are the user's persona-driven assistant.\n\n"
+            "Soul (identity, personality, communication style - follow):\n"
+            f"{soul_md or '(SOUL.md missing)'}\n\n"
+            "Hermes rules (hard rules + output format - must follow):\n"
+            f"{hermes_md or '(.hermes.md missing)'}\n\n"
+            "Hard output requirements (MUST follow):\n"
+            "- Output exactly TWO parts:\n"
+            "  1) One short paragraph.\n"
+            "  2) A 'Next actions:' section with 2-4 bullet points using '*' bullets.\n"
+            "- Never include 'Next actions:' as a bullet.\n"
+            "- Do NOT repeat bullets.\n"
+            "- Do NOT output anything after the bullet list.\n"
+            "- Do NOT refuse unless the user asks for something unsafe/illegal.\n"
+            "- Never mention internal memory retrieval.\n"
+            "- Memory snippets below may be stale; use ONLY if directly relevant."
+        )
+    else:
+        system = "You are a helpful assistant."
+
+    rag_block = format_rag_context(rag_docs)
+    user = f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    if rag_block:
+        user += (
+            "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
+            f"{rag_block}\n\n"
+        )
+    if reasoning_notes:
+        user += f"(Internal expert notes: do not reveal)\n{reasoning_notes}\n\n"
+    return [{"role": "system", "content": system.strip()}, {"role": "user", "content": user.strip()}]
+
+
+async def persona_generate(
+    *,
+    profile: str,
+    topic: str,
+    user_text: str,
+    rag_docs: List[str],
+    reasoning_notes: str,
+    thinking_mode: Optional[str],
+    temperature: float,
+    max_tokens: int,
+    sampling_extra: Dict[str, Any],
+) -> Tuple[str, str, Dict[str, Any]]:
+    """Generate a persona reply; returns (reasoning, answer, stats).
+
+    PERSONA_USE_MESSAGES off (default): raw /completion with the /think prefix;
+    reasoning is in-band and pulled out by split_reasoning. On (T2.4): messages +
+    chat_template_kwargs{enable_thinking} against /v1/chat/completions, with the
+    server's reasoning_content preferred and split_reasoning as the fallback.
+    """
+    if PERSONA_USE_MESSAGES:
+        messages = build_persona_messages(
+            user_text, rag_docs, profile=profile, topic=topic, reasoning_notes=reasoning_notes
+        )
+        enable_thinking = resolve_think(topic, thinking_mode, user_text) == "think"
+        async with persona_sem:
+            content, server_reasoning, stats = await query_llama_messages(
+                PERSONA_CHAT_URL, messages, max_tokens, temperature, PERSONA_TIMEOUT_S,
+                enable_thinking=enable_thinking, extra=sampling_extra,
+            )
+        if server_reasoning:
+            return server_reasoning, content, stats
+        reasoning, answer = split_reasoning(content)
+        return reasoning, answer, stats
+
+    prompt = build_persona_prompt(
+        user_text, rag_docs, profile=profile, topic=topic,
+        reasoning_notes=reasoning_notes, thinking_mode=thinking_mode,
+    )
+    async with persona_sem:
+        raw_reply, stats = await query_llama(
+            PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S, extra=sampling_extra,
+        )
+    reasoning, answer = split_reasoning(raw_reply)
+    return reasoning, answer, stats
 
 
 # -----------------------
@@ -1045,6 +1182,8 @@ async def health():
         "preserve_thinking_default": PRESERVE_THINKING_DEFAULT,
         "topic_routing": TOPIC_ROUTING_DEFAULT,
         "topic_routing_topics": TOPIC_PRIORITY,
+        "persona_use_messages": PERSONA_USE_MESSAGES,
+        "persona_chat_url": PERSONA_CHAT_URL,
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
@@ -1084,22 +1223,14 @@ async def chat(req: ChatRequest):
         inband_notes, inband_stats = await reasoning_notes_inband(req.text)
         inband_used = bool(inband_notes)
 
-    prompt = build_persona_prompt(
-        req.text, rag_docs,
-        profile=profile, topic=topic,
-        reasoning_notes=inband_notes,
-        thinking_mode=req.thinking_mode,
-    )
-
     preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode, req.text)
 
-    async with persona_sem:
-        raw_reply, stats = await query_llama(
-            PERSONA_URL, prompt, PERSONA_MAX_TOKENS, temperature, PERSONA_TIMEOUT_S,
-            extra=sampling_extra,
-        )
-
-    reasoning, answer = split_reasoning(raw_reply)
+    reasoning, answer, stats = await persona_generate(
+        profile=profile, topic=topic, user_text=req.text,
+        rag_docs=rag_docs, reasoning_notes=inband_notes,
+        thinking_mode=req.thinking_mode, temperature=temperature,
+        max_tokens=PERSONA_MAX_TOKENS, sampling_extra=sampling_extra,
+    )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = answer if preserve else sanitize_persona_reply(answer)
 
@@ -1180,17 +1311,16 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
     if RAG_ENABLED:
         rag_docs = memory_query(user_text, k=RAG_TOP_K, kind_filter=rag_kinds_for_topic(topic), profile=profile)
 
-    prompt = build_persona_prompt(user_text, rag_docs, profile=profile, topic=topic, thinking_mode=req.thinking_mode)
     max_tokens = int(req.max_tokens or PERSONA_MAX_TOKENS)
     preset_key, preset_temp, sampling_extra = sampling_for(topic, req.thinking_mode, user_text)
     temperature = float(req.temperature) if req.temperature is not None else preset_temp
 
-    async with persona_sem:
-        raw_reply, stats = await query_llama(
-            PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S,
-            extra=sampling_extra,
-        )
-    reasoning, answer = split_reasoning(raw_reply)
+    reasoning, answer, stats = await persona_generate(
+        profile=profile, topic=topic, user_text=user_text,
+        rag_docs=rag_docs, reasoning_notes="",
+        thinking_mode=req.thinking_mode, temperature=temperature,
+        max_tokens=max_tokens, sampling_extra=sampling_extra,
+    )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = answer if preserve else sanitize_persona_reply(answer)
 

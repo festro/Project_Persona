@@ -210,6 +210,38 @@ server.TOPIC_ROUTING_DEFAULT = _saved_tr
 h = client.get("/health").json()
 check("health topic_routing present", "topic_routing" in h and "topic_routing_topics" in h)
 
+msgs = server.build_persona_messages("hello world here", [], profile="default", topic="chat")
+check("messages: two parts", len(msgs) == 2)
+check("messages: system + user roles", msgs[0]["role"] == "system" and msgs[1]["role"] == "user")
+check("messages: user carries text + topic", "hello world here" in msgs[1]["content"] and "Topic:" in msgs[1]["content"])
+check("messages: no think prefix", "/think" not in msgs[1]["content"] and "/no_think" not in msgs[0]["content"])
+
+
+async def fake_query_llama_messages(url, messages, max_tokens, temperature, timeout_s, *, enable_thinking, extra=None):
+    return (
+        "The answer here is long enough to pass the writeback filters easily.",
+        "server-side reasoning block",
+        {"tokens_generated": 7, "tokens_evaluated": 30},
+    )
+
+
+server.query_llama_messages = fake_query_llama_messages
+_saved_msgs = server.PERSONA_USE_MESSAGES
+server.PERSONA_USE_MESSAGES = True
+r = client.post("/chat", json={"text": "explain the idea", "topic": "science", "preserve_thinking": True, "debug": True})
+body = r.json()
+check("messages path: preserve surfaces server reasoning", body["reasoning"] == "server-side reasoning block")
+check("messages path: content is the answer", body["text"].startswith("The answer here"))
+r = client.post("/chat", json={"text": "explain the idea", "topic": "science", "debug": True})
+check("messages path: default does not leak reasoning", "server-side reasoning" not in r.json()["text"])
+r = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}], "preserve_thinking": True})
+m = r.json()["choices"][0]["message"]
+check("messages path: /v1 reasoning_content", m.get("reasoning_content") == "server-side reasoning block")
+server.PERSONA_USE_MESSAGES = _saved_msgs
+server.query_llama_messages = None
+
+check("health persona_use_messages present", "persona_use_messages" in client.get("/health").json())
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)
