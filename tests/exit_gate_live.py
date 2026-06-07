@@ -116,6 +116,43 @@ soft("/v1 preserve -> reasoning_content",
      bool(msg.get("reasoning_content")),
      "served model produced no <think> (non-thinking model?)")
 
+# ---- adaptive sections: validate whichever flags are enabled on the server ----
+# Re-read /health so the script reflects the running config and only asserts the
+# flag-gated behavior that is actually turned on (skips the rest with a note).
+flags = _req("GET", "/health")[1]
+print("-" * 60)
+print("flags: persona_use_messages=%s | rag_per_profile=%s | topic_routing=%s | thinking_auto_gate=%s"
+      % (flags.get("persona_use_messages"), flags.get("rag_per_profile"),
+         flags.get("topic_routing"), flags.get("thinking_auto_gate")))
+
+# T2.4 messages path (PERSONA_USE_MESSAGES=1). Confirms reasoning arrives from the
+# server's reasoning_content under --jinja and the user channel stays <think>-free.
+if flags.get("persona_use_messages"):
+    b = chat("Plan a small experiment and reason it through.", topic=THINK_TOPIC, preserve=True)
+    check("[messages] no <think> in text", "<think>" not in b["text"])
+    soft("[messages] reasoning from server reasoning_content",
+         b["debug"]["preserve_thinking"]["reasoning_chars"] > 0,
+         "server returned no reasoning_content (check --reasoning-format deepseek / non-thinking model)")
+    _, v = _req("POST", "/v1/chat/completions",
+                {"messages": [{"role": "user", "content": "Plan and reason it through."}],
+                 "topic": THINK_TOPIC, "preserve_thinking": True})
+    soft("[messages] /v1 reasoning_content present",
+         bool(v["choices"][0]["message"].get("reasoning_content")),
+         "server returned no reasoning_content")
+else:
+    print("SKIP [messages] T2.4 -- PERSONA_USE_MESSAGES off (set =1 + restart to validate)")
+
+# Per-profile Chroma (RAG_PER_PROFILE=1 AND RAG_ENABLED). Posts under throwaway
+# profiles and confirms mem_<profile> collections appear in /health.rag_collections.
+if flags.get("rag_per_profile") and flags.get("rag_enabled"):
+    _req("POST", "/chat", {"text": "hello from alice, remember this", "topic": "chat", "profile": "alice"})
+    _req("POST", "/chat", {"text": "hello from bob, remember this", "topic": "chat", "profile": "bob"})
+    cols = _req("GET", "/health")[1].get("rag_collections", [])
+    check("[per-profile] mem_alice collection created", "mem_alice" in cols)
+    check("[per-profile] mem_bob collection created", "mem_bob" in cols)
+else:
+    print("SKIP [per-profile] -- needs RAG_PER_PROFILE=1 and RAG_ENABLED (set + restart)")
+
 print("-" * 60)
 if warnings:
     print("WARNINGS (model-dependent, not failures):", ", ".join(warnings))

@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1635 PDT by Claude
+Last updated: 2026-06-07 1640 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,12 @@ Last updated: 2026-06-07 1635 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- Session milestone handoff: archive/handoffs/handoff_persona_20260607_1640.md
+  (changelog 1640). Summarizes the full arc + the LIVE validation owed.
+  exit_gate_live.py made adaptive ([messages] + [per-profile] sections gated on
+  /health flags). One command now validates the Exit Gate + the flagged features.
+  NEXT SESSION = live validation pass (see the handoff's "Validation owed").
 
 - T2.4 --jinja messages migration (changelog 1635): PERSONA_USE_MESSAGES (OFF default).
   query_llama_messages (POST /v1/chat/completions + chat_template_kwargs{enable_thinking},

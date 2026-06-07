@@ -14,6 +14,19 @@ Conventions:
 
 ---
 
+## 2026-06-07 1640 PDT -- exit_gate_live.py adaptive + session milestone handoff (Brandon + Claude)
+
+- tests/exit_gate_live.py: added adaptive [messages] (PERSONA_USE_MESSAGES) and
+  [per-profile] (RAG_PER_PROFILE + RAG_ENABLED) sections. Re-reads /health and only
+  asserts the flag-gated behavior that is actually on, skipping the rest with a note
+  + printing the active flags. So one script validates the Exit Gate by default and
+  the T2.4 / per-profile features when their flags are flipped on a restart. Block
+  AST OK + dry-run (default-off -> clean skips, ALL REQUIRED PASS). Task Board's
+  /agent/run smoke intentionally left manual (it mutates the repo via taskman2).
+- Handoff written: archive/handoffs/handoff_persona_20260607_1640.md -- session
+  milestone summarizing the full arc (T2.2 -> T2.3 -> Exit Gate -> Task Board ->
+  per-profile -> topic routing -> T2.4) and the LIVE validation owed.
+
 ## 2026-06-07 1635 PDT -- T2.4 --jinja messages migration, OFF by default (Brandon + Claude)
 
 - server.py: the persona can now generate via the chat-completions/messages path.
