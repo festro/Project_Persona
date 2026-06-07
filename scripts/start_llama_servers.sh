@@ -87,6 +87,7 @@ start_one () {
     --device Vulkan0 \
     --parallel "$parallel" \
     --cont-batching \
+    --jinja \
     > "$logfile" 2>&1 &
 
   echo $! > "$pidfile"

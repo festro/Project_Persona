@@ -15,16 +15,25 @@ Pure standard library (Python 3.8+). Apple/Metal is intentionally out of scope.
 """
 
 import argparse
+import collections
+import contextlib
 import ctypes
+import http.server
+import io
 import json
 import os
 import platform
+import re
+import shutil
 import signal
+import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 from pathlib import Path
 
 IS_WINDOWS = os.name == "nt"
@@ -79,9 +88,53 @@ def load_env_file(path, target):
     return target
 
 
+def os_tag():
+    return "windows" if IS_WINDOWS else "linux"
+
+
+def _merge_flat(cfg, table):
+    for k, v in table.items():
+        if isinstance(v, dict):
+            continue
+        if isinstance(v, bool):
+            cfg[k] = "True" if v else "False"
+        elif isinstance(v, (list, tuple)):
+            cfg[k] = ",".join(str(x) for x in v)
+        else:
+            cfg[k] = str(v)
+
+
+def load_config_toml(path):
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            warn("config.toml present but no TOML parser (need Python 3.11+); using .env")
+            return None
+    try:
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        warn(f"config.toml unreadable ({e}); falling back to .env")
+        return None
+    cfg = {}
+    _merge_flat(cfg, data.get("base", {}))
+    _merge_flat(cfg, data.get("runtime", {}))
+    _merge_flat(cfg, data.get(os_tag(), {}))
+    return cfg
+
+
 def load_config(root):
+    toml_path = root / "run" / "config.toml"
+    if toml_path.is_file():
+        cfg = load_config_toml(toml_path)
+        if cfg is not None:
+            return cfg
     cfg = {}
     load_env_file(root / "run" / "llama-servers.env", cfg)
+    load_env_file(root / "run" / f"llama-servers.{os_tag()}.env", cfg)
     load_env_file(root / "run" / "config.env", cfg)
     return cfg
 
@@ -269,6 +322,26 @@ def api_env(root, cfg):
     return env
 
 
+def resolve_model(root, cfg):
+    models_dir = root / "models"
+    configured = cfg.get("PERSONA_MODEL", "")
+    if configured:
+        p = models_dir / configured
+        if p.is_file():
+            return p
+        warn(f"configured model not found: {p}")
+    present = sorted(models_dir.glob("*.gguf")) if models_dir.is_dir() else []
+    if len(present) == 1:
+        warn(f"falling back to the only GGUF present: {present[0].name}")
+        return present[0]
+    if not present:
+        err(f"no GGUF model found in {models_dir} (set PERSONA_MODEL or add a .gguf)")
+        return None
+    names = ", ".join(p.name for p in present)
+    err(f"PERSONA_MODEL unset/missing and multiple GGUFs present ({names}); set PERSONA_MODEL")
+    return None
+
+
 def start_llama(root, cfg, wait):
     pidfile = root / "run" / "persona.pid"
     existing = read_pid(pidfile)
@@ -285,11 +358,10 @@ def start_llama(root, cfg, wait):
             warn("Build llama.cpp into llama_cpp/build/")
         return False
 
-    model = cfg.get("PERSONA_MODEL", "")
-    model_path = root / "models" / model
-    if not model_path.is_file():
-        err(f"model not found: {model_path}")
+    model_path = resolve_model(root, cfg)
+    if model_path is None:
         return False
+    model = model_path.name
 
     host = cfg.get("HOST", "127.0.0.1")
     port = cfg.get("PERSONA_PORT", "8090")
@@ -308,23 +380,27 @@ def start_llama(root, cfg, wait):
         "--ubatch-size", cfg.get("UBATCH_SIZE", "512"),
         "--cache-type-k", cfg.get("CACHE_TYPE_K", "q8_0"),
         "--cache-type-v", cfg.get("CACHE_TYPE_V", "q8_0"),
-        "--n-gpu-layers", cfg.get("GPU_LAYERS_PERSONA", "999"),
         "--parallel", cfg.get("PERSONA_PARALLEL", "4"),
         "--cont-batching",
         "--jinja",
     ]
-    if IS_WINDOWS:
-        argv += ["--device", "Vulkan0"]
-
-    extra_env = {}
-    if IS_WINDOWS:
-        extra_env["GGML_VK_VISIBLE_DEVICES"] = "0"
+    ngl = str(cfg.get("GPU_LAYERS_PERSONA", "auto")).strip().lower()
+    if ngl and ngl != "auto":
+        argv += ["--n-gpu-layers", ngl]
     else:
-        lib = cfg.get("LLAMA_LIB_DIR")
-        if lib:
-            extra_env["LD_LIBRARY_PATH"] = (
-                lib + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
-            )
+        info("GPU layers: auto (letting llama-server fit the offload to VRAM)")
+    backend = (cfg.get("LLAMA_BACKEND") or ("vulkan" if IS_WINDOWS else "")).strip().lower()
+    extra_env = {}
+    if backend == "vulkan":
+        argv += ["--device", "Vulkan0"]
+        extra_env["GGML_VK_VISIBLE_DEVICES"] = cfg.get("GGML_VK_VISIBLE_DEVICES", "0")
+    elif backend:
+        info(f"llama backend '{backend}': letting the binary pick its device (no Vulkan flags)")
+    if not IS_WINDOWS:
+        lib = cfg.get("LLAMA_LIB_DIR") or str(root / "llama_cpp" / "build" / "bin")
+        extra_env["LD_LIBRARY_PATH"] = (
+            lib + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+        )
 
     logfile = root / "logs" / "persona.log"
     info(f"Starting llama-server on http://{host}:{port}  (model={model})")
@@ -443,7 +519,7 @@ def cmd_status(root, cfg, args):
     print(f"OS: {platform.system()} {platform.machine()}")
     print()
     print("Processes:")
-    for name in ("api", "persona"):
+    for name in ("api", "persona", "panel"):
         pid = read_pid(root / "run" / f"{name}.pid")
         if pid_alive(pid):
             ok(f"{name}: running (pid {pid})")
@@ -565,6 +641,25 @@ def cmd_doctor(root, cfg, args):
         warn(f"llama-server binary missing: {binpath}")
     print()
 
+    info("Accelerators")
+    accels = detect_accelerators()
+    build, compiled = llama_version_info(binpath)
+    selected = (cfg.get("LLAMA_BACKEND") or select_backend(accels, compiled)).strip().lower()
+    if not accels:
+        warn("no accelerators detected (CPU-only node)")
+    for a in accels:
+        if a.get("usable_for_llm"):
+            ok(f"tier {a['tier']} {a['vendor']} {a['device']} -> {','.join(a.get('backends', []))}")
+        else:
+            warn(f"tier {a['tier']} {a['vendor']} {a['device']} present but NOT used for LLM "
+                 f"(needs {a.get('native_runtime', 'its own runtime')})")
+    if compiled:
+        ok(f"llama-server build {build or '?'} compiled backends: {','.join(compiled)}")
+    else:
+        warn("could not read compiled backends from llama-server --version")
+    ok(f"selected backend: {selected}")
+    print()
+
     info("Model file")
     model = cfg.get("PERSONA_MODEL", "")
     mpath = root / "models" / model
@@ -661,6 +756,552 @@ def cmd_doctor(root, cfg, args):
     return 0
 
 
+BACKEND_PRIORITY = ["cuda", "rocm", "sycl", "vulkan", "opencl", "cann", "musa"]
+
+
+def _which(name):
+    return shutil.which(name) is not None
+
+
+def _run(cmd, timeout=6):
+    try:
+        p = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            timeout=timeout, text=True, errors="replace",
+        )
+        return p.returncode, p.stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return None, ""
+
+
+def detect_ram_mb():
+    """Return (total_mb, available_mb). Available nets out RAM held by e.g. a
+    ramdisk, so it -- not total -- reflects what a model can actually use."""
+    try:
+        if IS_WINDOWS:
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+            stat = MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                return (int(stat.ullTotalPhys // (1024 * 1024)),
+                        int(stat.ullAvailPhys // (1024 * 1024)))
+        else:
+            total = avail = None
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        total = int(int(line.split()[1]) // 1024)
+                    elif line.startswith("MemAvailable:"):
+                        avail = int(int(line.split()[1]) // 1024)
+            return (total, avail)
+    except Exception:
+        return (None, None)
+    return (None, None)
+
+
+def detect_vulkan_devices():
+    if not _which("vulkaninfo"):
+        return []
+    rc, out = _run(["vulkaninfo", "--summary"])
+    if rc is None:
+        return []
+    devices = []
+    for line in out.splitlines():
+        if "deviceName" in line and "=" in line:
+            name = line.split("=", 1)[1].strip()
+            low = name.lower()
+            if "llvmpipe" in low or "software" in low:
+                continue
+            if "nvidia" in low:
+                vendor = "nvidia"
+            elif "amd" in low or "radeon" in low or "radv" in low:
+                vendor = "amd"
+            elif "intel" in low or "arc" in low or "xe" in low:
+                vendor = "intel"
+            else:
+                vendor = "unknown"
+            devices.append({"vendor": vendor, "device": name})
+    return devices
+
+
+def _classify_gpu_vendor(name):
+    low = name.lower()
+    if "llvmpipe" in low or "software" in low or "microsoft basic" in low or "basic display" in low:
+        return None
+    if "nvidia" in low:
+        return "nvidia"
+    if "amd" in low or "radeon" in low or "radv" in low or "ati " in low:
+        return "amd"
+    if "intel" in low or "arc" in low or " xe" in low:
+        return "intel"
+    return "unknown"
+
+
+def detect_os_gpus():
+    names = []
+    if IS_WINDOWS:
+        rc, out = _run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }"],
+            timeout=15,
+        )
+        if rc == 0:
+            names = [l.strip() for l in out.splitlines() if l.strip()]
+    elif _which("lspci"):
+        rc, out = _run(["lspci"])
+        if rc == 0:
+            for line in out.splitlines():
+                if re.search(r"VGA compatible controller|3D controller|Display controller", line):
+                    names.append(line.split(":", 2)[-1].strip())
+    devices = []
+    for n in names:
+        vendor = _classify_gpu_vendor(n)
+        if vendor:
+            devices.append({"vendor": vendor, "device": n})
+    return devices
+
+
+def detect_accelerators():
+    found = []
+    seen_vendors = set()
+
+    if _which("nvidia-smi"):
+        rc, out = _run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"])
+        names = [l.strip() for l in out.splitlines() if l.strip()] if rc == 0 else []
+        for n in names or ["NVIDIA GPU"]:
+            found.append({"vendor": "nvidia", "device": n, "tier": 1,
+                          "backends": ["cuda", "vulkan"], "usable_for_llm": True})
+            seen_vendors.add("nvidia")
+
+    if _which("rocminfo") or _which("rocm-smi"):
+        found.append({"vendor": "amd", "device": "AMD GPU (ROCm)", "tier": 1,
+                      "backends": ["rocm", "vulkan"], "usable_for_llm": True})
+        seen_vendors.add("amd")
+
+    if _which("sycl-ls") or _which("xpu-smi"):
+        found.append({"vendor": "intel", "device": "Intel GPU (SYCL)", "tier": 1,
+                      "backends": ["sycl", "vulkan"], "usable_for_llm": True})
+        seen_vendors.add("intel")
+
+    generic = {}
+    for vd in detect_vulkan_devices() + detect_os_gpus():
+        generic.setdefault(vd["vendor"], vd["device"])
+    for vendor, device in generic.items():
+        if vendor in seen_vendors:
+            continue
+        found.append({"vendor": vendor, "device": device, "tier": 1,
+                      "backends": ["vulkan"], "usable_for_llm": True})
+        seen_vendors.add(vendor)
+
+    if _which("npu-smi"):
+        found.append({"vendor": "huawei", "device": "Ascend NPU", "tier": 1,
+                      "backends": ["cann"], "usable_for_llm": True})
+    if _which("mthreads-gmi"):
+        found.append({"vendor": "moorethreads", "device": "MTT GPU", "tier": 1,
+                      "backends": ["musa"], "usable_for_llm": True})
+
+    accel_dir = Path("/dev/accel")
+    if not IS_WINDOWS and accel_dir.is_dir() and any(accel_dir.glob("accel*")):
+        found.append({"vendor": "intel", "device": "NPU", "tier": 2,
+                      "native_runtime": "openvino", "usable_for_llm": False})
+
+    if _which("hailortcli"):
+        found.append({"vendor": "hailo", "device": "Hailo", "tier": 3,
+                      "native_runtime": "hailort", "usable_for_llm": False})
+    if _which("hl-smi"):
+        found.append({"vendor": "intel", "device": "Gaudi", "tier": 3,
+                      "native_runtime": "synapseai", "usable_for_llm": False})
+
+    return found
+
+
+def _scan_backends(text):
+    low = (text or "").lower()
+    backends = []
+    for tok, name in (("cuda", "cuda"), ("vulkan", "vulkan"), ("rocm", "rocm"),
+                      ("hip", "rocm"), ("sycl", "sycl"), ("musa", "musa"),
+                      ("cann", "cann"), ("opencl", "opencl")):
+        if tok in low and name not in backends:
+            backends.append(name)
+    return backends
+
+
+def llama_version_info(binpath):
+    if not Path(binpath).is_file():
+        return None, []
+    build = None
+    rc, out = _run([str(binpath), "--version"], timeout=10)
+    if rc is not None:
+        m = re.search(r"\bb?(\d{3,6})\b", out or "")
+        if m:
+            build = "b" + m.group(1)
+    backends = _scan_backends(out)
+    if not backends:
+        rc2, out2 = _run([str(binpath), "--list-devices"], timeout=25)
+        if rc2 is not None:
+            backends = _scan_backends(out2)
+    return build, backends
+
+
+def select_backend(accels, compiled):
+    available = set()
+    for a in accels:
+        if a.get("usable_for_llm"):
+            for b in a.get("backends", []):
+                available.add(b)
+    candidates = [b for b in BACKEND_PRIORITY if b in available]
+    if not candidates:
+        return "cpu"
+    if compiled:
+        in_both = [b for b in candidates if b in compiled]
+        return in_both[0] if in_both else "cpu"
+    return candidates[0]
+
+
+def detect_host(root, cfg):
+    binpath = llama_binary(root)
+    accels = detect_accelerators()
+    build, compiled = llama_version_info(binpath)
+    selected = cfg.get("LLAMA_BACKEND") or select_backend(accels, compiled)
+    models = sorted(p.name for p in (root / "models").glob("*.gguf")) if (root / "models").is_dir() else []
+    ram_total, ram_avail = detect_ram_mb()
+    return {
+        "node": platform.node() or socket.gethostname(),
+        "os": "windows" if IS_WINDOWS else "linux",
+        "arch": platform.machine(),
+        "cpu_count": os.cpu_count(),
+        "ram_mb": ram_total,
+        "ram_available_mb": ram_avail,
+        "accel_selected": selected,
+        "accel_present": accels,
+        "llama_build": build,
+        "llama_backends_compiled": compiled,
+        "models": models,
+        "ctx_max": cfg.get("PERSONA_CTX"),
+        "embedder_backend": cfg.get("EMBED_BACKEND", "auto"),
+        "endpoints": {
+            "persona": f"http://{cfg.get('HOST', '127.0.0.1')}:{cfg.get('PERSONA_PORT', '8090')}",
+            "api": "http://127.0.0.1:8000",
+        },
+    }
+
+
+def cmd_capabilities(root, cfg, args):
+    desc = detect_host(root, cfg)
+    text = json.dumps(desc, indent=2)
+    print(text)
+    out = root / "run" / "node_capabilities.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text + "\n", encoding="utf-8")
+    info(f"wrote {out}")
+    return 0
+
+
+def _test_offline(root, cfg):
+    pybin = find_api_python(root)
+    suite = root / "tests" / "test_api_offline.py"
+    if not suite.is_file():
+        warn("offline suite missing: tests/test_api_offline.py")
+        return 1
+    return 0 if subprocess.call([str(pybin), str(suite)], cwd=str(root)) == 0 else 1
+
+
+def _test_health(root, cfg):
+    host = cfg.get("HOST", "127.0.0.1")
+    port = cfg.get("PERSONA_PORT", "8090")
+    rc = 0
+    d, _ = http_get_json(f"http://{host}:{port}/health")
+    if d is not None:
+        ok(f"persona /health OK (:{port})")
+    else:
+        warn(f"persona /health FAIL (:{port})")
+        rc = 1
+    d, _ = http_get_json("http://127.0.0.1:8000/health")
+    if d is not None:
+        ok("API /health OK (:8000)")
+    else:
+        warn("API /health FAIL (:8000)")
+        rc = 1
+    return rc
+
+
+def _test_smoke(root, cfg):
+    d, _ = http_post_json("http://127.0.0.1:8000/agent/run", {"ping": "pong"}, timeout=30.0)
+    if d is not None and "status" in d:
+        ok("agent /agent/run smoke OK")
+        return 0
+    warn("agent /agent/run smoke FAIL (is the API up?)")
+    return 1
+
+
+def _test_load(root, cfg):
+    pybin = find_api_python(root)
+    script = root / "scripts" / "load_test_m2b.py"
+    if not script.is_file():
+        warn("load_test_m2b.py missing")
+        return 1
+    info("running sustained load test (Ctrl-C to stop)")
+    return 0 if subprocess.call([str(pybin), str(script)], cwd=str(root)) == 0 else 1
+
+
+TEST_PLAYBOOK = {
+    "offline": ("Offline API suite (no server needed)", _test_offline),
+    "health": ("Live /health for persona + API", _test_health),
+    "smoke": ("Agent /agent/run smoke", _test_smoke),
+    "load": ("Sustained load test (long-running)", _test_load),
+}
+TEST_SETS = {"quick": ["offline", "health"], "all": ["offline", "health", "smoke"]}
+
+
+def cmd_test(root, cfg, args):
+    which = (args.which or "quick").strip().lower()
+    if which == "list":
+        info("Test playbook (run one step, a set, or 'all'):")
+        for name, (desc, _fn) in TEST_PLAYBOOK.items():
+            print(f"  {name:9} {desc}")
+        for k, v in TEST_SETS.items():
+            print(f"  set {k:7} = {'+'.join(v)}")
+        return 0
+    if which in TEST_SETS:
+        names = TEST_SETS[which]
+    elif which in TEST_PLAYBOOK:
+        names = [which]
+    else:
+        err(f"unknown test '{which}' (try: manage.py test list)")
+        return 2
+    rc = 0
+    for name in names:
+        desc, fn = TEST_PLAYBOOK[name]
+        info(f"[test:{name}] {desc}")
+        rc |= (fn(root, cfg) or 0)
+        print()
+    if rc == 0:
+        ok("all tests passed")
+    else:
+        warn("some tests failed")
+    return rc
+
+
+def cmd_toggle(root, cfg, args):
+    up_now = (pid_alive(read_pid(root / "run" / "persona.pid"))
+              or pid_alive(read_pid(root / "run" / "api.pid")))
+    if up_now:
+        info("stack is UP -> stopping (toggle)")
+        return cmd_down(root, cfg, args)
+    info("stack is DOWN -> starting (toggle)")
+    run_args = argparse.Namespace(
+        no_wait=getattr(args, "no_wait", False), llama_only=False, api_only=False,
+    )
+    return cmd_up(root, cfg, run_args)
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+PANEL_HTML = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project_Persona control panel</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a18;--mut:#6b6b66;--card:#fff;--bd:#e4e2da;--sec:#f4f2ec;--ok:#1d7a4d;--bad:#b3261e;--mono:ui-monospace,Menlo,Consolas,monospace}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--fg:#ececec;--mut:#9a9a94;--card:#262624;--bd:#3a3a36;--sec:#222220;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:20px;line-height:1.5}
+.wrap{max-width:720px;margin:0 auto}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:500;background:var(--sec)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.lbl{font-size:13px;color:var(--mut)}.big{font-size:20px;font-weight:500;margin:6px 0 2px}
+.meta{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.caps{background:var(--sec);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.capgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
+button,select{font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--fg);cursor:pointer}
+button:hover{background:var(--sec)}button:disabled{opacity:.5;cursor:not-allowed}
+.console{background:var(--sec);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:220px;overflow:auto}
+.foot{font-family:var(--mono);font-size:11px;color:var(--mut);text-align:center;margin-top:12px}
+</style></head><body><div class="wrap">
+<div class="row"><div><div style="font-size:18px;font-weight:500" id="title">Project_Persona - control panel</div><div class="meta" id="sub">connecting...</div></div>
+<span class="pill"><span class="dot" id="stackDot"></span><span id="stackTxt">...</span></span></div>
+<div class="grid">
+<div class="card"><div class="row" style="margin:0"><span class="lbl">Persona - llama-server</span><span class="dot" id="pDot"></span></div><div class="big" id="pState">-</div><div class="meta" id="pMeta"></div></div>
+<div class="card"><div class="row" style="margin:0"><span class="lbl">Companion API</span><span class="dot" id="aDot"></span></div><div class="big" id="aState">-</div><div class="meta" id="aMeta"></div></div>
+</div>
+<div class="caps"><div class="lbl" style="margin-bottom:10px">Host capabilities</div><div class="capgrid" id="caps"></div></div>
+<div class="controls">
+<button id="toggleBtn" onclick="act('toggle')" style="font-weight:500">Start</button>
+<button onclick="act('restart')">Restart</button>
+<span style="width:1px;height:22px;background:var(--bd)"></span>
+<select id="test"><option>quick</option><option>offline</option><option>health</option><option>smoke</option><option>load</option><option>all</option></select>
+<button onclick="act('test',document.getElementById('test').value)">Run test</button>
+</div>
+<div class="console" id="log">...</div>
+<div class="foot">polling /api/status every 2s - manage.py panel</div>
+</div>
+<script>
+function dot(id,good){document.getElementById(id).style.background=good?'var(--ok)':'var(--bad)'}
+async function j(u,o){const r=await fetch(u,o);return r.json()}
+async function loadCaps(){try{const c=await j('/api/capabilities');
+document.getElementById('title').textContent='Project_Persona - '+(c.node||'node');
+document.getElementById('sub').textContent=(c.os||'')+' / '+(c.arch||'')+' - manage.py panel';
+const f=[['accelerator',c.accel_selected||'cpu'],['model',(c.models&&c.models[0])||'-'],['ctx / build',(c.ctx_max||'?')+' - '+(c.llama_build||'?')],['ram avail/total',(c.ram_available_mb?Math.round(c.ram_available_mb/1024):'?')+' / '+(c.ram_mb?Math.round(c.ram_mb/1024):'?')+' GB'],['cores',(c.cpu_count||'?')]];
+document.getElementById('caps').innerHTML=f.map(x=>'<div><div class="meta">'+x[0]+'</div><div style="font-size:14px;margin-top:2px">'+x[1]+'</div></div>').join('')}catch(e){}}
+function tile(p,d,s,m){const up=p.up&&p.health;dot(d,up);document.getElementById(s).textContent=p.up?(p.health?'Running':'Starting'):'Stopped';
+document.getElementById(m).textContent=(p.pid?('pid '+p.pid):'no pid')+' - /health '+(p.health?'ok':'-')}
+async function poll(){try{const s=await j('/api/status');
+tile(s.persona,'pDot','pState','pMeta');tile(s.api,'aDot','aState','aMeta');
+const up=(s.persona.up||s.api.up);dot('stackDot',up);
+document.getElementById('toggleBtn').textContent=s.busy?'Working...':(up?'Stop':'Start');
+document.getElementById('stackTxt').textContent='Stack: '+(s.busy?'working...':(up?'running':'stopped'));
+document.getElementById('log').textContent=(s.log||[]).join('\n')||'(no output yet)';
+document.querySelectorAll('button').forEach(b=>b.disabled=!!s.busy)}catch(e){document.getElementById('stackTxt').textContent='Stack: offline'}}
+async function act(a,w){await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a,which:w||'quick'})});setTimeout(poll,300)}
+loadCaps();poll();setInterval(poll,2000);
+</script></body></html>"""
+
+
+def cmd_panel(root, cfg, args):
+    pidfile = root / "run" / "panel.pid"
+    port = int(getattr(args, "port", 8765))
+    url = f"http://127.0.0.1:{port}"
+    if getattr(args, "stop", False):
+        pid = read_pid(pidfile)
+        if pid_alive(pid):
+            terminate_pid(pid)
+            ok(f"panel stopped (pid {pid})")
+        else:
+            warn("panel not running")
+        try:
+            pidfile.unlink()
+        except OSError:
+            pass
+        return 0
+    if getattr(args, "detach", False):
+        ensure_dirs(root)
+        existing = read_pid(pidfile)
+        if pid_alive(existing):
+            ok(f"panel already running (pid {existing}) on {url}")
+            return 0
+        child = [sys.executable, str(Path(__file__).resolve()), "panel", "--port", str(port), "--no-browser"]
+        pid = spawn_detached(child, str(root / "logs" / "panel.log"), cwd=str(root))
+        write_pid(pidfile, pid)
+        ok(f"control panel detached (pid {pid}) on {url}")
+        if not getattr(args, "no_browser", False):
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+        return 0
+    caps = detect_host(root, cfg)
+    state = {"busy": False, "log": collections.deque(maxlen=200)}
+    lock = threading.Lock()
+
+    def status():
+        host = cfg.get("HOST", "127.0.0.1")
+        pport = cfg.get("PERSONA_PORT", "8090")
+        pd, _ = http_get_json(f"http://{host}:{pport}/health", timeout=1.0)
+        ad, _ = http_get_json("http://127.0.0.1:8000/health", timeout=1.0)
+        pp = read_pid(root / "run" / "persona.pid")
+        ap = read_pid(root / "run" / "api.pid")
+        return {
+            "persona": {"up": pid_alive(pp), "pid": pp, "health": pd is not None},
+            "api": {"up": pid_alive(ap), "pid": ap, "health": ad is not None},
+            "busy": state["busy"], "log": list(state["log"])[-40:],
+        }
+
+    def run_action(action, which):
+        state["busy"] = True
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                if action == "up":
+                    cmd_up(root, cfg, argparse.Namespace(no_wait=False, llama_only=False, api_only=False))
+                elif action == "down":
+                    cmd_down(root, cfg, None)
+                elif action == "toggle":
+                    cmd_toggle(root, cfg, argparse.Namespace())
+                elif action == "restart":
+                    cmd_down(root, cfg, None)
+                    cmd_up(root, cfg, argparse.Namespace(no_wait=False, llama_only=False, api_only=False))
+                elif action == "test":
+                    cmd_test(root, cfg, argparse.Namespace(which=which))
+                else:
+                    print(f"[XX] unknown action {action}")
+        except Exception as e:
+            buf.write(f"[XX] {e}\n")
+        finally:
+            for ln in buf.getvalue().splitlines():
+                state["log"].append(_ANSI_RE.sub("", ln))
+            state["busy"] = False
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, code, body, ctype="application/json"):
+            data = body.encode("utf-8") if isinstance(body, str) else body
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.path in ("/", "/index.html"):
+                self._send(200, PANEL_HTML, "text/html; charset=utf-8")
+            elif self.path == "/api/status":
+                self._send(200, json.dumps(status()))
+            elif self.path == "/api/capabilities":
+                self._send(200, json.dumps(caps))
+            else:
+                self._send(404, "{}")
+
+        def do_POST(self):
+            if self.path != "/api/action":
+                self._send(404, "{}")
+                return
+            n = int(self.headers.get("Content-Length", "0") or 0)
+            try:
+                req = json.loads(self.rfile.read(n) or b"{}")
+            except Exception:
+                req = {}
+            with lock:
+                if state["busy"]:
+                    self._send(409, json.dumps({"error": "busy"}))
+                    return
+            threading.Thread(target=run_action, args=(req.get("action"), req.get("which", "quick")), daemon=True).start()
+            self._send(202, json.dumps({"accepted": True, "action": req.get("action")}))
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    write_pid(pidfile, os.getpid())
+    ok(f"control panel on {url}  (Ctrl-C to stop)")
+    if not getattr(args, "no_browser", False):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        info("panel stopping")
+    finally:
+        httpd.shutdown()
+        try:
+            pidfile.unlink()
+        except OSError:
+            pass
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         prog="manage.py",
@@ -681,6 +1322,21 @@ def build_parser():
     doc.add_argument("--deep", action="store_true", help="Include a live completion smoke test.")
     doc.add_argument("--strict", action="store_true", help="Exit non-zero unless the T1 gate is fully green.")
 
+    sub.add_parser("capabilities", help="Detect host accel/resources; write run/node_capabilities.json.")
+
+    tog = sub.add_parser("toggle", help="Start the stack if down, stop it if up.")
+    tog.add_argument("--no-wait", action="store_true", help="When starting, do not wait for llama /health.")
+
+    tst = sub.add_parser("test", help="Run the test playbook (a step, a set, or 'list').")
+    tst.add_argument("which", nargs="?", default="quick",
+                     help="offline|health|smoke|load | quick|all | list")
+
+    pan = sub.add_parser("panel", help="Serve the local web control panel (status + start/stop/test).")
+    pan.add_argument("--port", type=int, default=8765, help="Port to bind on 127.0.0.1 (default 8765).")
+    pan.add_argument("--no-browser", action="store_true", help="Do not auto-open a browser.")
+    pan.add_argument("--detach", action="store_true", help="Run in the background (survives terminal close); writes run/panel.pid.")
+    pan.add_argument("--stop", action="store_true", help="Stop a detached/running panel via run/panel.pid.")
+
     return p
 
 
@@ -695,6 +1351,10 @@ def main(argv=None):
         "down": cmd_down,
         "status": cmd_status,
         "doctor": cmd_doctor,
+        "capabilities": cmd_capabilities,
+        "toggle": cmd_toggle,
+        "test": cmd_test,
+        "panel": cmd_panel,
     }
     return handlers[args.command](root, cfg, args)
 

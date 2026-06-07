@@ -44,7 +44,7 @@ GLOBAL_MEMORY_DIR = os.getenv("GLOBAL_MEMORY_DIR", os.path.join(PERSONA_ROOT, "g
 DEFAULT_PROFILE = os.getenv("DEFAULT_PROFILE", "default")
 
 LLAMA_HOST = os.getenv("LLAMA_HOST", "127.0.0.1")
-PERSONA_PORT = int(os.getenv("PERSONA_PORT", "8080"))
+PERSONA_PORT = int(os.getenv("PERSONA_PORT", "8090"))
 
 # Unified llama-server endpoint (single-model topology, DECISION 2026-05-09).
 # SCIENTIST_URL/SCIENTIST_PORT retired 2026-05-17 — role differentiation now happens

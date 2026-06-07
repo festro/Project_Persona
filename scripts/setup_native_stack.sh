@@ -47,7 +47,7 @@ fi
 
 echo "==> Cloning & building llama.cpp"
 if [ ! -d "$AI_ROOT/llama_cpp/.git" ]; then
-  git clone https://github.com/ggerganov/llama.cpp.git "$AI_ROOT/llama_cpp"
+  git clone https://github.com/ggml-org/llama.cpp.git "$AI_ROOT/llama_cpp"
 else
   git -C "$AI_ROOT/llama_cpp" pull
 fi
@@ -77,19 +77,20 @@ python3 -m venv "$AI_ROOT/env"
 source "$AI_ROOT/env/bin/activate"
 python -m pip install --upgrade pip wheel setuptools
 
-echo "==> Writing API requirements"
-cat > "$AI_ROOT/services/api/requirements.txt" <<'EOF'
-fastapi>=0.110.0,<1.0.0
-uvicorn[standard]>=0.29.0,<1.0.0
-pydantic>=2.7.0,<3.0.0
-httpx>=0.27.0,<1.0.0
-chromadb>=0.5.0,<1.0.0
-tenacity>=8.0.0,<9.0.0
-fastembed>=0.3.3,<1.0.0
-EOF
+REQ_FILE="$AI_ROOT/services/api/requirements.txt"
+if [ ! -f "$REQ_FILE" ]; then
+  echo "ERROR: committed requirements file missing: $REQ_FILE"
+  echo "       (run this installer from inside the cloned repo)"
+  exit 1
+fi
+echo "==> Installing API dependencies into venv from the committed lean requirements"
+echo "    $REQ_FILE"
+pip install -r "$REQ_FILE"
 
-echo "==> Installing API dependencies into venv"
-pip install -r "$AI_ROOT/services/api/requirements.txt"
+if [ "${WITH_TORCH_EMBED:-0}" = "1" ]; then
+  echo "==> WITH_TORCH_EMBED=1: installing the opt-in sentence-transformers/torch extra"
+  pip install -r "$AI_ROOT/services/api/requirements-embed-torch.txt"
+fi
 
 deactivate || true
 

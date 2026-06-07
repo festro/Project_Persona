@@ -5,7 +5,7 @@ phase ladder from basic functionality to extended functionality. Each phase is
 "locked" to a functional state: it has an Exit Gate (concrete, testable
 acceptance criteria) that must be green before the next phase starts.
 
-Last updated: 2026-06-06 1859 UTC by Claude
+Last updated: 2026-06-07 0253 UTC by Claude
 
 ## Boundaries (do not duplicate)
 
@@ -44,10 +44,11 @@ Hermes adoption; M-series = single-model migration milestones.
 
 ## Current position
 
-Active: Phase 1 completion. Foundation (Phase 0) is green. The immediate entry
-point is standing up the Qwen3.6 llama-server on :8090 and confirming live
-end-to-end /chat + streaming + per-topic sampling. See `todo.md` for the exact
-next step.
+Active: Phase 1 completion. Foundation (Phase 0) is green. Qwen3.6 llama-server now
+stands up LIVE on :8090 (Windows, via manage.py, 2026-06-07) with the API on :8000
+and a passing /agent/run smoke; thinking mode is active under --jinja. Remaining
+Phase 1 proof: live /chat persona replies + streaming + per-topic sampling
+(no_think vs think) and embedder_ok/chroma_ok on /health. See `todo.md`.
 
 ---
 
@@ -81,12 +82,12 @@ audit + support matrix:
 `docs/portability_audit.md`.
 
 - [x] /agent/run uses sys.executable (was literal python3; broke Windows portable)
-- [~] Single cross-platform launcher `manage.py up/down/status/doctor` replacing
-      the bash/ps1 split (no bash required for core lifecycle). WRITTEN +
-      offline-validated 2026-06-06 (pure stdlib; status/doctor exercised against the
-      repo, both safe-config validation paths agree with doctor.sh). `up`/`down`
-      process spawn+kill mirror the bash scripts but still need a live-host pass
-      (Win Vulkan + Linux) to flip to [x].
+- [~] Single cross-platform launcher `manage.py` (up/down/toggle/status/doctor/
+      capabilities/test/panel) replacing the bash/ps1 split (no bash for core
+      lifecycle). LIVE-VALIDATED on Windows (RX 9060 XT) 2026-06-07: toggle brought
+      the full stack up on :8090/:8000 and tore it down cleanly; test playbook green
+      incl. live /agent/run; web panel drove it. Pure stdlib. Linux/ARM64 live pass
+      still pending to flip to [x].
 - [x] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
       sentence-transformers become an opt-in extra. DONE 2026-06-06:
       requirements.txt lean (no sentence-transformers); opt-in
@@ -95,8 +96,21 @@ audit + support matrix:
       VALIDATED Windows-side: AST OK + tests/test_api_offline.py ALL PASS
       (lean fastembed default proven). The sentence-transformers backend itself is
       only exercised once the opt-in torch extra is installed.
-- [ ] llama.cpp build/acquire matrix per accel (CUDA/ROCm/Vulkan/CPU, no Metal) +
-      capability-advertising hook
+- [~] llama.cpp build/acquire matrix per accel (CUDA/ROCm/Vulkan/CPU, no Metal) +
+      capability-advertising hook. Matrix DOCUMENTED 2026-06-06:
+      `docs/llama_build_matrix.md` (prebuilt + source per accel, Win/Linux/ARM64,
+      binary placement aligned to manage.py, build verify flow). Capability hook is
+      DESIGNED there (descriptor schema + detection + `run/node_capabilities.json`),
+      now with a 3-tier accel classification (Tier 1 selectable CUDA/ROCm/SYCL/
+      Vulkan/OpenCL/CANN/MUSA; Tier 2 in-progress; Tier 3 detect-but-never-select
+      Hailo/Coral/Gaudi/Intel-NPU) + "select only what the binary supports".
+      IMPLEMENTED 2026-06-06 (changelog 2014): `manage.py capabilities` +
+      detection layer + accel-aware `start_llama` (H3) + doctor accel section;
+      to [x]: Windows-side validate (AST + capabilities/doctor run). Mesh wiring
+      stays Phase 10.
+- [~] H3 accel selection: `start_llama` backend-aware (no forced Vulkan on
+      CUDA/ROCm/SYCL nodes); LLAMA_BACKEND override + capabilities detection.
+      Done 2026-06-06; live-host validate on a non-Vulkan node to close.
 - [ ] Cross-platform IPC decision (loopback TCP or NATS, not Unix socket) before
       the Phase 3 daemon
 - [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables

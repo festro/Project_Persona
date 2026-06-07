@@ -15,7 +15,10 @@ run/*.pid
 run/*.sock
 run/*.env
 !run/llama-servers.env
+!run/llama-servers.windows.env
+!run/llama-servers.linux.env
 !run/config.env
+run/node_capabilities.json
 run/jobs/
 run/jobs.jsonl
 logs/

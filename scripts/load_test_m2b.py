@@ -37,8 +37,8 @@ from typing import Optional
 import httpx
 
 
-DEFAULT_ENDPOINT = "http://127.0.0.1:8080/v1/chat/completions"
-DEFAULT_HEALTH = "http://127.0.0.1:8080/health"
+DEFAULT_ENDPOINT = "http://127.0.0.1:8090/v1/chat/completions"
+DEFAULT_HEALTH = "http://127.0.0.1:8090/health"
 DEFAULT_DURATION_S = 1800
 DEFAULT_CONCURRENCY = 4
 DEFAULT_MAX_TOKENS = 128

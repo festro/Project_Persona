@@ -1,7 +1,7 @@
 # Project_Persona -- Cross-OS / Cross-Arch Portability Audit
 
 Status: AUDIT + action plan. Findings as of 2026-06-06.
-Last updated: 2026-06-06 0047 UTC by Claude
+Last updated: 2026-06-06 1934 UTC by Claude
 Driver: the system-agnostic node goal (roadmap Phase 10 mesh). A node must run on
 any supported OS/arch, not just the Debian/Windows reference hosts.
 
@@ -14,8 +14,16 @@ Supported:
 - OS: Linux (Debian/Ubuntu reference; other distros best-effort) and Windows
   (portable flow). Other BSD/Unix best-effort.
 - Arch: x86-64 and ARM64 (aarch64).
-- Accel: CPU (always), NVIDIA CUDA, AMD ROCm/HIP, Vulkan (cross-vendor, incl.
-  Strix Halo). OpenCL best-effort.
+- Accel (can serve GGUF): CPU (always), NVIDIA CUDA, AMD ROCm/HIP, Intel GPU via
+  SYCL, Vulkan (cross-vendor: NVIDIA/AMD/Intel, incl. Strix Halo). Best-effort/
+  niche llama.cpp backends: OpenCL (Adreno), CANN (Ascend), MUSA (Moore Threads).
+  Accelerator tiering + detection: `docs/llama_build_matrix.md`.
+
+Detected but NOT a llama.cpp inference path (record as node capabilities for
+non-LLM/mesh routing; never selected for llama-server): Hailo-8/10 (HailoRT),
+Google Coral Edge TPU (TFLite), Intel Gaudi (SynapseAI), Intel NPU (OpenVINO; the
+llama.cpp backend is in progress). These have their own runtimes and cannot load
+GGUF.
 
 Not a consideration (by decision):
 - Apple macOS, Apple Silicon, and the Metal backend. No effort is spent on Apple
@@ -116,8 +124,9 @@ docstring; `D:\...` paths in commit-guidance docs. Clean up opportunistically.
    bash/ps1 split (absorbs C1 + M2). One entrypoint, no bash for core lifecycle.
 3. Dependency tiers: default lean node = fastembed/onnxruntime; `torch` +
    `sentence-transformers` become an opt-in extra (H1).
-4. llama.cpp build/acquire matrix per accel (CUDA/ROCm/Vulkan/CPU, no Metal) +
-   capability advertising hook (H2).
+4. [DOC DONE 2026-06-06] llama.cpp build/acquire matrix per accel
+   (CUDA/ROCm/Vulkan/CPU, no Metal) + capability advertising hook (H2). See
+   `docs/llama_build_matrix.md`. Remaining: implement `manage.py capabilities`.
 5. Cross-platform IPC decision for the daemon/mesh (loopback TCP or NATS, not Unix
    socket) before Phase 3 (M1).
 6. Per-OS egress story: WireGuard mesh + host firewall as the portable baseline;

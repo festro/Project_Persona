@@ -1,0 +1,42 @@
+# Project_Persona runtime config -- single typed source, read by manage.py via
+# tomllib (Python 3.11+). manage.py flattens this as [base] + [runtime] + [<os>]
+# (the OS table wins), into the same KEY names the stack already uses.
+# Machine-written artifacts (run/node_capabilities.json) stay JSON by design.
+# The legacy run/*.env files remain as a fallback until this is proven on all hosts.
+
+[base]
+HOST = "127.0.0.1"
+PERSONA_PORT = 8090
+THREADS = 0
+BATCH_SIZE = 512
+UBATCH_SIZE = 512
+CACHE_TYPE_K = "q8_0"
+CACHE_TYPE_V = "q8_0"
+PERSONA_PARALLEL = 4
+
+[linux]
+PERSONA_MODEL = "Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf"
+PERSONA_CTX = 32768
+GPU_LAYERS_PERSONA = 999
+
+[windows]
+PERSONA_MODEL = "Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf"
+PERSONA_CTX = 16384
+GPU_LAYERS_PERSONA = "auto"
+
+[runtime]
+RAG_ENABLED = 1
+ANONYMIZED_TELEMETRY = "False"
+EMBED_BACKEND = "auto"
+THINKING_MODE_DEFAULT = "auto"
+THINKING_MODE_TOPICS = ["science", "biology", "coding", "math", "research"]
+SAMPLING_DEFAULT_TEMP = 0.7
+SAMPLING_DEFAULT_TOP_P = 0.8
+SAMPLING_DEFAULT_TOP_K = 20
+SAMPLING_DEFAULT_MIN_P = 0.0
+SAMPLING_DEFAULT_PRESENCE_PENALTY = 1.5
+SAMPLING_THINK_TEMP = 0.6
+SAMPLING_THINK_TOP_P = 0.95
+SAMPLING_THINK_TOP_K = 20
+SAMPLING_THINK_MIN_P = 0.0
+SAMPLING_THINK_PRESENCE_PENALTY = 0.0

@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-06 1859 UTC by Claude
+Last updated: 2026-06-07 0253 UTC by Claude
 
 ## Rules of the road
 
@@ -15,8 +15,69 @@ Last updated: 2026-06-06 1859 UTC by Claude
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
+## Just finished (2026-06-07, Claude)
+
+- LIVE end-to-end validation on Windows (changelog 0253): panel toggle brought the
+  whole stack up (Qwen3.6 :8090 + API :8000) and tore it down cleanly; test playbook
+  green incl. live /agent/run; thinking mode active. Closes the "stand up Qwen3.6 on
+  :8090" entry point. GPU auto-fit fix applied: GPU_LAYERS_PERSONA="auto" -> omit
+  --n-gpu-layers so llama fits VRAM (windows overlay now auto; was a forced 35 that
+  overrode auto-fit on the 16 GB RX 9060 XT). manage.py needs a Windows-side AST
+  re-check after the edits.
+- Panel detached mode (changelog 0302): `manage.py panel --detach` (background,
+  survives terminal close, run/panel.pid) + `--stop`; panel now shows in `status`.
+  Fixes "dashboard stops when I close the window".
+
 ## Just finished (2026-06-06, Claude)
 
+- manage.py `panel` web control panel (changelog 0237): stdlib http.server on
+  127.0.0.1:8765, live status/health/capabilities dashboard + full start/stop/
+  toggle/restart/test control (worker thread, stdout captured to a live log).
+  Drives manage.py now; re-points at the Phase 3 daemon later. Validated off-mount;
+  needs Windows-side AST + `manage.py panel` smoke.
+- manage.py `toggle` + `test` playbook + entry shims (changelog 2213): toggle =
+  start-if-down/stop-if-up; test = named-step dispatcher (offline/health/smoke/load,
+  sets quick/all, `test list`). Root shims start-stop.sh/.bat + test.sh/.bat call
+  manage.py. smoke_agent.sh/unified_test.sh fold into `test` (TUI dropped) -> Phase C
+  archive list updated. Linux shims need +x: `git update-index --chmod=+x
+  start-stop.sh test.sh` (Windows-side) and `chmod +x start-stop.sh test.sh` (Linux).
+  Dispatch validated off-mount; manage.py needs Windows-side AST + `test list`/toggle.
+- Config migrated to TOML (changelog 2028): `run/config.toml` typed single source
+  ([base]+[runtime]+[<os>] overlays), read by manage.py via stdlib tomllib with
+  .env fallback. windows_portable_run.bat shrunk to a thin manage.py shim (no bash).
+  LLAMA_LIB_DIR now defaults from root. Validated off-mount; needs Windows-side
+  manage.py status to confirm config.toml is read under 3.11.9.
+- Phase B detection layer IMPLEMENTED in manage.py (changelog 2014): host detection
+  (os/arch/accel 3-tier/ram/cpu), OS-level GPU fallback (PowerShell CIM / lspci so a
+  GPU is seen without vendor CLIs), `llama-server --version` backend parse,
+  select-only-what-binary-supports, `manage.py capabilities` ->
+  run/node_capabilities.json, doctor Accelerators section (flags Tier-3 as
+  present-but-unused), and accel-aware start_llama (H3, no forced Vulkan off-vendor).
+  Detection logic AST+unit validated off-mount; manage.py needs a Windows-side AST +
+  capabilities/doctor run (mount cannot parse it). NEXT: Phase C (retire bash
+  lifecycle scripts) after this validates.
+- Broadened accel detection design (changelog 1934): verified the current
+  llama.cpp backend set and added a 3-tier classification to
+  `docs/llama_build_matrix.md` -- Tier 1 selectable (CUDA/ROCm/Intel-SYCL/Vulkan/
+  OpenCL/CANN/MUSA), Tier 2 in-progress (Intel NPU OpenVINO, Hexagon, WebGPU),
+  Tier 3 detect-but-never-select (Hailo/Coral/Gaudi -- own runtimes, no GGUF) +
+  "select only what the binary supports". Intel SYCL build recipe + broader probe
+  list + reworked capability schema (accel_selected + accel_present[]). Support
+  matrix in portability_audit.md updated. Design-stage; implements in Phase B.
+- Pre-consolidation review + Phase A fixes (changelog 1925):
+  `docs/script_consolidation_review.md` (full config/script audit vs the
+  manage.py-as-bootstrap goal). Applied: C3 manage.py host-aware model resolution +
+  per-OS env overlay (`run/llama-servers.windows.env`); C2 setup_native_stack.sh no
+  longer clobbers requirements.txt (installs -r committed; WITH_TORCH_EMBED=1 for
+  the extra); H1 port 8080->8090 defaults; H2 --jinja on the Linux launcher; M1
+  ggerganov->ggml-org; L1 load_test port. Deferred (architectural): H3/H4/M2-M5.
+  server.py + manage.py need a Windows-side parse/offline-test (mount stale).
+- Phase 0.5 #3 matrix DOCUMENTED: `docs/llama_build_matrix.md` -- per-accel build
+  + acquire (prebuilt + source; CUDA/ROCm/Vulkan/CPU; Win/Linux/ARM64), binary
+  placement aligned to manage.py, build-accept flow. Capability-advertising hook
+  DESIGNED (descriptor + detection + node_capabilities.json); impl of
+  `manage.py capabilities` is the remaining near-term piece. Roadmap #3 -> [~].
+  See changelog 1902.
 - Phase 0.5 #2 DONE (code): dependency tiers. requirements.txt is now the lean
   tier (dropped sentence-transformers; fastembed/onnxruntime only, no torch). New
   opt-in `services/api/requirements-embed-torch.txt`. server.py gained

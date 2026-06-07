@@ -25,14 +25,16 @@ unified memory).
 README.md                     external-facing project overview
 README_models_hardware.md     model requirements, hardware tiers, sourcing guide
 knowledge.md                  this file -- project reference
-manage.py                     cross-platform lifecycle launcher (up/down/status/doctor)
+manage.py                     cross-platform launcher + bootstrap (up/down/toggle/status/doctor/capabilities/test/panel)
+start-stop.{sh,bat} test.{sh,bat}  thin shims -> manage.py toggle / test
 todo.md                       current short-term state
 roadmap.md                    phased feature/completion tracker (status + gates)
 changelog.md                  reverse-chronological history
 WORKFLOW.md                   one-line pointer to D:\Projects\WORKFLOW.md
 windows_portable_*.bat        zero-install Windows portable entry points
-run/                          runtime config (llama-servers.env; config.env pending)
+run/                          runtime config (config.toml primary, read via tomllib; llama-servers.env/config.env legacy fallback) + pidfiles + node_capabilities.json
 scripts/                      ops scripts (bash lifecycle, tests, setup, bootstrap); manage.py supersedes the start/stop/status/doctor scripts cross-platform
+docs/                         design/reference notes (portability_audit, llama_build_matrix, distributed_nodes, py314_compatibility)
 services/api/                 FastAPI companion API (server.py, memory_distiller.py)
 services/chromadb/            ChromaDB RAG service code
 persona/profiles/<name>/      per-profile identity; doubles as Hermes HERMES_HOME

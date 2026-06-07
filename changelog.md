@@ -14,6 +14,229 @@ Conventions:
 
 ---
 
+## 2026-06-07 0302 UTC -- Panel: detached/background mode + status visibility (Brandon + Claude)
+
+- `manage.py panel` was foreground-only (died when its terminal closed). Added:
+  `--detach` (re-spawns itself detached via spawn_detached, writes run/panel.pid,
+  opens the browser, returns -- survives terminal close), `--stop` (kills the
+  detached/running panel via the pidfile), and a pidfile in the foreground path too
+  (cleaned on exit). `manage.py status` now lists `panel` alongside persona/api.
+  Idempotent: --detach no-ops if already running. Branch logic validated off-mount.
+- Detection now reports `ram_available_mb` (ullAvailPhys / MemAvailable) next to
+  `ram_mb` -- total physical overstates usable memory when RAM is carved out (e.g. a
+  ramdisk); available nets that out. `detect_ram_mb` returns (total, available); the
+  panel shows avail/total. `.gitignore`: ignore generated run/node_capabilities.json;
+  whitelist run/llama-servers.<os>.env overlays so the .env fallback stays complete
+  (config.toml remains primary).
+
+## 2026-06-07 0253 UTC -- LIVE end-to-end validation on Windows + GPU auto-fit (Brandon + Claude)
+
+- Milestone: the full consolidation ran live on the Windows host (RX 9060 XT /
+  Ryzen 9 9900X). Via the panel toggle: llama-server came up on :8090 (Qwen3.6 from
+  the TOML windows overlay), API on :8000, `manage.py test` passed offline + health
+  + live /agent/run smoke, and toggle shut both down cleanly (incl. sweeping the
+  stale persona_win.pid). Confirms TOML config, per-OS overlay, detection (accel via
+  the OS-GPU fallback), toggle, test playbook, and the web panel all work on real
+  hardware. Logs show `thinking = 1` (Qwen3.6 thinking mode active under --jinja).
+  This closes the long-open "stand up Qwen3.6 on :8090" entry point.
+- GPU auto-fit fix: persona.log showed `failed to fit params to free device memory:
+  n_gpu_layers already set by user to 35, abort` -- the forced 35 (a Strix-Halo-era
+  value) overrode llama.cpp's VRAM auto-fit on the 16 GB discrete card. Now
+  `GPU_LAYERS_PERSONA = "auto"` (or unset) makes `manage.py start_llama` OMIT
+  `--n-gpu-layers` so llama-server fits the offload to VRAM itself. Set windows
+  overlay (config.toml + .env fallback) to "auto"; linux stays 999 (EVO-X2 full
+  offload). Default is now "auto" when unset.
+- Noted (not changed): n_ctx_seq 4096 = PERSONA_CTX 16384 / 4 parallel slots (vs
+  262K train) -- deliberate 4-slot config; tune PARALLEL/CTX for longer single
+  convos. Vulkan lacks fused Gated Delta Net for this arch -> disabled, falls back
+  (llama.cpp/Vulkan limitation, not ours).
+
+## 2026-06-07 0237 UTC -- manage.py panel: local web control panel (Brandon + Claude)
+
+- `manage.py panel [--port 8765] [--no-browser]`: a service control panel served by
+  Python stdlib `http.server` (no new deps, and no Tkinter -- which the portable
+  embeddable interpreter omits). Binds 127.0.0.1 only. Auto-opens a browser.
+- Endpoints: GET `/` (self-contained dashboard HTML, no external assets), GET
+  `/api/status` (cheap poll: persona/api pidfile + /health + busy + recent log tail),
+  GET `/api/capabilities` (detect_host cached once at startup, not re-probed per
+  poll), POST `/api/action` ({action: up|down|toggle|restart|test, which}).
+- Full control: action buttons run cmd_up/down/toggle/test in a daemon worker thread
+  under a single busy-lock; stdout is captured (ANSI-stripped) into a ring buffer the
+  page shows live. Buttons disable while busy. Dashboard polls every 2s. The primary
+  control is ONE button that relabels Start/Stop by live state (calls toggle; no
+  redundant separate Start/Stop buttons), with Restart + the test runner beside it.
+- Drives manage.py functions directly now; designed to re-point at the Phase 3
+  daemon later with no UI change (Brandon's call: build now on manage.py).
+- Validation: server mechanics + the HTML raw-string (literal \n preserved, AST OK)
+  exercised off-mount (GET/POST, status JSON, action->log capture, busy guard).
+  manage.py needs a Windows-side AST + `manage.py panel` smoke (mount serves stale
+  reads).
+
+## 2026-06-06 2213 UTC -- manage.py toggle + test playbook + entry shims (Brandon + Claude)
+
+- `manage.py toggle`: start the stack if down, stop if up (the cross-platform
+  "start-stop toggle"). Reads persona/api pidfiles; dispatches to cmd_up/cmd_down.
+- `manage.py test [which]`: a test PLAYBOOK -- a registry of named steps dispatched
+  by argument (the "named functions + dispatcher" pattern). Steps: `offline`
+  (tests/test_api_offline.py), `health` (live persona+API /health), `smoke`
+  (/agent/run, from smoke_agent.sh), `load` (load_test_m2b.py). Sets: `quick`
+  (offline+health, default), `all` (offline+health+smoke). `test list` prints the
+  playbook. rc aggregates (any fail -> nonzero; unknown step -> 2).
+- Entry shims at repo root (muscle-memory names, ~4 lines each, zero logic):
+  `start-stop.sh`/`.bat` -> `manage.py toggle`; `test.sh`/`.bat` -> `manage.py
+  test`. Each finds the right interpreter (env/portable, else python3/python) and
+  execs manage.py. Same doorknob pattern as windows_portable_run.bat.
+- Folds the non-interactive parts of the bash diagnostics into one place:
+  smoke_agent.sh -> `test smoke`; unified_test.sh's health checks -> `test health`
+  (its interactive dialog/whiptail TUI is Linux-only with stale paths/ports
+  $HOME/Live + 8080-8082 and is retired in Phase C). load_test stays a step.
+- Answers the "run specific blocks of a script" question: the robust mechanism is
+  the subcommand/dispatcher pattern (run one named function), which manage.py
+  already is -- not sed/awk line-range execution (fragile, anti-pattern).
+- Validation: playbook dispatch (list / set expansion / single step / rc aggregate
+  / unknown->2) verified off-mount. manage.py needs a Windows-side AST + `test list`
+  / `toggle` run (mount serves stale reads). Linux shims need +x (see todo).
+
+## 2026-06-06 2028 UTC -- Config to TOML + windows_portable_run.bat thin shim (Brandon + Claude)
+
+- Cross-compatible config: added `run/config.toml` as the typed single source,
+  read by `manage.py` via stdlib `tomllib` (Python 3.11+; the node's pinned
+  interpreter). Structure: `[base]` shared + `[linux]`/`[windows]` overlays +
+  `[runtime]` (sampling/thinking/rag/embed). `load_config` flattens
+  `[base]+[runtime]+[<os>]` into the same KEY names the stack already uses (values
+  stringified for env). The OS table wins, replacing the `.env` overlay mechanism.
+  Falls back to the legacy `run/*.env` if config.toml is absent or no TOML parser
+  (so nothing breaks on a <3.11 host); the .env files are kept as that fallback
+  until proven on all hosts. Machine-written artifacts (node_capabilities.json)
+  stay JSON by design.
+- `start_llama` now defaults `LLAMA_LIB_DIR` to `<root>/llama_cpp/build/bin` when
+  unset, so config.toml needn't carry a `$HOME`-style path (the old env had a
+  literal unexpanded `$HOME`).
+- `windows_portable_run.bat` rewritten as a ~10-line thin shim: find the bundled
+  `portable\python\python.exe` and call `manage.py up`. Removes the PortableGit/bash
+  dependency for RUNNING (bash predated manage.py). Answers "why a .bat if Python is
+  cross-platform": the .bat is just the OS-native double-click doorknob + finds the
+  bundled interpreter (no `python` on PATH on a fresh host); all logic stays in
+  manage.py. Linux's equivalent is calling the interpreter directly.
+- Design note (for the curious): launcher stays Python -- the node already requires
+  Python for the API/RAG stack, the bundled interpreter runs identically on all
+  targets, and manage.py is pure-stdlib. A Go/Rust static bootstrap only pays off
+  for a future Python-free inference-only node tier.
+- Validation: TOML parse + flatten (OS-overlay wins, array->csv, all-str) verified
+  off-mount with tomli. manage.py + config.toml need a Windows-side check (mount
+  serves stale reads): `manage.py status` should now show the windows model/ctx
+  sourced from config.toml.
+
+## 2026-06-06 2014 UTC -- Phase B: manage.py host-detection layer (Claude)
+
+- Implemented the detection layer in `manage.py` (consolidation Phase B). New:
+  `detect_accelerators()` (3-tier, per the 1934 design), `detect_os_gpus()` +
+  `_classify_gpu_vendor()` (PowerShell Win32_VideoController on Windows, lspci on
+  Linux -- the cross-vendor fallback so a GPU is seen even when vendor CLIs and
+  vulkaninfo are absent), `detect_vulkan_devices()`, `llama_version_info()` (build
+  from `--version`; compiled backends from `--list-devices` since `--version` does
+  not list them), `select_backend()`
+  (select-only-what-the-binary-supports), `detect_total_ram_mb()` (ctypes on
+  Windows, /proc/meminfo on Linux), and `detect_host()` building the full
+  capability descriptor.
+- New subcommand `manage.py capabilities`: prints the descriptor and writes
+  `run/node_capabilities.json` (accel_selected + accel_present[] with per-device
+  vendor/tier/backends/usable_for_llm/native_runtime, llama build/compiled
+  backends, models, cpu/ram, endpoints).
+- `doctor` now has an Accelerators section: lists usable backends, flags Tier-3
+  devices as "present but NOT used for LLM (needs <native runtime>)", reports the
+  binary's compiled backends, and the selected backend.
+- H3 fix: `start_llama` is backend-aware -- only adds `--device Vulkan0` +
+  GGML_VK_VISIBLE_DEVICES when the resolved backend is vulkan (LLAMA_BACKEND
+  override, default vulkan on Windows / unset on Linux as before). A CUDA/ROCm/SYCL
+  node no longer gets Vulkan flags forced on it.
+- Validation: the detection functions were AST-parsed + unit-exercised in isolation
+  (vendor classification, select-only-what-binary-supports, graceful empty result,
+  capabilities JSON write) via a non-mount path, since the sandbox mount serves a
+  stale truncated view of manage.py. Full manage.py still needs a Windows-side AST
+  parse + `capabilities`/`doctor` run to confirm (the mount cannot parse it here).
+
+## 2026-06-06 1934 UTC -- Broadened accelerator detection scope (Intel + non-LLM NPUs) (Brandon + Claude)
+
+- Expanded the accel detection design in `docs/llama_build_matrix.md` beyond
+  NVIDIA/AMD. Verified the current llama.cpp backend set (build.md): CUDA, HIP,
+  Vulkan, SYCL (Intel GPU), OpenCL (Adreno), CANN (Ascend), MUSA (Moore Threads),
+  plus in-progress OpenVINO/Hexagon/WebGPU.
+- Introduced a 3-tier accelerator classification:
+  - Tier 1 (selectable for llama-server): NVIDIA->CUDA, AMD->ROCm, Intel GPU->SYCL,
+    Adreno->OpenCL, Ascend->CANN, Moore Threads->MUSA, all GPUs->Vulkan fallback,
+    else CPU.
+  - Tier 2 (detect, do not select): Intel NPU (OpenVINO in progress), Snapdragon
+    Hexagon, WebGPU, IBM zDNN.
+  - Tier 3 (detect, NEVER select -- own runtime, cannot load GGUF): Hailo-8/10
+    (HailoRT GenAI), Google Coral (TFLite), Intel Gaudi (SynapseAI). Recorded as
+    present-but-unusable-for-LLM so the mesh never routes GGUF to them.
+- Key correctness rule added: "select only what the binary supports" -- the chosen
+  backend must be in BOTH the detected Tier-1 set AND the llama-server compiled
+  backends (parsed from `--version`), else fall back to CPU + point at the right
+  build.
+- Added the Intel SYCL build recipe (`-DGGML_SYCL=ON` + oneAPI) and brief
+  OpenCL/CANN/MUSA flags; broadened the probe list (sycl-ls/xpu-smi, vulkaninfo
+  vendor sweep, npu-smi, hailortcli, hl-smi, intel_vpu). Reworked the capability
+  schema to `accel_selected` + `accel_present[]` (per-device vendor/tier/backends/
+  usable_for_llm/native_runtime).
+- Support matrix in `docs/portability_audit.md` updated to add Intel SYCL/Vulkan and
+  the detected-but-not-served NPU class. Still design-stage; implementation lands
+  with the Phase B `manage.py` detection layer + `manage.py capabilities`.
+
+## 2026-06-06 1925 UTC -- Pre-consolidation script/config review + Phase A fixes (Brandon + Claude)
+
+- Added `docs/script_consolidation_review.md`: full pre-commit evaluation of every
+  config file + lifecycle script against the manage.py-as-bootstrap goal (detect
+  OS/arch/resources -> run compatible stack -> deactivate vestigial). Findings
+  graded C/H/M/L with fix directions + a consolidation plan (detection layer,
+  retire bash sprawl, absorb setup into manage.py).
+- Applied the Phase A (low-risk, pre-commit) fixes:
+  - C3 (manage.py host-awareness): `start_llama` now resolves the model via
+    `resolve_model()` (configured PERSONA_MODEL, else the sole GGUF in models/, else
+    a clear error) instead of trusting the Linux env on every OS; `load_config` now
+    layers a per-OS overlay `run/llama-servers.<os>.env` over the shared env. Added
+    `run/llama-servers.windows.env` (Qwen3.6-35B-A3B-UD-Q5_K_XL, ctx 16384, 35 gpu
+    layers) so a Windows host stops trying to load the EVO-X2 Instruct-2507 / full
+    offload. Fixes a wrong-model + over-offload bug before manage.py ships.
+  - C2 (`setup_native_stack.sh`): stopped regenerating `requirements.txt` from a
+    stale inline heredoc (which dropped the posthog<3 + numpy pins and the
+    dependency tiers); now `pip install -r` the committed lean file, with an opt-in
+    `WITH_TORCH_EMBED=1` path for the torch extra. Closes a clobber that silently
+    undid Phase 0.5 #2.
+  - H1 (port drift): `server.py` PERSONA_PORT default 8080 -> 8090;
+    `start_llama_server_win.sh` PORT default 8080 -> 8090.
+  - H2 (`start_llama_servers.sh`): added the missing `--jinja` (Linux launcher now
+    matches the Windows launcher + manage.py; restores reasoning_content/T2.4).
+  - M1 (`setup_native_stack.sh`): clone URL ggerganov -> ggml-org.
+  - L1 (`load_test_m2b.py`): DEFAULT_ENDPOINT/HEALTH 8080 -> 8090.
+- Deferred to the consolidation effort (documented, not blockers): H3 accel
+  hardcoded to Vulkan in the bash launchers (needs the detection layer; manage.py
+  Linux path already omits --device), H4 persona_win.pid vs persona.pid, M2
+  scientist->reasoning rename, M3 dual interpreter strategy, M4 3.14 req regen, M5
+  Python `manage.py setup` to remove the last bash dependency, L2/L3 cosmetics.
+- Validation: bash `-n` clean for the edited shell scripts; load_test AST OK.
+  server.py + manage.py need a Windows-side parse + offline test (sandbox mount
+  serves a stale truncated view of both -- see git-runs-windows-side note).
+
+## 2026-06-06 1902 UTC -- llama.cpp build/acquire matrix doc (Phase 0.5 #3) (Claude)
+
+- Added `docs/llama_build_matrix.md` (audit H2 / roadmap Phase 0.5 #3): per-accel
+  build + acquire guide. Covers prebuilt (Windows x64 assets per accel incl. the
+  CUDA cudart pairing) and build-from-source (CPU / CUDA `-DGGML_CUDA=ON` / ROCm
+  `-DGGML_HIP=ON -DGPU_TARGETS=...` / Vulkan `-DGGML_VULKAN=ON`), Win/Linux/ARM64,
+  with GPU target notes (gfx1030/1100/1151; Strix Halo -> Vulkan when ROCm is
+  uneven). Binary placement aligned to manage.py `llama_binary()`
+  (llama_cpp/windows vs llama_cpp/build/bin; LLAMA_BIN/LLAMA_LIB_DIR overrides).
+  Build acceptance = `manage.py up --llama-only` + `doctor --deep`.
+- Designed the capability-advertising hook: a `node_capabilities.json` descriptor
+  (os/arch/accel/llama_build/backend/models/ctx/embedder_backend/endpoints) +
+  best-effort detection (nvidia-smi/rocminfo/vulkaninfo + `llama-server --version`)
+  + integration steps (manage.py capabilities -> /health -> Phase 10 signed KV
+  roster). Only `manage.py capabilities` is near-term; mesh wiring is Phase 10.
+- Roadmap Phase 0.5 #3 -> [~] (matrix documented; capability hook impl pending).
+  Build flags verified against current ggml-org/llama.cpp docs + releases.
+
 ## 2026-06-06 1859 UTC -- Windows-side validation of Phase 0.5 #1/#2 (Brandon + Claude)
 
 - Closed the validation gap from the 1853/1838 entries (sandbox mount could not
