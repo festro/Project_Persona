@@ -1,6 +1,6 @@
 # Handoff -- Project_Persona -- API gap fixes (streaming, usage, /agent/run, /chat_submit, root)
 
-Date: 2026-06-05 2312 UTC
+Date: 2026-06-05 1612 PDT
 Authors: Brandon + Claude
 Scope: Closed the four API gaps from the 2026-06-03 code read, added a root/favicon
 route, and validated the changes offline with a FastAPI TestClient suite. Also

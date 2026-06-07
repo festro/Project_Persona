@@ -1,6 +1,6 @@
 # Project_Persona — Living Handoff
 
-**Last Updated:** 2026-05-16 0433 UTC
+**Last Updated:** 2026-05-15 2133 PDT
 **Type:** Living document — overwritten as state changes (NOT a frozen handoff record)
 **Frozen records:** dated `HANDOFF_YYYY-MM-DD_HHMM_*.md` files (see changelog)
 **Long-form rolling state:** `knowledge.md`
@@ -282,9 +282,9 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 
 | Date | Document | Summary |
 |---|---|---|
-| 2026-05-15 | [archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md](archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md) | Stack-wide compatibility re-evaluation against Hermes + Qwen3.6 swap. Per-layer findings, meta-finding (Qwen3.6 honors DECISION 2026-05-09 design intent), tiered T0-T4 action plan with acceptance criteria, sequencing rationale, fallback decision branches. |
-| 2026-05-11 | [archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md](archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md) | Adopt Hermes Agent (Nous Research, MIT) as agent-work backbone. Six brainstorm forks resolved. AG2/LangGraph/CrewAI deleted. Network egress risk surface (7 paths + Claude Code creds risk) + safe-config recipe + H1.6 kernel-level containment. H1-H6 sequenced migration plan. |
-| 2026-05-09 | [archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md](archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md) | Consolidate from multi-model topology (persona 8080 + reasoning 8081 + planned coder 8082) to single Qwen3-30B-A3B model with parallel slots and mode-switched prompts. M1-M12 sequenced migration. M1 resolution addendum (2026-05-14): bartowski/Qwen3-30B-A3B-Instruct-2507-GGUF Q5_K_M chosen, Path 2 Qwen3.5/3.6 deferred (later promoted to active by 2026-05-15 compat re-eval). |
+| 2026-05-15 | [archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md](archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md) | Stack-wide compatibility re-evaluation against Hermes + Qwen3.6 swap. Per-layer findings, meta-finding (Qwen3.6 honors DECISION 2026-05-09 design intent), tiered T0-T4 action plan with acceptance criteria, sequencing rationale, fallback decision branches. |
+| 2026-05-11 | [archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md](archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md) | Adopt Hermes Agent (Nous Research, MIT) as agent-work backbone. Six brainstorm forks resolved. AG2/LangGraph/CrewAI deleted. Network egress risk surface (7 paths + Claude Code creds risk) + safe-config recipe + H1.6 kernel-level containment. H1-H6 sequenced migration plan. |
+| 2026-05-09 | [archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md](archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md) | Consolidate from multi-model topology (persona 8080 + reasoning 8081 + planned coder 8082) to single Qwen3-30B-A3B model with parallel slots and mode-switched prompts. M1-M12 sequenced migration. M1 resolution addendum (2026-05-14): bartowski/Qwen3-30B-A3B-Instruct-2507-GGUF Q5_K_M chosen, Path 2 Qwen3.5/3.6 deferred (later promoted to active by 2026-05-15 compat re-eval). |
 
 </details>
 
@@ -301,7 +301,7 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 - *Retired:* 2026-05-09
 - *Reason:* Three model files = 3× ops surface, fault propagation, KV cache competition, and a generation gap as Qwen3-30B-A3B (MoE, 3B active) became the right shape for the EVO-X2's bandwidth-limited unified memory.
 - *Replaced by:* Single unified llama-server on port 8080 with `--parallel` slots and mode-switched prompts (DECISION 2026-05-09).
-- *Reference:* archive/handoffs/HANDOFF_2026-05-09_0950
+- *Reference:* archive/handoffs/HANDOFF_2026-05-09_0250
 
 **Coder server (port 8082)**
 - *Retired:* 2026-05-09 (cancelled before implementation)
@@ -312,7 +312,7 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 - *Retired:* 2026-05-15 (pending T0.1 arch test verification)
 - *Reason:* The 2507 release split the original Qwen3-30B-A3B's dual-mode model into separate `Instruct-2507` (non-thinking only) and `Thinking-2507` (thinking only) variants. The thinking-mode toggle that justified DECISION 2026-05-09's "single model serves both persona and reasoning" premise was abandoned in this lock.
 - *Replaced by:* Qwen3.6-35B-A3B (toggle is back, plus `preserve_thinking` for agent loops, plus better benchmarks). Pending T0.1 empirical validation.
-- *Reference:* archive/handoffs/HANDOFF_2026-05-15_0827 "Meta-Finding"
+- *Reference:* archive/handoffs/HANDOFF_2026-05-15_0127 "Meta-Finding"
 
 ### Agent orchestration
 
@@ -320,7 +320,7 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 - *Retired:* 2026-05-11
 - *Reason:* Hermes' agent loop with subagent delegation handles iterative reasoning natively. Two orchestrators = two failure surfaces, two prompt conventions, two debugging paths. Hybrid case evaluated and rejected — IPC overhead is irrelevant at LLM-call timescales.
 - *Replaced by:* Hermes Agent (DECISION 2026-05-11).
-- *Reference:* archive/handoffs/HANDOFF_2026-05-11_0038
+- *Reference:* archive/handoffs/HANDOFF_2026-05-10_1738
 
 **AutoGen** (planned fallback for AG2)
 - *Retired:* 2026-05-11 (moot)
@@ -379,7 +379,7 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 - *Retired:* 2026-05-14 (rejected during naming evaluation)
 - *Reason:* Lower priority in Hermes' context-file lookup (AGENTS.md is CWD-only, lower priority than `.hermes.md` which walks to git root); no YAML frontmatter support; AGENTS.md is more of a cross-tool convention while `.hermes.md` is Hermes-native.
 - *Replaced by:* `.hermes.md` chosen instead.
-- *Reference:* archive/handoffs/HANDOFF_2026-05-15_0827 (Hermes adoption work)
+- *Reference:* archive/handoffs/HANDOFF_2026-05-15_0127 (Hermes adoption work)
 
 ### Storage / RAG
 
@@ -421,7 +421,7 @@ archive/legacy_profile_files/           → retired style.md content (safe to rm
 **`AIP_HANDOFF_mercury_integration_*`** Mercury borrow plan
 - *Retired:* 2026-05-11 (silently obsoleted by Hermes adoption; archive recommended)
 - *Reason:* The borrow plan was Project_Persona-selective adoption from Mercury (B1 Second Brain memory, B2 daemon, B3 command blocklist, B4 Telegram integration). Hermes Agent now provides all of those as a complete integrated system rather than scattered borrows.
-- *Replaced by:* archive/handoffs/HANDOFF_2026-05-11_0038 Hermes adoption.
+- *Replaced by:* archive/handoffs/HANDOFF_2026-05-10_1738 Hermes adoption.
 
 </details>
 

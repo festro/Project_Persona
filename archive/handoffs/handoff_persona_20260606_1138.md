@@ -1,8 +1,8 @@
 # Handoff -- Project_Persona -- manage.py cross-platform launcher (Phase 0.5 #1)
 
-Date: 2026-06-06 1838 UTC
+Date: 2026-06-06 1138 PDT
 Authors: Brandon + Claude
-Scope: everything after handoff_persona_20260606_0053 (roadmap + mesh design +
+Scope: everything after handoff_persona_20260605_1753 (roadmap + mesh design +
 portability audit + the sys.executable fix). This session built the first
 Phase 0.5 deliverable: the cross-platform `manage.py` lifecycle launcher.
 Status: launcher written and offline-validated; docs updated. Nothing committed
@@ -28,7 +28,7 @@ New file:
 Docs updated (no duplication; each file in its lane):
 - `roadmap.md` -- Phase 0.5 launcher item flipped `[ ]` -> `[~]` with status note;
   stamp bumped.
-- `changelog.md` -- new top entry `2026-06-06 1838 UTC`.
+- `changelog.md` -- new top entry `2026-06-06 1138 PDT`.
 - `todo.md` -- new "Just finished" block; Phase 0.5 priority note updated to point
   past the launcher; stamp bumped.
 - `knowledge.md` -- `manage.py` added to the repo map; `scripts/` line notes it

@@ -1,8 +1,8 @@
 # Handoff -- Project_Persona
 
-Date: 2026-06-03 2308 UTC
+Date: 2026-06-03 1608 PDT
 Author: Brandon + Claude
-Prev handoff: handoff_persona_20260603_2120.md
+Prev handoff: handoff_persona_20260603_1420.md
 Living docs: knowledge.md (scope/arch), todo.md (current state), changelog.md (history)
 
 This is a frozen point-in-time record. For the authoritative current state always
@@ -28,7 +28,7 @@ with no remaining gate.
 
 ## 2. Current state
 
-Stack (EVO-X2, production): UP and healthy as of 2026-06-03 2118 UTC. Unified
+Stack (EVO-X2, production): UP and healthy as of 2026-06-03 1418 PDT. Unified
 Qwen3-30B-A3B-Instruct-2507 Q5_K_M on :8090, companion API on :8000, all health
 checks green. This is the validated production model. No Qwen3.6 on EVO-X2.
 
@@ -131,7 +131,7 @@ scripts/t0_2_tool_calling_test.md
 scripts/t0_2_payload.json
 todo.md
 changelog.md
-archive/handoffs/handoff_persona_20260603_2308.md
+archive/handoffs/handoff_persona_20260603_1608.md
 ```
 
 If the executable bit is lost on the Linux target for the edited shell scripts:

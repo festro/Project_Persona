@@ -1,10 +1,10 @@
 # HANDOFF: EVO-X2 M5 Validation — API Side Confirmed, llama-server Stability TBD
 
-**Session date:** 2026-05-19 1130 PDT (2026-05-19 1830 UTC)
+**Session date:** 2026-05-19 1130 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** M5 server.py validated live on EVO-X2 via `/health` shape. End-to-end `/chat` smoke-test blocked — llama-server keeps dying after launch.
 **Branch:** `main` (already pushed to origin through commit `8001746`; this session's tiny `stop_api.sh` patch and `PERSONA_PORT=8090` env edit are uncommitted)
-**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md`
+**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md`
 
 ---
 
@@ -97,7 +97,7 @@ The cleanest diagnostic is: launch llama-server, immediately get its PID, run `s
 
 - **M2b sustained-load test** (`scripts/load_test_m2b.py`) — run once #1 is resolved.
 - **T0.2 tool-calling round-trip test** — gates Hermes Phase 8.
-- **EVO-X2 swap to Qwen3.6** — separate decision. Requires bumping EVO-X2's llama.cpp from `b8157` to a recent build (≥ `b8770` ideally, to match what Windows used). Compat re-eval (`archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md`) flagged `qwen3_5_moe` arch support as "unverified" at b8157. Likely works, but worth confirming.
+- **EVO-X2 swap to Qwen3.6** — separate decision. Requires bumping EVO-X2's llama.cpp from `b8157` to a recent build (≥ `b8770` ideally, to match what Windows used). Compat re-eval (`archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md`) flagged `qwen3_5_moe` arch support as "unverified" at b8157. Likely works, but worth confirming.
 - **`looks_degenerate()` decision gate** (TODO #37) — must land or formally drop alongside T2.4 work.
 - **`<think>`-tag stripping (T2.4)** — pairs with #5.
 - **start_api.sh + stop_api.sh banner cleanup** — the `Persona/Scientist` echo lines are pre-M5. Currently cosmetic. Update when convenient.
@@ -203,7 +203,7 @@ git commit -m "EVO-X2 M5 live: PERSONA_PORT 8090, start_api/stop_api Git-workspa
 
 M5 /health now reports unified_endpoint http://127.0.0.1:8090/completion + thinking_mode_default auto + persona_concurrency 4 + reasoning_inband_* + thinking_mode_*. No scientist_endpoint.
 
-Refs archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md."
+Refs archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md."
 
 git push origin main
 ```
@@ -241,6 +241,6 @@ This session was the natural follow-up to the four-commit push: get the new code
 If llama-server stays alive on the next launch attempt and the curl returns a real answer — M5 is officially done. If it dies again, the strace approach in Step 1's failure branch will identify what's killing it.
 
 Sources:
-- [archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md] (M5 design + Windows-side verification)
-- [archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md] (T0.1 + scp transfer)
-- [archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md] (tiered T0-T4 plan + Qwen3.6 backport gate)
+- [archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md] (M5 design + Windows-side verification)
+- [archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md] (T0.1 + scp transfer)
+- [archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md] (tiered T0-T4 plan + Qwen3.6 backport gate)

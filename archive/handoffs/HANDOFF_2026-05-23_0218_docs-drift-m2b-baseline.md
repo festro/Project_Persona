@@ -39,7 +39,7 @@ Eight discrete edits + one block rewrite + Tracker extension. Full Sweep scope (
 
 | Section | Change |
 |---|---|
-| L2 header | `**Last Updated:** 2026-05-17 1730 UTC` → `**Last Updated:** 2026-05-22 1523 UTC` |
+| L2 header | `**Last Updated:** 2026-05-17 1030 PDT` → `**Last Updated:** 2026-05-22 0823 PDT` |
 | L64 retired persona row | Added "(initially same port; unified moved to 8090 on 2026-05-19)" |
 | L67 System State unified row | Rewritten — port 8090, host-port-conflict rationale, stability follow-up, cross-refs to 05-19/05-20 handoffs |
 | L81 OpenWebUI row | `✅ Running` → `⚠ Scaffolded — not deployed (verified 2026-05-22)`. Diagnostic findings noted (no listener :3000, data dir empty, venv only at legacy `~/Live/AIStack/Project_Persona/env_webui/`) |
@@ -171,7 +171,7 @@ The 2026-05-19 / 2026-05-20 carried-forward §Open issues #1: "llama-server died
 |---|---|---|
 | `KNOWLEDGE.md` | Drift cleanup full sweep (2026-05-22) | Committed `3238077`, pushed to origin/main |
 | `KNOWLEDGE.md` | M2b resolution + baseline metrics + Next-session entry update (2026-05-23) | **Uncommitted as of handoff write** — commit + push deferred to user |
-| `archive/handoffs/HANDOFF_2026-05-23_0918_docs-drift-m2b-baseline.md` | Created (this file) | **Uncommitted as of handoff write** |
+| `archive/handoffs/HANDOFF_2026-05-23_0218_docs-drift-m2b-baseline.md` | Created (this file) | **Uncommitted as of handoff write** |
 | `logs/m2b_2026-05-23_0723.json` | M2b report output (EVO-X2 only) | EVO-X2-side artifact; do not commit logs |
 
 **Files NOT modified this session** (despite drift noted):
@@ -285,8 +285,8 @@ Keeps a marker for next-session diagnostic if the stability ghost returns.
 
 ```
 cd D:\Projects\Git\Project_Persona
-git add KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-23_0918_docs-drift-m2b-baseline.md
-git commit -m "docs(knowledge): retire M2b — 2066/2066 OK, gen_tps=28.26/slot, throughput flat" -m "30-min sustained-load run on EVO-X2 against unified Qwen3-30B-A3B Q5_K_M, concurrency=4. Per-minute throughput essentially flat from min00 to min29 (range 27.78-28.79). Stability ghost from HANDOFF_2026-05-19/20 §Open issues #1 did not recur." -m "Handoff: archive/handoffs/HANDOFF_2026-05-23_0918_docs-drift-m2b-baseline.md"
+git add KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-23_0218_docs-drift-m2b-baseline.md
+git commit -m "docs(knowledge): retire M2b — 2066/2066 OK, gen_tps=28.26/slot, throughput flat" -m "30-min sustained-load run on EVO-X2 against unified Qwen3-30B-A3B Q5_K_M, concurrency=4. Per-minute throughput essentially flat from min00 to min29 (range 27.78-28.79). Stability ghost from HANDOFF_2026-05-19/20 §Open issues #1 did not recur." -m "Handoff: archive/handoffs/HANDOFF_2026-05-23_0218_docs-drift-m2b-baseline.md"
 git push
 ```
 
@@ -315,4 +315,4 @@ git push
 
 ---
 
-**End of HANDOFF_2026-05-23_0918_docs-drift-m2b-baseline.md.**
+**End of HANDOFF_2026-05-23_0218_docs-drift-m2b-baseline.md.**

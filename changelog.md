@@ -3,7 +3,7 @@
 Reverse-chronological history. New entries go at the TOP.
 
 Conventions:
-- Header format: `## YYYY-MM-DD HHMM UTC -- short summary (<author>)`
+- Header format: `## YYYY-MM-DD HHMM PDT -- short summary (<author>)`
 - One bullet per change, past tense, terse.
 - File / line references where useful.
 - ASCII only (see `WORKFLOW.md`).
@@ -14,16 +14,117 @@ Conventions:
 
 ---
 
-## 2026-06-07 0329 UTC -- Handoff written (handoff_persona_20260607_0329) (Brandon + Claude)
+## 2026-06-07 1129 PDT -- manage.py fix-its verified live (Brandon + Claude)
+
+- Confirmed both 1125 fixes on Daemonic-PC: `manage.py up` printed "API /health
+  responding" (readiness wait works); `manage.py capabilities` now reports
+  llama_build "b9219" (was null). Clean `down` after.
+
+## 2026-06-07 1125 PDT -- manage.py fix-its: API /health wait + llama_build parse (Brandon + Claude)
+
+- cmd_up now polls API /health (timeout 120, respects --no-wait) after start_api, so
+  `up` returns only once the API has finished embedder/Chroma init -- fixes the
+  readiness race where doctor --deep saw API /health down right after up.
+- llama_version_info: `--version` timeout 10->30 + one retry if the first call comes
+  back empty, so a cold Vulkan `--version` no longer leaves llama_build=null while
+  backends populate from --list-devices. Build is still parsed only from `--version`
+  (avoids matching VRAM numbers in --list-devices).
+- Both confirmed at the source Windows-side (Read) and syntactically sound. Live
+  re-verify pending: `manage.py up` should print "API /health responding";
+  `manage.py capabilities` should show llama_build "b9219". (Off-host sandbox AST is
+  unreliable for this file -- the mount serves truncated reads.)
+- httpx2 TestClient deprecation left as documented low-priority (cosmetic; needs a
+  dependency change).
+
+## 2026-06-07 1110 PDT -- Windows live manage.py lifecycle validated (Brandon + Claude)
+
+- Extends the 1105 entry with the live CLI run on Daemonic-PC (RX 9060 XT): up (GPU
+  layers auto; llama-server pid 3044 /health OK; API pid 8340) -> status (both up) ->
+  doctor --deep (live persona completion smoke PASS) -> test quick (offline suite
+  14/14 incl. streaming / [DONE] / prompt_tokens=42 / chat_submit 404, plus live
+  health persona+API OK) -> down (clean) -> status (down). The manage.py launcher's
+  Windows leg is now fully proven via the CLI (not just the panel); only the deferred
+  Linux/ARM64 pass keeps it from [x].
+- FINDING (fix-it): doctor --deep reported API /health not responding immediately
+  after up, while test health moments later showed API /health OK -- an API readiness
+  race (embedder/Chroma init delay). up should wait on API /health; doctor should
+  retry before declaring it down.
+- Minor: offline suite emits a StarletteDeprecationWarning (httpx vs httpx2).
+
+## 2026-06-07 1105 PDT -- Windows-side manage.py validation pass (Brandon + Claude)
+
+- AST/syntax re-check off-host on a completeness-verified copy (51002 bytes, matches
+  the Windows-side size): COMPILE OK + AST OK, no 3.11-only syntax, tomllib has a
+  tomli fallback.
+- Live host Daemonic-PC (RX 9060 XT) under portable Python 3.11.9: manage.py
+  status/capabilities/doctor all green. config.toml read; run/node_capabilities.json
+  written (accel_selected=vulkan, tier1 AMD RX 9060 XT, llama_backends_compiled
+  [vulkan], llama-server build b9219); filesystem/binaries/profiles OK; T1
+  safe_config=pass (env_hermes_installed=no -- the known T1 close-out).
+- Closes the Windows-side validation caveats on the manage.py launcher, the TOML
+  migration, and the capabilities/detection layer (roadmap Phase 0.5). Linux x64 +
+  ARM64 remain deferred (no hardware). Live CLI up/down/test not re-run this session
+  (up/down already proven via the panel).
+- FIX-IT logged: capabilities reports llama_build=null while doctor detects build
+  b9219; populate it from the same version parse.
+
+## 2026-06-06 2123 PDT -- Deferred Phase 0.5 Linux/ARM64 live validation (no hardware) (Brandon + Claude)
+
+- The Linux x64 + ARM64 live passes for the manage.py launcher and H3 accel
+  selection are deferred -- no Linux/ARM64 hardware on hand. Trigger: hardware
+  available. Windows x64 validation (manage.py AST + up/down on the Vulkan box)
+  remains the near-term step.
+- roadmap Phase 0.5: launcher item + Exit Gate annotated with the deferral and
+  trigger; the phase cannot go GREEN until the deferred legs are validated. todo
+  "next" updated to match.
+
+## 2026-06-06 2105 PDT -- IPC decided: NATS+JetStream primary, loopback-TCP fallback (Phase 0.5 #4) (Brandon + Claude)
+
+- Settled Phase 0.5 #4. The Phase 3 daemon's IPC uses NATS+JetStream as the primary
+  control-plane bus -- nats-server supervised as a daemon child (loopback, JetStream
+  R=1) -- laying groundwork for the Phase 10 mesh, which is already locked to
+  NATS+JetStream. A stdlib loopback-TCP bus is the compatibility fallback; both sit
+  behind one EventBus interface, so transport is config, not a code fork.
+- Unix sockets ruled out: Python asyncio has no create_unix_server/create_unix_
+  connection on the Windows ProactorEventLoop, so AF_UNIX is not drivable
+  cross-platform from one code path.
+- Verified cross-platform support (web, June 2026): nats-server ships first-class
+  binaries for Win x64 / Linux x64 / Linux ARM64 (plus pip nats-server-bin); nats-py
+  is the official asyncio JetStream client. Compatibility risk low; the fallback is
+  insurance for locked-down/exotic nodes.
+- New doc: docs/ipc_decision.md (rationale, EventBus sketch, sources). roadmap Phase
+  0.5 #4 -> [x]; roadmap Phase 3 + knowledge.md "Unix socket IPC" rewritten to the
+  NATS-primary + fallback shape; nats-server added to the Phase 3 child-process map.
+
+## 2026-06-06 2052 PDT -- Timestamps converted UTC->Pacific; WORKFLOW.md standard change (Brandon + Claude)
+
+- Swept every UTC-labeled timestamp to Pacific (PDT, -7h with date rollback where
+  the UTC time was before 0700) across all 35 project docs -- live 4, docs/,
+  scripts/, archive/handoffs/, archive/pre-workflow/. llama_cpp vendor submodule
+  left untouched.
+- Preserved the non-timestamp "UTC" strings: the `date -u` command + its comment in
+  archive/pre-workflow/HANDOFF.md, and the filename-origin meta-note in
+  HANDOFF_2026-05-20_0102. Collapsed dual-labeled stamps (e.g. "1430 UTC (0730 PDT)")
+  to their PDT value. Flipped the changelog header-format spec line to PDT.
+- Renamed 17 UTC-named handoff files to PDT (e.g. handoff_persona_20260607_0329 ->
+  handoff_persona_20260606_2029); left the 3 already-PDT handoffs unchanged
+  (HANDOFF_2026-05-16_2337, _2026-05-19_1130, _2026-05-20_0102). Rewrote 118
+  cross-references in lockstep -- 0 broken links (verified Windows-side).
+- Root D:\Projects\WORKFLOW.md revised: timestamp standard switched UTC->Pacific
+  (Rule 2 + format specs + skeletons + handoff section), and new Rule 8 makes
+  imperial / US-customary units the default (data/compute units exempt). This is the
+  first changelog entry authored under the new Pacific standard.
+
+## 2026-06-06 2029 PDT -- Handoff written (handoff_persona_20260606_2029) (Brandon + Claude)
 
 - Froze the whole session (manage.py bootstrap consolidation: detection + TOML +
   toggle/test/panel + Phase A fixes + GPU auto-fit + Phase C bash retirement, all
   live-validated on Windows and pushed as b75a853 + 5649466) into
-  `archive/handoffs/handoff_persona_20260607_0329.md`. Standalone: state, decisions,
+  `archive/handoffs/handoff_persona_20260606_2029.md`. Standalone: state, decisions,
   known issues, run commands, and the forward roadmap (Linux/ARM live pass, IPC
   decision, manage.py setup, Phase 1 live /chat proof).
 
-## 2026-06-07 0323 UTC -- Phase C: retire the bash lifecycle scripts (Brandon + Claude)
+## 2026-06-06 2023 PDT -- Phase C: retire the bash lifecycle scripts (Brandon + Claude)
 
 - Milestone commit b75a853 (the consolidation arc) pushed to origin/main first.
 - Archived to scripts/archive/ (superseded by manage.py): start_all, stop_all,
@@ -39,7 +140,7 @@ Conventions:
 - `.gitignore`: added `*.log` (logs/ was already ignored) -- belt-and-suspenders for
   stray logs outside logs/.
 
-## 2026-06-07 0302 UTC -- Panel: detached/background mode + status visibility (Brandon + Claude)
+## 2026-06-06 2002 PDT -- Panel: detached/background mode + status visibility (Brandon + Claude)
 
 - `manage.py panel` was foreground-only (died when its terminal closed). Added:
   `--detach` (re-spawns itself detached via spawn_detached, writes run/panel.pid,
@@ -54,7 +155,7 @@ Conventions:
   whitelist run/llama-servers.<os>.env overlays so the .env fallback stays complete
   (config.toml remains primary).
 
-## 2026-06-07 0253 UTC -- LIVE end-to-end validation on Windows + GPU auto-fit (Brandon + Claude)
+## 2026-06-06 1953 PDT -- LIVE end-to-end validation on Windows + GPU auto-fit (Brandon + Claude)
 
 - Milestone: the full consolidation ran live on the Windows host (RX 9060 XT /
   Ryzen 9 9900X). Via the panel toggle: llama-server came up on :8090 (Qwen3.6 from
@@ -76,7 +177,7 @@ Conventions:
   convos. Vulkan lacks fused Gated Delta Net for this arch -> disabled, falls back
   (llama.cpp/Vulkan limitation, not ours).
 
-## 2026-06-07 0237 UTC -- manage.py panel: local web control panel (Brandon + Claude)
+## 2026-06-06 1937 PDT -- manage.py panel: local web control panel (Brandon + Claude)
 
 - `manage.py panel [--port 8765] [--no-browser]`: a service control panel served by
   Python stdlib `http.server` (no new deps, and no Tkinter -- which the portable
@@ -97,7 +198,7 @@ Conventions:
   manage.py needs a Windows-side AST + `manage.py panel` smoke (mount serves stale
   reads).
 
-## 2026-06-06 2213 UTC -- manage.py toggle + test playbook + entry shims (Brandon + Claude)
+## 2026-06-06 1513 PDT -- manage.py toggle + test playbook + entry shims (Brandon + Claude)
 
 - `manage.py toggle`: start the stack if down, stop if up (the cross-platform
   "start-stop toggle"). Reads persona/api pidfiles; dispatches to cmd_up/cmd_down.
@@ -122,7 +223,7 @@ Conventions:
   / unknown->2) verified off-mount. manage.py needs a Windows-side AST + `test list`
   / `toggle` run (mount serves stale reads). Linux shims need +x (see todo).
 
-## 2026-06-06 2028 UTC -- Config to TOML + windows_portable_run.bat thin shim (Brandon + Claude)
+## 2026-06-06 1328 PDT -- Config to TOML + windows_portable_run.bat thin shim (Brandon + Claude)
 
 - Cross-compatible config: added `run/config.toml` as the typed single source,
   read by `manage.py` via stdlib `tomllib` (Python 3.11+; the node's pinned
@@ -152,7 +253,7 @@ Conventions:
   serves stale reads): `manage.py status` should now show the windows model/ctx
   sourced from config.toml.
 
-## 2026-06-06 2014 UTC -- Phase B: manage.py host-detection layer (Claude)
+## 2026-06-06 1314 PDT -- Phase B: manage.py host-detection layer (Claude)
 
 - Implemented the detection layer in `manage.py` (consolidation Phase B). New:
   `detect_accelerators()` (3-tier, per the 1934 design), `detect_os_gpus()` +
@@ -181,7 +282,7 @@ Conventions:
   stale truncated view of manage.py. Full manage.py still needs a Windows-side AST
   parse + `capabilities`/`doctor` run to confirm (the mount cannot parse it here).
 
-## 2026-06-06 1934 UTC -- Broadened accelerator detection scope (Intel + non-LLM NPUs) (Brandon + Claude)
+## 2026-06-06 1234 PDT -- Broadened accelerator detection scope (Intel + non-LLM NPUs) (Brandon + Claude)
 
 - Expanded the accel detection design in `docs/llama_build_matrix.md` beyond
   NVIDIA/AMD. Verified the current llama.cpp backend set (build.md): CUDA, HIP,
@@ -209,7 +310,7 @@ Conventions:
   the detected-but-not-served NPU class. Still design-stage; implementation lands
   with the Phase B `manage.py` detection layer + `manage.py capabilities`.
 
-## 2026-06-06 1925 UTC -- Pre-consolidation script/config review + Phase A fixes (Brandon + Claude)
+## 2026-06-06 1225 PDT -- Pre-consolidation script/config review + Phase A fixes (Brandon + Claude)
 
 - Added `docs/script_consolidation_review.md`: full pre-commit evaluation of every
   config file + lifecycle script against the manage.py-as-bootstrap goal (detect
@@ -244,7 +345,7 @@ Conventions:
   server.py + manage.py need a Windows-side parse + offline test (sandbox mount
   serves a stale truncated view of both -- see git-runs-windows-side note).
 
-## 2026-06-06 1902 UTC -- llama.cpp build/acquire matrix doc (Phase 0.5 #3) (Claude)
+## 2026-06-06 1202 PDT -- llama.cpp build/acquire matrix doc (Phase 0.5 #3) (Claude)
 
 - Added `docs/llama_build_matrix.md` (audit H2 / roadmap Phase 0.5 #3): per-accel
   build + acquire guide. Covers prebuilt (Windows x64 assets per accel incl. the
@@ -262,7 +363,7 @@ Conventions:
 - Roadmap Phase 0.5 #3 -> [~] (matrix documented; capability hook impl pending).
   Build flags verified against current ggml-org/llama.cpp docs + releases.
 
-## 2026-06-06 1859 UTC -- Windows-side validation of Phase 0.5 #1/#2 (Brandon + Claude)
+## 2026-06-06 1159 PDT -- Windows-side validation of Phase 0.5 #1/#2 (Brandon + Claude)
 
 - Closed the validation gap from the 1853/1838 entries (sandbox mount could not
   parse server.py). Run Windows-side with the portable interpreter:
@@ -278,7 +379,7 @@ Conventions:
 - Roadmap: Phase 0.5 #2 -> [x]. #1 (manage.py) stays [~] (status/doctor validated;
   up/down still need a live-host serving pass).
 
-## 2026-06-06 1853 UTC -- Dependency tiers: lean default + torch opt-in (Phase 0.5 #2) (Claude)
+## 2026-06-06 1153 PDT -- Dependency tiers: lean default + torch opt-in (Phase 0.5 #2) (Claude)
 
 - `services/api/requirements.txt` now the LEAN tier: dropped
   `sentence-transformers` (the only torch puller). Default node runs RAG on
@@ -307,7 +408,7 @@ Conventions:
   `python -c "import ast,sys; ast.parse(open('services/api/server.py').read())"`
   (or run tests/test_api_offline.py). Mount-unreliability recorded for future runs.
 
-## 2026-06-06 1838 UTC -- manage.py cross-platform launcher (Phase 0.5 #1) (Claude)
+## 2026-06-06 1138 PDT -- manage.py cross-platform launcher (Phase 0.5 #1) (Claude)
 
 - Added `manage.py` at repo root: a pure-stdlib (3.8+) cross-platform lifecycle
   launcher with `up` / `down` / `status` / `doctor`, retiring the bash-only
@@ -329,16 +430,16 @@ Conventions:
   mirror the bash scripts but are NOT yet live-host tested (no llama-server/model in
   the sandbox). Roadmap Phase 0.5 launcher item -> [~]. Apple/Metal out of scope.
 
-## 2026-06-06 0053 UTC -- Handoff written (handoff_persona_20260606_0053) (Brandon + Claude)
+## 2026-06-05 1753 PDT -- Handoff written (handoff_persona_20260605_1753) (Brandon + Claude)
 
 - Froze the session's work (roadmap.md + distributed-mesh design + portability
   audit + the sys.executable fix) into
-  `archive/handoffs/handoff_persona_20260606_0053.md`. Next-session entry point =
+  `archive/handoffs/handoff_persona_20260605_1753.md`. Next-session entry point =
   Phase 0.5 portability hardening (manage.py launcher + dependency tiers),
   alongside the still-open Phase 1 :8090 llama-server standup. Includes the
   uncommitted-files list + Windows-side commit guidance.
 
-## 2026-06-06 0047 UTC -- Portability audit + cross-OS hardening track; /agent/run python3 fix (Brandon + Claude)
+## 2026-06-05 1747 PDT -- Portability audit + cross-OS hardening track; /agent/run python3 fix (Brandon + Claude)
 
 - Combed the stack for cross-OS/arch weak links given the system-agnostic node
   goal. New `docs/portability_audit.md`: severity-ranked findings + a target
@@ -360,7 +461,7 @@ Conventions:
   Win x64 / Linux x64 / Linux ARM64 (CPU + one GPU accel) through one entrypoint,
   no bash for lifecycle. Pointer added to knowledge.md.
 
-## 2026-06-06 0035 UTC -- Captured distributed node-mesh design (docs/distributed_nodes.md + roadmap Phase 10) (Brandon + Claude)
+## 2026-06-05 1735 PDT -- Captured distributed node-mesh design (docs/distributed_nodes.md + roadmap Phase 10) (Brandon + Claude)
 
 - New `docs/distributed_nodes.md`: handoff-quality design note for a decentralized,
   system-agnostic cooperative node mesh (BOINC / Folding@home inspired). Captures
@@ -382,7 +483,7 @@ Conventions:
   reputation/evict. Pointers added to knowledge.md (Pointers) and the roadmap
   read-me note. Near-term experiment is Stage 0 only.
 
-## 2026-06-05 2325 UTC -- Added roadmap.md (phased feature/completion tracker) (Brandon + Claude)
+## 2026-06-05 1625 PDT -- Added roadmap.md (phased feature/completion tracker) (Brandon + Claude)
 
 - New `roadmap.md`: single source of truth for feature/track completion status,
   as a phase ladder (Phase 0 Foundation + Phases 1-8 mirroring knowledge.md's
@@ -399,7 +500,7 @@ Conventions:
   not started; 4-5 optional; extended items (vision, speculative decoding,
   dual-memory, model re-eval) deferred.
 
-## 2026-06-05 2312 UTC -- API gap fixes: streaming, prompt_tokens, /agent/run, /chat_submit, root route (Brandon + Claude)
+## 2026-06-05 1612 PDT -- API gap fixes: streaming, prompt_tokens, /agent/run, /chat_submit, root route (Brandon + Claude)
 
 - /v1/chat/completions now honors `stream`: stream=true returns text/event-stream
   with OpenAI `chat.completion.chunk` deltas ending in `data: [DONE]`. Pseudo-stream
@@ -432,7 +533,7 @@ Conventions:
   complementing ANONYMIZED_TELEMETRY=False). Re-run confirmed: setuptools held at
   81.0.0, posthog downgraded 7.17.0 -> 2.5.0, startup log clean.
 
-## 2026-06-05 2226 UTC -- Portable 3.11.9 services env operational (Brandon + Claude)
+## 2026-06-05 1526 PDT -- Portable 3.11.9 services env operational (Brandon + Claude)
 
 - Bootstrap succeeded on the Python 3.11.9 embeddable in portable/python. The full
   committed services/api/requirements.txt installed cleanly (all native deps got
@@ -459,7 +560,7 @@ Conventions:
 - Not yet exercised live: API boot + /health (which now reports the T2.1
   sampling_presets) -- next validation step. /chat needs a llama-server on :8090.
 
-## 2026-06-05 2229 UTC -- Live API boot on portable 3.11.9; port-source fix (Brandon + Claude)
+## 2026-06-05 1529 PDT -- Live API boot on portable 3.11.9; port-source fix (Brandon + Claude)
 
 - Booted uvicorn on the portable 3.11.9 and hit /health: 200 OK. Validates the
   stack end-to-end on Windows. T2.1 confirmed live: sampling_presets returns the
@@ -482,7 +583,7 @@ Conventions:
   Developer Mode or admin for symlinks; harmless, set HF_HUB_DISABLE_SYMLINKS_
   WARNING=1 to silence if desired).
 
-## 2026-06-05 0128 UTC -- Decision: services interpreter = Python 3.11.9 embeddable (Brandon + Claude)
+## 2026-06-04 1828 PDT -- Decision: services interpreter = Python 3.11.9 embeddable (Brandon + Claude)
 
 - Brandon chose Python 3.11.9 (Windows x64 embeddable zip) for the portable
   services interpreter, kept in portable/python. Rationale: 3.11.9 is the LAST
@@ -504,7 +605,7 @@ Conventions:
   (mount blocks deletion) but are now scoped strictly as the 3.14-fallback
   reference (API-only-on-3.14); the 3.11 path does not use them.
 
-## 2026-06-05 0118 UTC -- Python 3.14 compat validation + portable bootstrap (Brandon + Claude)
+## 2026-06-04 1818 PDT -- Python 3.14 compat validation + portable bootstrap (Brandon + Claude)
 
 - Brandon added a Windows embeddable CPython 3.14 at `portable/python/`. Validated
   the whole stack against 3.14 (win_amd64) before building a bootstrap.
@@ -527,7 +628,7 @@ Conventions:
   ._pth, get-pip bootstrap, installs core, optional -WithRag, optional -Run to
   launch uvicorn). Bootstrap is Windows-side and unrun in this Linux sandbox.
 
-## 2026-06-05 0108 UTC -- T2.1: per-mode sampling presets in server.py + config.env (Brandon + Claude)
+## 2026-06-04 1808 PDT -- T2.1: per-mode sampling presets in server.py + config.env (Brandon + Claude)
 
 - Started T2 (core integration). T2.1 done: sampling is no longer hardcoded
   temperature=0.7. server.py now selects a per-mode preset by routing +
@@ -557,7 +658,7 @@ Conventions:
 - Scope note: did NOT fix start_api.sh's other staleness (PERSONA_PORT default
   8080 line, scientist banners, misplaced MEMORY_DISTILL export) -- still logged.
 
-## 2026-06-05 0058 UTC -- Modernized init_profiles.sh + doctor.sh to 2-file profiles (Brandon + Claude)
+## 2026-06-04 1758 PDT -- Modernized init_profiles.sh + doctor.sh to 2-file profiles (Brandon + Claude)
 
 - Closed the last script-drift item from the T1 handoff. Both scripts now match the
   M5 unified-topology reality (SOUL.md + .hermes.md; single persona server).
@@ -575,7 +676,7 @@ Conventions:
   temp root scaffolds SOUL.md/.hermes.md/config.yaml; doctor.sh reports all three
   profile files present and `T1 GATE: safe_config=pass`.
 
-## 2026-06-04 1017 UTC -- Modernized setup_native_stack.sh env writer (Brandon + Claude)
+## 2026-06-04 0317 PDT -- Modernized setup_native_stack.sh env writer (Brandon + Claude)
 
 - Removed the clobber hazard flagged in the 0755 handoff. `setup_native_stack.sh`
   no longer writes the retired multi-server `run/llama-servers.env`
@@ -598,7 +699,7 @@ Conventions:
   Windows-side file API plus a reconstructed-structure bash -n. Reinforces the
   standing "git/verify Windows-side for D:\Projects" rule.
 
-## 2026-06-04 0755 UTC -- T1 implemented: env_hermes + per-profile safe-config (Brandon + Claude)
+## 2026-06-04 0055 PDT -- T1 implemented: env_hermes + per-profile safe-config (Brandon + Claude)
 
 - Decision recorded: pursue the Qwen3.6 swap track (Next #1 fork resolved in favor
   of the swap; T0 fully passed 2026-06-03). T1 is the first swap tier.
@@ -631,14 +732,14 @@ Conventions:
   only in auxiliary/compression/fallback; secrets in .env not config.yaml. Exact
   Hermes key paths for model.sampling and tools.disabled are schema-PROVISIONAL --
   validate against the installed hermes-agent in H1 (the 2026-05-11 Appendix A
-  already flagged this). See handoff_persona_20260604_0755.
+  already flagged this). See handoff_persona_20260604_0055.
 - Logged pre-existing drift NOT fixed here (see todo.md): setup_native_stack.sh
   still writes the retired multi-server llama-servers.env (8080/8081/8082
   persona/reasoning/coder) -- a clobber hazard; init_profiles.sh + doctor.sh still
   scaffold/check the retired 3-file profile (persona.md/style.md/system_rules.md)
   instead of SOUL.md/.hermes.md; doctor.sh still probes a scientist port.
 
-## 2026-06-03 2305 UTC -- T0.2 PASSED; Qwen3.6 tool-calling verified (Brandon + Claude)
+## 2026-06-03 1605 PDT -- T0.2 PASSED; Qwen3.6 tool-calling verified (Brandon + Claude)
 
 - Ran T0.2 on the Windows prototype (RX 9060 XT 16 GB, Vulkan, 35 GPU layers,
   llama.cpp build b9219). Qwen3.6-35B-A3B-UD-Q5_K_XL returned a clean tool call:
@@ -660,7 +761,7 @@ Conventions:
 - Qwen3.6 swap path now unblocked at T1; the Next #1 decision is a pure priority
   call, no remaining gate.
 
-## 2026-06-03 2140 UTC -- Clarified Qwen3.6 T0 gate status; T0.2 still open (Brandon + Claude)
+## 2026-06-03 1440 PDT -- Clarified Qwen3.6 T0 gate status; T0.2 still open (Brandon + Claude)
 
 - Correction to the 0439 reconciliation: "T0 PASSED" was overstated. T0 has two
   sub-gates. Only T0.1 (model loads + generates coherent output) passed
@@ -677,7 +778,7 @@ Conventions:
 - Updated `todo.md`: caveat on the "Just finished" reconciliation, and Next #1
   now carries sub-item 1a (run T0.2 before T1).
 
-## 2026-06-03 2124 UTC -- Fixed AI_ROOT drift in stop/clean scripts (Brandon + Claude)
+## 2026-06-03 1424 PDT -- Fixed AI_ROOT drift in stop/clean scripts (Brandon + Claude)
 
 - `scripts/stop_llama_servers.sh` line 3: AI_ROOT default flipped from
   `$HOME/Live/AIStack/Project_Persona` to `$HOME/Git/Project_Persona`.
@@ -686,7 +787,7 @@ Conventions:
   longer target the legacy workspace. Closes todo Next #1 (the start_api/stop_api
   equivalent was fixed 05-19).
 
-## 2026-06-03 2118 UTC -- Restarted EVO-X2 stack; healthy (Brandon + Claude)
+## 2026-06-03 1418 PDT -- Restarted EVO-X2 stack; healthy (Brandon + Claude)
 
 - Restarted via `scripts/start_llama_servers.sh` (auto-cleared the orphan pidfile,
   new persona pid 20606) and `scripts/start_api.sh` (pid 20683). :8090/health ok,
@@ -697,7 +798,7 @@ Conventions:
 - Smoke reconfirmed usage.prompt_tokens=0 and showed mild output repetition (the
   persona emitted its "Next actions" scaffolding twice on a trivial greeting).
 
-## 2026-06-03 2112 UTC -- CORRECTION: 05-23 shutdown was clean, not the ghost (Brandon + Claude)
+## 2026-06-03 1412 PDT -- CORRECTION: 05-23 shutdown was clean, not the ghost (Brandon + Claude)
 
 - Pulled EVO-X2 logs. Both api.log and persona.log show a GRACEFUL shutdown at
   ~05-23 0921: api.log ends "Application shutdown complete / Finished server
@@ -715,7 +816,7 @@ Conventions:
 - Aside: old coder/reasoning/scientist logs (Apr 1) still present because the
   Phase 3 daemon "wipe logs on start" contract is not implemented yet.
 
-## 2026-06-03 2108 UTC -- EVO-X2 live state checked over SSH (Brandon + Claude)
+## 2026-06-03 1408 PDT -- EVO-X2 live state checked over SSH (Brandon + Claude)
 
 - Ran status + health checks on EVO-X2. Whole stack DOWN: API not running,
   llama-server not running (stale `run/persona.pid` left behind), nothing
@@ -729,7 +830,7 @@ Conventions:
   still unidentified. Closed the three live-check items in todo.md; new top
   action is a clean restart with log/dmesg capture of the prior death.
 
-## 2026-06-03 0439 UTC -- Reconciled the KNOWLEDGE/HANDOFF discrepancy (Claude)
+## 2026-06-02 2139 PDT -- Reconciled the KNOWLEDGE/HANDOFF discrepancy (Claude)
 
 - Resolved the conflict between the archived KNOWLEDGE.md (05-23) and HANDOFF.md
   (05-16) using code, config, and git history rather than assuming the newer doc
@@ -751,7 +852,7 @@ Conventions:
   todo.md (remaining open items reduced to live EVO-X2 checks + a model-track
   decision + API gap fixes).
 
-## 2026-06-03 0301 UTC -- Workflow-compliance restructure (Claude)
+## 2026-06-02 2001 PDT -- Workflow-compliance restructure (Claude)
 
 - Split the pre-convention `KNOWLEDGE.md` (1022 lines) and living `HANDOFF.md`
   into the three-file convention: `knowledge.md`, `todo.md`, `changelog.md`.
@@ -771,7 +872,7 @@ Conventions:
   the moved/created docs, then stage and commit. No git history was lost; only
   the working index needs rebuilding.
 
-## 2026-05-23 0918 UTC -- M2b sustained-load baseline + handoff (Brandon + Claude)
+## 2026-05-23 0218 PDT -- M2b sustained-load baseline + handoff (Brandon + Claude)
 
 - Revived llama-server (pid 1810898, :8090) and API (pid 1813299) on EVO-X2;
   /health returned the M5 shape.
@@ -780,9 +881,9 @@ Conventions:
   28.26 per slot (~113 tok/s aggregate), per-minute throughput flat 27.78-28.79.
 - Stability ghost did NOT recur. Peak-load thermal not captured (only +1h23m
   post-test idle sample). Report: `logs/m2b_2026-05-23_0723.json`.
-- See `archive/handoffs/HANDOFF_2026-05-23_0918_docs-drift-m2b-baseline.md`.
+- See `archive/handoffs/HANDOFF_2026-05-23_0218_docs-drift-m2b-baseline.md`.
 
-## 2026-05-22 1523 UTC -- Documentation drift cleanup (Brandon + Claude)
+## 2026-05-22 0823 PDT -- Documentation drift cleanup (Brandon + Claude)
 
 - System State unified-llama row rewritten for :8090 with rationale + stability
   follow-up; OpenWebUI corrected to "scaffolded, not deployed" after EVO-X2
@@ -793,7 +894,7 @@ Conventions:
 - Corrected the 05-19/20 framing: the :8080 squatter was an unrelated co-tenant
   container, not OpenWebUI. Flagged llama-server then down on EVO-X2.
 
-## 2026-05-20 0102 UTC -- EVO-X2 M5 commit + push (Brandon + Claude)
+## 2026-05-19 1802 PDT -- EVO-X2 M5 commit + push (Brandon + Claude)
 
 - Pulled the three 05-19 in-flight EVO-X2 patches to Windows, verified via
   tar-over-ssh diff. Caught a mode flip on `load_test_m2b.py` (0644 -> 0755) and
@@ -803,7 +904,7 @@ Conventions:
   handoffs. EVO-X2 fast-forwarded to origin/main. M5 declared done.
 - See `archive/handoffs/HANDOFF_2026-05-20_0102_m5-validated-evox2.md`.
 
-## 2026-05-19 1130 UTC -- EVO-X2 M5 validation (Brandon + Claude)
+## 2026-05-19 0430 PDT -- EVO-X2 M5 validation (Brandon + Claude)
 
 - Three sed-patches on EVO-X2: PERSONA_PORT 8080 -> 8090; `start_api.sh` and
   `stop_api.sh` AI_ROOT default flipped from the quarantined `~/Live/AIStack`
@@ -812,7 +913,7 @@ Conventions:
   unidentified (stability ghost). Suspect list carried forward.
 - See `archive/handoffs/HANDOFF_2026-05-19_1130_evox2-m5-validation.md`.
 
-## 2026-05-17 1830 UTC -- Windows zero-install portable instance (Brandon + Claude)
+## 2026-05-17 1130 PDT -- Windows zero-install portable instance (Brandon + Claude)
 
 - Two double-click `.bat` entry points at repo root. `windows_portable_setup.bat`
   resolves + extracts PortableGit, then hands off to portable bash;
@@ -820,9 +921,9 @@ Conventions:
   binary and the Qwen3.6 GGUF (idempotent, resumable). `windows_portable_run.bat`
   prepends PortableGit to PATH for the session only. `.gitignore` adds
   `portable/`.
-- See `archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md`.
+- See `archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md`.
 
-## 2026-05-17 1730 UTC -- M5 server.py single-model migration (Brandon + Claude)
+## 2026-05-17 1030 PDT -- M5 server.py single-model migration (Brandon + Claude)
 
 - Removed SCIENTIST_URL/PORT; role differentiation moved from URL dispatch to
   the prompt layer. Env migration with back-compat: ASYNC_SCIENTIST_* ->
@@ -833,15 +934,15 @@ Conventions:
 - Persona loader switched to the 2-file Hermes naming (SOUL.md + .hermes.md),
   dropping persona.md/style.md/system_rules.md. Closed the Phase 1 "wire SOUL.md
   + .hermes.md" gap.
-- See `archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md`.
+- See `archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md`.
 
-## 2026-05-17 1430 UTC -- Qwen-test canonicalize + M2b script (Brandon + Claude)
+## 2026-05-17 0730 PDT -- Qwen-test canonicalize + M2b script (Brandon + Claude)
 
 - Mirrored EVO-X2's 05-16 env + launcher rewrites onto Windows byte-identically.
 - Fixed `scripts/status.sh` (AI_ROOT -> ~/Git/Project_Persona, names trimmed to
   ("persona"), scientist refs removed). Added `scripts/load_test_m2b.py`
   (asyncio + httpx sustained-load client). M3 + M4 marked done.
-- See `archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md`.
+- See `archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md`.
 
 ## 2026-05-17 -- Handoff layout cleanup (Brandon + Claude)
 
@@ -849,7 +950,7 @@ Conventions:
   `archive/handoffs/`; only the living `HANDOFF.md` + rendered `HANDOFF.html`
   stayed at root. Updated cross-references. (Time not recorded.)
 
-## 2026-05-16 2337 UTC -- Qwen-test first boot (Brandon + Claude)
+## 2026-05-16 1637 PDT -- Qwen-test first boot (Brandon + Claude)
 
 - Rewrote `run/llama-servers.env` + `scripts/start_llama_servers.sh` on EVO-X2
   for the unified Qwen3-30B-A3B-Instruct-2507 Q5_K_M topology: full GPU offload
@@ -860,7 +961,7 @@ Conventions:
   quarantined the legacy `~/Live/AIStack/` workspace.
 - See `archive/handoffs/HANDOFF_2026-05-16_2337_qwen-test-first-boot.md`.
 
-## 2026-05-15 0827 UTC -- Compatibility re-eval, tiered T0-T4 (Brandon + Claude)
+## 2026-05-15 0127 PDT -- Compatibility re-eval, tiered T0-T4 (Brandon + Claude)
 
 - Added the tiered compatibility re-eval action plan (T0 GO/NO-GO arch test, T1
   foundation, T2 core integration, T3 hardening, T4 deferred) alongside the
@@ -870,7 +971,7 @@ Conventions:
   batch (archived cruft and AIP_* docs, rewrote README.md / persona/README.md /
   README_models_hardware.md / .gitignore, renamed profile files to SOUL.md /
   .hermes.md, corrected the `looks_degenerate()` claim).
-- See `archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md`.
+- See `archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md`.
 
 ## 2026-05-14 -- Frontend lock, Hermes naming, M1/M2 progress (Brandon + Claude)
 
@@ -881,7 +982,7 @@ Conventions:
   renamed to Hermes naming (persona.md -> SOUL.md, system_rules.md -> .hermes.md,
   style.md retired); profile folder doubles as HERMES_HOME. (Time not recorded.)
 
-## 2026-05-11 0038 UTC -- Hermes Agent adoption decision (Brandon + Claude)
+## 2026-05-10 1738 PDT -- Hermes Agent adoption decision (Brandon + Claude)
 
 - Adopted Hermes Agent (Nous Research, MIT) as the agent-work backbone; six
   brainstorm forks resolved. Deleted AG2 (Phase 2.5) and CrewAI (Phase 9);
@@ -889,15 +990,15 @@ Conventions:
   schema with Tenacity-style failure-semantics columns.
 - Enumerated the network-egress risk surface (7 paths + Claude Code creds risk)
   with a safe-config recipe (Appendix A) and kernel-level containment (H1.6).
-- See `archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md`.
+- See `archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md`.
 
-## 2026-05-09 0950 UTC -- Single-model consolidation decision (Brandon + Claude)
+## 2026-05-09 0250 PDT -- Single-model consolidation decision (Brandon + Claude)
 
 - Decided to replace the multi-model topology (persona 8080 + reasoning 8081 +
   planned coder 8082) with a single Qwen3-30B-A3B Q5_K_M served from one
   llama.cpp instance with parallel slots and mode-switched prompts. Sequenced
   the M1-M12 migration. Cancelled the coder server.
-- See `archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md`.
+- See `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md`.
 
 ## Pre-convention baseline
 

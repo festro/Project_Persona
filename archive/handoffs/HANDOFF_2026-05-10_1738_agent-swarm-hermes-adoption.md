@@ -1,9 +1,9 @@
 # HANDOFF — Agent Swarm: Hermes Adoption Decision
 
-**Date:** 2026-05-11 0038 UTC
+**Date:** 2026-05-10 1738 PDT
 **Session type:** Brainstorm → architectural decision (no code changes)
-**Status:** Decision frozen. Implementation deferred until single-model migration (archive/handoffs/HANDOFF_2026-05-09_0950) completes.
-**Predecessor:** `archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md`
+**Status:** Decision frozen. Implementation deferred until single-model migration (archive/handoffs/HANDOFF_2026-05-09_0250) completes.
+**Predecessor:** `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md`
 **Knowledge.md sync:** `knowledge.md` updated same session — DECISION 2026-05-11 entry, Phase 2.5/8/9 marked superseded, Task Board schema extended, daemon child process list updated.
 
 ---
@@ -145,7 +145,7 @@ Daemon child process map gains `hermes-agent`. Removes `llama-scientist` and nev
 
 ## Sequenced Migration Plan
 
-**This work begins ONLY after the single-model migration (M1-M12 from archive/handoffs/HANDOFF_2026-05-09_0950) is complete and verified.** Do not interleave.
+**This work begins ONLY after the single-model migration (M1-M12 from archive/handoffs/HANDOFF_2026-05-09_0250) is complete and verified.** Do not interleave.
 
 ### H1 — Pre-flight (no code)
 - [ ] **H1.1** Read Hermes architecture docs end-to-end (already started this session — see Sources)
@@ -386,7 +386,7 @@ Initial blanket disables above are conservative. As specific local-only tools be
 - [Hermes Agent — Overview](https://hermes-agent.nousresearch.com/)
 - [NousResearch/hermes-agent on GitHub](https://github.com/NousResearch/hermes-agent)
 - [Hermes Agent Releases (Tenacity, May 2026)](https://github.com/NousResearch/hermes-agent/releases)
-- `archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md` (predecessor — must complete first)
+- `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md` (predecessor — must complete first)
 - `knowledge.md` (DECISION 2026-05-11 entry — same-session sync)
 
 ---

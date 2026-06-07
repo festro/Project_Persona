@@ -1,7 +1,7 @@
 # Project_Persona -- Cross-OS / Cross-Arch Portability Audit
 
 Status: AUDIT + action plan. Findings as of 2026-06-06.
-Last updated: 2026-06-06 1934 UTC by Claude
+Last updated: 2026-06-06 1234 PDT by Claude
 Driver: the system-agnostic node goal (roadmap Phase 10 mesh). A node must run on
 any supported OS/arch, not just the Debian/Windows reference hosts.
 

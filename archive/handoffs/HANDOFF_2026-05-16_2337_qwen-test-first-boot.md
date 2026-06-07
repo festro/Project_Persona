@@ -1,6 +1,6 @@
 # HANDOFF: Qwen3-30B-A3B Single-Model First Boot — qwen-test Validated
 
-**Session date:** 2026-05-16 2337 PDT (2026-05-17 0637 UTC)
+**Session date:** 2026-05-16 2337 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** ✅ MILESTONE COMPLETE — single-model topology functionally validated end-to-end
 **Branch:** `main` (commit `57dad37` from this session's Windows push, plus EVO-X2-side env+launcher edits not yet committed)
@@ -253,7 +253,7 @@ Cleanest revert is at the git level once the new env/launcher are committed — 
 
 ## Network egress posture (relevant to Hermes integration)
 
-No changes to network egress this session. Hermes integration (Phase 8) work hasn't begun. Existing egress notes from archive/handoffs/HANDOFF_2026-05-11_0038 still apply unchanged. When that work resumes, add:
+No changes to network egress this session. Hermes integration (Phase 8) work hasn't begun. Existing egress notes from archive/handoffs/HANDOFF_2026-05-10_1738 still apply unchanged. When that work resumes, add:
 - Project Nomad on NAS as a new LAN egress point (Hermes MCP shim target for offline knowledge — Kiwix HTTP via Nomad)
 - AIT_ co-tenant on same EVO-X2 (no shared infrastructure but shared unified memory budget — relevant when both stacks run hot simultaneously)
 

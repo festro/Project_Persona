@@ -1,8 +1,8 @@
 # Handoff -- Project_Persona -- manage.py bootstrap consolidation (Phase 0.5 + B/C)
 
-Date: 2026-06-07 0329 UTC
+Date: 2026-06-06 2029 PDT
 Authors: Brandon + Claude
-Scope: everything after handoff_persona_20260606_1838 (the manage.py launcher v1).
+Scope: everything after handoff_persona_20260606_1138 (the manage.py launcher v1).
 This session turned manage.py into the single cross-platform bootstrap, migrated
 config to TOML, added detection + toggle + a test playbook + a web control panel,
 validated the whole stack live on Windows hardware, and retired the bash lifecycle.

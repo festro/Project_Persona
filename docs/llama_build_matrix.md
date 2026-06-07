@@ -1,7 +1,7 @@
 # Project_Persona -- llama.cpp Build / Acquire Matrix (per accel)
 
 Status: REFERENCE + action plan. Covers roadmap Phase 0.5 item #3 (audit H2).
-Last updated: 2026-06-06 1934 UTC by Claude
+Last updated: 2026-06-06 1234 PDT by Claude
 Driver: each node needs its own llama-server build matching its hardware
 (CPU / CUDA / ROCm / Vulkan) plus a compatible GGUF. There is no single artifact
 that runs everywhere; this doc makes that per-node onboarding step repeatable and

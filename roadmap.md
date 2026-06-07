@@ -5,7 +5,7 @@ phase ladder from basic functionality to extended functionality. Each phase is
 "locked" to a functional state: it has an Exit Gate (concrete, testable
 acceptance criteria) that must be green before the next phase starts.
 
-Last updated: 2026-06-07 0323 UTC by Claude
+Last updated: 2026-06-07 1110 PDT by Claude
 
 ## Boundaries (do not duplicate)
 
@@ -88,7 +88,13 @@ audit + support matrix:
       the full stack up on :8090/:8000 and tore it down cleanly; test playbook green
       incl. live /agent/run; web panel drove it. Pure stdlib. Bash lifecycle scripts
       archived to scripts/archive/ (Phase C 2026-06-07) -- core lifecycle is now
-      manage.py-only. Linux/ARM64 live pass still pending to flip to [x].
+      manage.py-only. Windows-side VALIDATED 2026-06-07 (Daemonic-PC, RX 9060 XT):
+      status/capabilities/doctor all green under portable 3.11.9 -- config.toml read,
+      run/node_capabilities.json written, accel detect+select=vulkan, T1 safe-config
+      pass; AST/syntax re-check clean; full live CLI lifecycle proven (up -> status
+      -> doctor --deep live completion smoke -> test quick: offline 14/14 + health
+      -> down -> clean). The Linux x64 + ARM64 live passes remain DEFERRED (no
+      hardware on hand; trigger: hardware available).
 - [x] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
       sentence-transformers become an opt-in extra. DONE 2026-06-06:
       requirements.txt lean (no sentence-transformers); opt-in
@@ -107,13 +113,21 @@ audit + support matrix:
       Hailo/Coral/Gaudi/Intel-NPU) + "select only what the binary supports".
       IMPLEMENTED 2026-06-06 (changelog 2014): `manage.py capabilities` +
       detection layer + accel-aware `start_llama` (H3) + doctor accel section;
-      to [x]: Windows-side validate (AST + capabilities/doctor run). Mesh wiring
-      stays Phase 10.
+      Windows-side VALIDATED 2026-06-07 (capabilities + doctor green;
+      node_capabilities.json written). Minor: capabilities reports llama_build=null
+      while doctor detects build b9219 -- see todo fix-its. Mesh wiring stays
+      Phase 10.
 - [~] H3 accel selection: `start_llama` backend-aware (no forced Vulkan on
       CUDA/ROCm/SYCL nodes); LLAMA_BACKEND override + capabilities detection.
-      Done 2026-06-06; live-host validate on a non-Vulkan node to close.
-- [ ] Cross-platform IPC decision (loopback TCP or NATS, not Unix socket) before
-      the Phase 3 daemon
+      Done 2026-06-06; selection verified on the AMD/Vulkan host (selected=vulkan)
+      2026-06-07. The "no forced Vulkan on CUDA/ROCm/SYCL" proof needs a non-Vulkan
+      node and rides with the deferred Linux/ARM64 pass.
+- [x] Cross-platform IPC decision (DONE 2026-06-06): NATS+JetStream is the primary
+      control-plane bus (nats-server supervised as a Phase 3 daemon child, loopback,
+      JetStream R=1) -- groundwork for the Phase 10 mesh -- with a stdlib loopback-TCP
+      compatibility fallback, both behind one EventBus interface. Unix sockets ruled
+      out (no asyncio AF_UNIX on the Windows ProactorEventLoop). See
+      docs/ipc_decision.md.
 - [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables
       as a Linux-only bonus
 - [ ] Cross-OS installer/doctor parity (Windows + Debian + other Linux)
@@ -121,6 +135,9 @@ audit + support matrix:
 Exit Gate: a node bootstraps, runs, self-checks (doctor), and serves /chat on
 Windows x64, Linux x64, and Linux ARM64 -- CPU plus at least one GPU accel --
 through one entrypoint, with no bash required for core lifecycle.
+NOTE 2026-06-06: the Linux x64 + ARM64 legs of this gate are DEFERRED pending
+hardware (trigger: hardware available); the Windows x64 leg proceeds now. The
+phase cannot go GREEN until the deferred legs are validated.
 
 ## Phase 1 -- Core serving and companion API  [~] IN PROGRESS
 
@@ -173,9 +190,11 @@ within budget; retrieval works against Qdrant with parity to the Chroma path.
 
 Goal: one supervised entry point for all services.
 
-- [ ] Single asyncio daemon with a child-process map (llama-server, API, others)
+- [ ] Single asyncio daemon with a child-process map (llama-server, API,
+      nats-server, others)
 - [ ] Three-strike restart policy
-- [ ] Unix-socket IPC (`run/daemon.sock`); events beyond `ping`
+- [ ] NATS-based IPC (local nats-server child, loopback; stdlib loopback-TCP compat
+      fallback; EventBus interface -- see docs/ipc_decision.md); events beyond `ping`
       (profile_switched, ingest_complete, tts_speaking, task_ready)
 - [ ] Fresh-logs-on-start contract; absorbs the start/stop scripts
 

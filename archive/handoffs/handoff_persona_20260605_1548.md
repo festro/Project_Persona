@@ -1,6 +1,6 @@
 # Handoff -- Project_Persona -- T2.1 + portable 3.11.9 services env
 
-Date: 2026-06-05 2248 UTC
+Date: 2026-06-05 1548 PDT
 Authors: Brandon + Claude
 Scope: T2.1 (sampling presets), the Python interpreter decision (3.11.9
 embeddable), the portable bootstrap, and live validation of the API on the
@@ -16,8 +16,8 @@ and post results next session).
 
 - T0 fully passed (T0.1 2026-05-18, T0.2 2026-06-03). Qwen3.6 swap committed.
 - T1 IMPLEMENTED 2026-06-04 (env_hermes venv + per-profile Hermes safe-config +
-  doctor.sh gate). Full record: handoff_persona_20260604_0755. All script-drift
-  closed (handoff_persona_20260605_0102).
+  doctor.sh gate). Full record: handoff_persona_20260604_0055. All script-drift
+  closed (handoff_persona_20260604_1802).
 - T2 (core integration) STARTED. T2.1 done + validated live (this handoff).
   T2.2-T2.4 remain (need Qwen3.6 actually serving).
 

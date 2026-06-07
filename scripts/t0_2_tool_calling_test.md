@@ -1,11 +1,11 @@
 # T0.2 -- Qwen3.6 Tool-Calling Round-Trip Test
 
-Last updated: 2026-06-03 2140 UTC by Claude
+Last updated: 2026-06-03 1440 PDT by Claude
 
 ## What this gate is
 
 T0.2 is the second half of the Qwen3.6 GO/NO-GO gate from
-`archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md`. T0.1 (model
+`archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md`. T0.1 (model
 loads and generates coherent output) PASSED 2026-05-18. T0.2 verifies that
 Qwen3.6 emits a parseable tool call from an OpenAI-style request. It is the gate
 that unblocks Hermes Phase 8 integration (Hermes drives the model through tool

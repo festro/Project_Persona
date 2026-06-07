@@ -3,7 +3,7 @@
 Living reference for what Project_Persona is and how it works. See `todo.md` for
 current state and `changelog.md` for history. Conventions: see `D:\Projects\WORKFLOW.md`.
 
-Last updated: 2026-06-04 0755 UTC by Claude
+Last updated: 2026-06-06 2105 PDT by Claude
 
 ## Elevator pitch
 
@@ -122,8 +122,11 @@ collection metadata schemas support the Phase 6 sorting line and Phase 7
 consolidation (alias chains, provisional/mature lifecycle, relationship links).
 Qdrant is the planned replacement (Phase 2a).
 
-Unix socket IPC. Daemon-owned single socket at `run/daemon.sock`, recreated on
-each daemon start. Dependency is strictly one-way (components -> daemon); the
+NATS-based IPC. The Phase 3 daemon supervises a local nats-server (JetStream R=1,
+loopback) as a child process and uses it as the control-plane bus; a stdlib
+loopback-TCP transport is the compatibility fallback, both behind one EventBus
+interface (see `docs/ipc_decision.md`). Chosen to lay groundwork for the Phase 10
+NATS+JetStream mesh. Dependency is strictly one-way (components -> daemon); the
 API never blocks on it. Current event: `ping`. Planned: `profile_switched`,
 `ingest_complete`, `tts_speaking`, `task_ready`.
 
@@ -218,8 +221,9 @@ history as source of truth; persona task surfacing; hybrid conversation
 windowing. Phase 2a migrates the vector store from ChromaDB to Qdrant.
 
 Phase 3 -- Always-on daemon (`daemon.py`): single asyncio entry point with a
-child-process map, three-strike restart policy, Unix-socket IPC, and a
-fresh-logs-on-start contract. Absorbs the start/stop scripts.
+child-process map, three-strike restart policy, NATS-based IPC (local nats-server
+child, loopback; loopback-TCP compat fallback), and a fresh-logs-on-start
+contract. Absorbs the start/stop scripts.
 
 Phase 4 -- Embodied presence (Godot): optional 3D/VR client; persona emits a
 two-channel RESPONSE (text/TTS) plus STATE (JSON avatar directives) protocol.
@@ -270,7 +274,7 @@ deploying at scale comply with its branding terms independently.
 - Pre-convention source docs (split into this file, `todo.md`, `changelog.md`):
   `archive/pre-workflow/KNOWLEDGE.md`, `.../HANDOFF.md`, `.../HANDOFF.html`.
 - Hermes egress risk surface + safe-config recipe (Appendix A):
-  `archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md`.
+  `archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md`.
 - Hermes Agent docs: https://hermes-agent.nousresearch.com/docs/
 - Model cards: https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507 ;
   https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF ;

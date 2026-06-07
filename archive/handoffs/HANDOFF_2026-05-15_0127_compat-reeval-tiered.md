@@ -1,12 +1,12 @@
 # HANDOFF — Stack Compatibility Re-Evaluation (Hermes + Qwen3.6, Tiered)
 
-**Date:** 2026-05-15 0827 UTC
+**Date:** 2026-05-15 0127 PDT
 **Topic:** Stack-wide compatibility re-evaluation triggered by Hermes adoption (DECISION 2026-05-11) and the in-flight model swap consideration (Qwen3-30B-A3B-Instruct-2507 → Qwen3.6-35B-A3B)
 **Status:** Re-evaluation complete. Tiered action plan (T0-T4) frozen. Implementation queued behind Tier 0 GO/NO-GO gate.
 **Owner:** Brandon (festro3@gmail.com)
 **Predecessors:**
-- `archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md` — single-model topology decision
-- `archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md` — Hermes Agent adoption decision
+- `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md` — single-model topology decision
+- `archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md` — Hermes Agent adoption decision
 **Related:** `knowledge.md` rolling state (T0-T4 tiered TODO block + DECISION entries)
 
 ---
@@ -259,8 +259,8 @@ Paste the relevant load log + the curl response in the next session — that's T
 
 ## Sources
 
-- `archive/handoffs/HANDOFF_2026-05-09_0950_single-model-migration.md` (predecessor)
-- `archive/handoffs/HANDOFF_2026-05-11_0038_agent-swarm-hermes-adoption.md` (predecessor — Hermes adoption decision + safe-config recipe in Appendix A)
+- `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md` (predecessor)
+- `archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md` (predecessor — Hermes adoption decision + safe-config recipe in Appendix A)
 - `knowledge.md` rolling state (T0-T4 tiered TODO block, DECISION 2026-05-11 entry, Hermes Adoption + Single-Model Migration TODO blocks)
 - [Hermes Agent — Architecture](https://hermes-agent.nousresearch.com/docs/developer-guide/architecture)
 - [Hermes Agent — Prompt Assembly (file priority logic)](https://hermes-agent.nousresearch.com/docs/developer-guide/prompt-assembly)

@@ -1,6 +1,6 @@
 # Handoff -- Project_Persona -- T1 (Qwen3.6 swap foundation)
 
-Date: 2026-06-04 0755 UTC
+Date: 2026-06-04 0055 PDT
 Authors: Brandon + Claude
 Scope: T1.1 (env_hermes venv + ops-script awareness) and T1.2 (per-profile Hermes
 safe-config config.yaml), plus the T1 acceptance gate in doctor.sh.
@@ -30,7 +30,7 @@ conforms to the safe-config schema.
 New (tracked):
 - `persona/profiles/default/config.yaml` -- shipped safe-config artifact.
 - `persona/profiles/test/config.yaml` -- same.
-- `archive/handoffs/handoff_persona_20260604_0755.md` -- this file.
+- `archive/handoffs/handoff_persona_20260604_0055.md` -- this file.
 
 Edited:
 - `scripts/init_profiles.sh` -- added `write_hermes_config()` and a call in the
@@ -128,7 +128,7 @@ wiring to consume the per-profile config and Qwen3.6 sampling; reasoning-channel
 handling now that T0.2 showed llama.cpp puts reasoning in `reasoning_content` under
 --jinja). T3 is hardening (doctor integration checks + egress audit incl. the H1.6
 packet-capture). See knowledge.md "Architecture roadmap" and the tiered plan in
-HANDOFF_2026-05-15_0827.
+HANDOFF_2026-05-15_0127.
 
 ## 8. Commit guidance (git runs Windows-side)
 
@@ -136,7 +136,7 @@ Per the standing rule, run git from Windows portable git, not the sandbox mount:
 
     $env:Path = "D:\Projects\Tools\PortableGit\cmd;" + $env:Path
     cd D:\Projects\Git\Project_Persona
-    git add scripts/init_profiles.sh scripts/setup_native_stack.sh scripts/doctor.sh scripts/status.sh persona/profiles/default/config.yaml persona/profiles/test/config.yaml archive/handoffs/handoff_persona_20260604_0755.md knowledge.md todo.md changelog.md
+    git add scripts/init_profiles.sh scripts/setup_native_stack.sh scripts/doctor.sh scripts/status.sh persona/profiles/default/config.yaml persona/profiles/test/config.yaml archive/handoffs/handoff_persona_20260604_0055.md knowledge.md todo.md changelog.md
     git status
     git commit -m "T1: env_hermes venv + per-profile Hermes safe-config + doctor gate"
 

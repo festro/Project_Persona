@@ -1,10 +1,10 @@
 # HANDOFF: M5 — services/api/server.py Single-Model Migration
 
-**Session date:** 2026-05-17 1730 UTC (2026-05-17 1030 PDT)
+**Session date:** 2026-05-17 1030 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** Edits applied to Windows-side server.py. PARSE OK. Live smoke test on EVO-X2 still pending.
 **Branch:** `main` (uncommitted on Windows; stacks on top of the 1430 canonicalize work which is also uncommitted)
-**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md`
+**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md`
 
 ---
 
@@ -147,8 +147,8 @@ Acceptance:
 ### Windows-side `D:\Projects\Git\Project_Persona\` (this session, uncommitted)
 
 - `services/api/server.py` — M5 edits (URL collapse, REASONING_* rename, thinking_prefix, concurrency).
-- `KNOWLEDGE.md` — M5 marked ✅ Done, M8 superseded by T2.4, System State table extended (Reasoning in-band notes + Thinking-mode routing rows), Known Issues PERSONA_CONCURRENCY caveat resolved, File Change Tracker entry, Last Updated bumped to 2026-05-17 1730 UTC.
-- `archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md` — this file.
+- `KNOWLEDGE.md` — M5 marked ✅ Done, M8 superseded by T2.4, System State table extended (Reasoning in-band notes + Thinking-mode routing rows), Known Issues PERSONA_CONCURRENCY caveat resolved, File Change Tracker entry, Last Updated bumped to 2026-05-17 1030 PDT.
+- `archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md` — this file.
 
 This stacks on top of the still-uncommitted 1430 canonicalize session work (env + launcher mirror + status.sh + load_test_m2b.py + KNOWLEDGE.md + 1430 handoff).
 
@@ -162,13 +162,13 @@ Recommended: two commits, single push. Keeps the canonicalize/code-migration spl
 
 ```
 git status
-git add run/llama-servers.env scripts/start_llama_servers.sh scripts/status.sh scripts/load_test_m2b.py archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md
+git add run/llama-servers.env scripts/start_llama_servers.sh scripts/status.sh scripts/load_test_m2b.py archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md
 git commit -m "qwen-test canonicalize: mirror EVO-X2 env+launcher on Windows, fix status.sh, add M2b load test
 
 - run/llama-servers.env + scripts/start_llama_servers.sh: byte-identical mirror of EVO-X2 qwen-test edits (2026-05-16) for unified Qwen3-30B-A3B-Instruct-2507 Q5_K_M on Vulkan0/RADV. Closes Windows-first workflow drift.
 - scripts/status.sh: AI_ROOT default flipped to ~/Git/Project_Persona, names array trimmed to (persona), legacy names retained only in case-exclusion.
 - scripts/load_test_m2b.py: new asyncio+httpx client for the M2b sustained-load test. 4 concurrent workers default, per-minute throughput buckets, /health poll, JSON report, exit-nonzero on errors.
-- archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md: frozen session record.
+- archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md: frozen session record.
 
 Refs archive/handoffs/HANDOFF_2026-05-16_2337_qwen-test-first-boot.md."
 ```
@@ -176,7 +176,7 @@ Refs archive/handoffs/HANDOFF_2026-05-16_2337_qwen-test-first-boot.md."
 **Commit 2 — M5 server.py migration (this 1730 session):**
 
 ```
-git add services/api/server.py KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md
+git add services/api/server.py KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md
 git commit -m "M5: services/api/server.py single-model migration
 
 Single-model topology (DECISION 2026-05-09) finally reaches the API layer.
@@ -204,7 +204,7 @@ Out of scope (tracked separately):
 - <think>-tag stripping at output boundary (T2.4).
 - looks_degenerate() reinstate (TODO #37, gated on T2.4).
 
-Refs archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md."
+Refs archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md."
 ```
 
 **Push:**

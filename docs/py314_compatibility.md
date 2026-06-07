@@ -1,6 +1,6 @@
 # Python 3.14 compatibility report -- Project_Persona stack
 
-Last updated: 2026-06-05 0128 UTC by Claude
+Last updated: 2026-06-04 1828 PDT by Claude
 
 Context: a Windows embeddable CPython 3.14 was added at
 `portable/python/` (python.exe + python314.dll + python314.zip + python314._pth).

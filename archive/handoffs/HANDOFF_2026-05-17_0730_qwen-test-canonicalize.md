@@ -1,6 +1,6 @@
 # HANDOFF: Qwen-test Canonicalize + M2b Script + Docs Reconcile
 
-**Session date:** 2026-05-17 1430 UTC (2026-05-17 0730 PDT)
+**Session date:** 2026-05-17 0730 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** Ready to commit + push from Windows; EVO-X2 will fast-forward to a no-op pull (env + launcher byte-identical to its working copy).
 **Branch:** `main` (uncommitted on Windows; commit + push commands at the bottom)
@@ -97,7 +97,7 @@ KNOWLEDGE.md has flagged this as "spec'd but never landed" since the 2026-04-27 
 - `scripts/status.sh` — AI_ROOT + names + display block cleanup
 - `scripts/load_test_m2b.py` — new file, M2b sustained-load test
 - `KNOWLEDGE.md` — 6-item update list applied + M3/M4 marked done + TODO #37/#38 + File Change Tracker entries
-- `archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md` — this file
+- `archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md` — this file
 
 ### EVO-X2 `~/Git/Project_Persona/` (no changes this session)
 
@@ -111,7 +111,7 @@ Recommended sequence — single commit since the changes are all part of one coh
 
 ```
 git status
-git add run/llama-servers.env scripts/start_llama_servers.sh scripts/status.sh scripts/load_test_m2b.py KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md
+git add run/llama-servers.env scripts/start_llama_servers.sh scripts/status.sh scripts/load_test_m2b.py KNOWLEDGE.md archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md
 git status
 git commit -m "qwen-test canonicalize: mirror EVO-X2 env+launcher on Windows, fix status.sh, add M2b load test, KNOWLEDGE.md reconcile
 
@@ -119,7 +119,7 @@ git commit -m "qwen-test canonicalize: mirror EVO-X2 env+launcher on Windows, fi
 - scripts/status.sh: AI_ROOT default flipped to ~/Git/Project_Persona, names array trimmed to (persona), legacy names retained only in case-exclusion. Resolves TODO #38.
 - scripts/load_test_m2b.py: new asyncio+httpx client for the M2b sustained-load test. 4 concurrent workers default, per-minute throughput buckets, /health poll, JSON report, exit-nonzero on errors.
 - KNOWLEDGE.md: archive/handoffs/HANDOFF_2026-05-16_2337 6-item update list applied. M3+M4 marked Done. M2b row references new script. TODO #37 (looks_degenerate decision gate) and #38 (status.sh cleanup, resolved) added. File Change Tracker entries for 2026-05-16 and 2026-05-17 sessions. Last Updated bumped.
-- archive/handoffs/HANDOFF_2026-05-17_1430_qwen-test-canonicalize.md: frozen session record.
+- archive/handoffs/HANDOFF_2026-05-17_0730_qwen-test-canonicalize.md: frozen session record.
 
 Refs archive/handoffs/HANDOFF_2026-05-16_2337_qwen-test-first-boot.md."
 git push origin main

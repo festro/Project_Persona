@@ -39,7 +39,7 @@ Mixture-of-Experts (MoE) models (Qwen3-30B-A3B, Qwen3.5-35B-A3B, Qwen3.6-35B-A3B
 
 ## Model Roles (single-model topology)
 
-Project_Persona migrated from a multi-model topology (separate persona / reasoning / coder servers) to a **single-model topology** in May 2026. One model file serves all roles via prompt engineering and the model's native thinking-mode toggle. See `HANDOFF_2026-05-09_0950_single-model-migration.md` for rationale.
+Project_Persona migrated from a multi-model topology (separate persona / reasoning / coder servers) to a **single-model topology** in May 2026. One model file serves all roles via prompt engineering and the model's native thinking-mode toggle. See `HANDOFF_2026-05-09_0250_single-model-migration.md` for rationale.
 
 The single model handles:
 

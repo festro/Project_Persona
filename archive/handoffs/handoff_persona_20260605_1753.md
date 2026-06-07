@@ -1,8 +1,8 @@
 # Handoff -- Project_Persona -- roadmap.md + distributed-mesh design + portability audit
 
-Date: 2026-06-06 0053 UTC
+Date: 2026-06-05 1753 PDT
 Authors: Brandon + Claude
-Scope: everything after handoff_persona_20260605_2312 (which froze the API gap
+Scope: everything after handoff_persona_20260605_1612 (which froze the API gap
 fixes + env pins). This session added the phased roadmap, the decentralized
 node-mesh design, and a cross-OS/arch portability audit with one code fix.
 Status: all deliverables written and wired into the docs convention. One code
@@ -144,7 +144,7 @@ put the paths on one line.)
 - Mesh design: `docs/distributed_nodes.md`.
 - Portability audit + matrix: `docs/portability_audit.md`.
 - Architecture/scope: `knowledge.md`. Short-term state: `todo.md`. History:
-  `changelog.md`. Prior handoff: `archive/handoffs/handoff_persona_20260605_2312.md`.
+  `changelog.md`. Prior handoff: `archive/handoffs/handoff_persona_20260605_1612.md`.
 
 ---
 

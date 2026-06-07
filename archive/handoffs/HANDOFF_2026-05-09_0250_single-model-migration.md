@@ -1,14 +1,14 @@
 # HANDOFF — Single-Model Consolidation Migration
 
 **Date:** 2026-05-09
-**Time:** 0950 UTC
+**Time:** 0250 PDT
 **Topic:** Inference topology consolidation — multi-model → single-model
 **Status:** Approved, migration in progress (M1 resolved 2026-05-14)
 **Supersedes:** Three-model topology (persona 8080 / reasoning 8081 / coder 8082)
 **Owner:** Brandon (festro3@gmail.com)
 **Related:** `knowledge.md` (rolling state — see Active Architectural Decisions)
 
-**M1 RESOLUTION ADDENDUM (2026-05-14 1701 UTC):**
+**M1 RESOLUTION ADDENDUM (2026-05-14 1001 PDT):**
 GGUF source locked to **bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF Q5_K_M** (21.74GB, imatrix calibrated, llama.cpp release b6014, Apache 2.0). The "Instruct-2507" suffix is the July 2025 instruction-tuned update — more recent than the base Qwen3-30B-A3B referenced in the original decision. Path 2 (jump to Qwen3.5-35B-A3B / Qwen3.6-35B-A3B) evaluated and deferred to TODO #36 in knowledge.md — re-check in 2-3 months when llama.cpp `qwen3_5_moe` arch support and bartowski Q5_K_M imatrix GGUFs land. Download: `huggingface-cli download bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF --include "Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf" --local-dir ~/Live/AIStack/Project_Persona/models/`. Next-session entry point now M2 (Vulkan/ROCm verification on Strix Halo).
 
 ---

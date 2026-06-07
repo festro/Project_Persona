@@ -1,6 +1,6 @@
 # HANDOFF: M5 Validated End-to-End on EVO-X2 — Fixes Pushed, Qwen3.6 Backport Next
 
-**Session date:** 2026-05-20 0102 PDT (2026-05-20 0802 UTC)
+**Session date:** 2026-05-20 0102 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** M5 fully validated. llama-server stable on :8090, FastAPI on :8000, `/v1/chat/completions` returns coherent output. Three in-flight EVO-X2 patches + the 05-19 handoff committed and pushed in this session.
 **Branch:** `main`
@@ -86,7 +86,7 @@ git commit -m "EVO-X2 M5 validated end-to-end: PERSONA_PORT 8090, start_api/stop
 
 M5 /health reports unified_endpoint http://127.0.0.1:8090/completion, thinking_mode_default auto, persona_concurrency 4, reasoning_inband_* + thinking_mode_*. No scientist_endpoint. /v1/chat/completions round-trips through to llama-server and returns coherent content.
 
-Refs archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md."
+Refs archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md."
 
 git push origin main
 ```
@@ -130,7 +130,7 @@ If it recurs, the cleanest diagnostic is `strace -e trace=signal -p <llama-pid>`
 Model is on disk and sha256-verified. To wire it in:
 
 - Bump EVO-X2's llama.cpp from `b8157` → `≥ b8770` (matches the Windows-side build that passed T0.1).
-- Compat re-eval (`archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md`) flagged `qwen3_5_moe` arch support as "unverified" at b8157. Likely works, but worth confirming with a `--no-mmap` dry-run on b8157 before deciding whether the bump is mandatory or just preferred.
+- Compat re-eval (`archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md`) flagged `qwen3_5_moe` arch support as "unverified" at b8157. Likely works, but worth confirming with a `--no-mmap` dry-run on b8157 before deciding whether the bump is mandatory or just preferred.
 - Update `run/llama-servers.env` model path.
 - Re-run M2b sustained-load + a /chat smoke. Expected gen tok/s ≥ ~13.5 (Windows RX 9060 XT baseline); Strix Halo should beat that given full layer offload capacity.
 
@@ -207,7 +207,7 @@ Concrete edits to `KNOWLEDGE.md`. Apply as a single doc-only commit in a later s
 
 4. **env symlink note:** flag `~/Git/Project_Persona/env → ~/Live/AIStack/Project_Persona/env → ~/AI/env` as **transient**. Eventually Project_Persona should own a clean `env/` venv at the Git workspace root, decoupled from Live. Not this session.
 
-5. **Last Updated header:** bump from `2026-05-17 1730 UTC` to whatever date the drift commit lands on.
+5. **Last Updated header:** bump from `2026-05-17 1030 PDT` to whatever date the drift commit lands on.
 
 ---
 
@@ -231,6 +231,6 @@ If llama-server stability hiccups again, §Step 2 gives a watcher harness; the r
 
 Sources:
 - [archive/handoffs/HANDOFF_2026-05-19_1130_evox2-m5-validation.md] (immediate predecessor — revival block + suspect list + commit message body)
-- [archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md] (M5 design + Windows-side verification)
-- [archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md] (T0.1 + scp transfer of Qwen3.6 to EVO-X2)
-- [archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md] (tiered T0-T4 plan + qwen3_5_moe arch gate at b8157)
+- [archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md] (M5 design + Windows-side verification)
+- [archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md] (T0.1 + scp transfer of Qwen3.6 to EVO-X2)
+- [archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md] (tiered T0-T4 plan + qwen3_5_moe arch gate at b8157)

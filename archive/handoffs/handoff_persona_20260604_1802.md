@@ -1,9 +1,9 @@
 # Handoff -- Project_Persona -- T1 close-out + T2 entry point
 
-Date: 2026-06-05 0102 UTC
+Date: 2026-06-04 1802 PDT
 Authors: Brandon + Claude
-Scope: closes the script-drift items left open by handoff_persona_20260603_2308
-and handoff_persona_20260604_0755 (the T1 record), and sets the entry point for
+Scope: closes the script-drift items left open by handoff_persona_20260603_1608
+and handoff_persona_20260604_0055 (the T1 record), and sets the entry point for
 T2 (core integration).
 Status: T1 IMPLEMENTED + verified. All four ops scripts modernized. T2 not yet
 started.
@@ -14,7 +14,7 @@ started.
 
 - T0 fully passed (T0.1 2026-05-18, T0.2 2026-06-03). Qwen3.6 swap committed.
 - T1 implemented 2026-06-04 (env_hermes venv + per-profile Hermes safe-config +
-  doctor.sh gate). See handoff_persona_20260604_0755 for the full T1 record and
+  doctor.sh gate). See handoff_persona_20260604_0055 for the full T1 record and
   the safe-config schema. Two T1 follow-ups remain OPEN (carried below).
 - 2026-06-04..05: closed all script drift surfaced during T1. The four ops scripts
   (setup_native_stack, init_profiles, doctor, status) are now coherent with the
@@ -62,7 +62,7 @@ H1 validation (gates trusting the config.yaml in production):
 
 ## 4. T2 -- core integration (next)
 
-Source: tiered plan in HANDOFF_2026-05-15_0827. Sub-items and gates:
+Source: tiered plan in HANDOFF_2026-05-15_0127. Sub-items and gates:
 
 - T2.1 Sampling presets in run/config.env + server.py. Per-mode presets; server.py
   selects a preset based on routing + thinking-mode toggle.

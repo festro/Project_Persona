@@ -1,7 +1,7 @@
 # Project_Persona -- Distributed Cooperative Node Mesh (Design Note)
 
 Status: DESIGN -- not started. Extended track (see `roadmap.md` Phase 10).
-Last updated: 2026-06-06 0035 UTC by Claude
+Last updated: 2026-06-05 1735 PDT by Claude
 Origin: design discussion 2026-06-05/06 (Brandon + Claude). Decisions below are
 Brandon's calls captured for the record; this note is handoff-quality on its own.
 

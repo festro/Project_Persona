@@ -1,4 +1,4 @@
-# Handoff -- Project_Persona -- 2026-06-03 2120 UTC
+# Handoff -- Project_Persona -- 2026-06-03 1420 PDT
 
 Author: Claude (with Brandon)
 Branch: main
@@ -39,7 +39,7 @@ Type: frozen snapshot. Living state is in `todo.md`; history in `changelog.md`.
 
 ## Current state (VERIFIED)
 
-- EVO-X2 stack UP and healthy as of 2120 UTC. llama-server pid 20606 (:8090
+- EVO-X2 stack UP and healthy as of 1420 PDT. llama-server pid 20606 (:8090
   /health ok), API pid 20683 (:8000 /health all green). End-to-end smoke via
   /v1/chat/completions returned a real completion.
 - The 05-23 down-state was a clean shutdown (api.log "Application shutdown

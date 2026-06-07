@@ -1,16 +1,16 @@
 # HANDOFF: Qwen3.6 Windows Prototype — T0.1 Smoke Test Runbook
 
-**Session date:** 2026-05-17 1830 UTC (2026-05-17 1130 PDT)
+**Session date:** 2026-05-17 1130 PDT
 **Repo:** github.com/festro/Project_Persona
 **Status:** Launcher script + .gitignore updates landed on Windows-side. Model + binary downloads + actual launch on user.
 **Branch:** `main` (uncommitted; stacks on top of 1430 canonicalize + 1730 M5 commits)
-**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_1730_m5-server-py-migration.md`
+**Predecessor handoff:** `archive/handoffs/HANDOFF_2026-05-17_1030_m5-server-py-migration.md`
 
 ---
 
 ## Executive summary
 
-Opens the **T0.1 GO/NO-GO gate** from `archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md` — empirical test that llama.cpp's `qwen3_5_moe` architecture loads and generates coherent output. Target hardware: Windows daily-driver with a discrete AMD GPU (16 GB VRAM), Git Bash as the shell. Model: **Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf** (Unsloth Dynamic, 26.6 GB, native 262K context) from the main `unsloth/Qwen3.6-35B-A3B-GGUF` repo.
+Opens the **T0.1 GO/NO-GO gate** from `archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md` — empirical test that llama.cpp's `qwen3_5_moe` architecture loads and generates coherent output. Target hardware: Windows daily-driver with a discrete AMD GPU (16 GB VRAM), Git Bash as the shell. Model: **Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf** (Unsloth Dynamic, 26.6 GB, native 262K context) from the main `unsloth/Qwen3.6-35B-A3B-GGUF` repo.
 
 **Model file:** `Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf` (26.6 GB) from the main `unsloth/Qwen3.6-35B-A3B-GGUF` repo. After Windows smoke test passes, the file is `scp`'d to EVO-X2 so we don't have to re-download (Step 6).
 
@@ -211,7 +211,7 @@ Expected key lines in the log:
 - `main: server is listening on http://127.0.0.1:8080`
 - `Hermes 2 Pro` or `chatml` chat template auto-detected
 
-If `arch = qwen3_5_moe` does NOT appear, **T0.1 FAILS** — llama.cpp build doesn't support this architecture yet, fall back to the decision branches in `archive/handoffs/HANDOFF_2026-05-15_0827`.
+If `arch = qwen3_5_moe` does NOT appear, **T0.1 FAILS** — llama.cpp build doesn't support this architecture yet, fall back to the decision branches in `archive/handoffs/HANDOFF_2026-05-15_0127`.
 
 ---
 
@@ -415,7 +415,7 @@ Nothing on EVO-X2 changes. Existing `scripts/start_llama_servers.sh` (Linux/EVO-
 Stacks on the two earlier uncommitted commits from this session.
 
 ```
-git add scripts/start_llama_server_win.sh .gitignore archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md
+git add scripts/start_llama_server_win.sh .gitignore archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md
 git commit -m "Windows prototype: scripts/start_llama_server_win.sh for Qwen3.6 T0.1 smoke test
 
 Opens the T0.1 GO/NO-GO gate from the 2026-05-15 compat re-eval — empirical test that
@@ -434,8 +434,8 @@ K_XL prototype confirms the arch loads.
 
 Out of scope here: T0.2 tool-calling, FastAPI Companion on Windows, OpenWebUI.
 
-Refs archive/handoffs/HANDOFF_2026-05-17_1830_qwen36-windows-prototype.md,
-archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md."
+Refs archive/handoffs/HANDOFF_2026-05-17_1130_qwen36-windows-prototype.md,
+archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md."
 ```
 
 (You'll have already pushed the 1430 canonicalize + 1730 M5 commits per their respective handoff sections; this is the third commit on top.)
@@ -469,4 +469,4 @@ Sources:
 - [unsloth/Qwen3.6-35B-A3B-GGUF · Hugging Face](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF) (main repo — UD-Q5_K_XL 26.6 GB, used here)
 - [unsloth/Qwen3.6-35B-A3B-MTP-GGUF · Hugging Face](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) (MTP variant — UD-Q5_K_M 27.1 GB, deferred follow-up)
 - [ggml-org/llama.cpp · Releases](https://github.com/ggml-org/llama.cpp/releases)
-- [archive/handoffs/HANDOFF_2026-05-15_0827_compat-reeval-tiered.md] (in this repo)
+- [archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md] (in this repo)

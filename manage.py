@@ -479,6 +479,11 @@ def cmd_up(root, cfg, args):
     if args.llama_only:
         return 0
     api_ok = start_api(root, cfg)
+    if api_ok and not args.no_wait:
+        if wait_for_health("http://127.0.0.1:8000/health", timeout=120):
+            ok("API /health responding")
+        else:
+            warn("API started but /health did not come up in time (embedder/Chroma init?)")
     return 0 if api_ok else 1
 
 
@@ -941,7 +946,9 @@ def llama_version_info(binpath):
     if not Path(binpath).is_file():
         return None, []
     build = None
-    rc, out = _run([str(binpath), "--version"], timeout=10)
+    rc, out = _run([str(binpath), "--version"], timeout=30)
+    if rc is None or not (out or "").strip():
+        rc, out = _run([str(binpath), "--version"], timeout=30)
     if rc is not None:
         m = re.search(r"\bb?(\d{3,6})\b", out or "")
         if m:

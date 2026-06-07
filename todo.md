@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 0323 UTC by Claude
+Last updated: 2026-06-07 1129 PDT by Claude
 
 ## Rules of the road
 
@@ -17,6 +17,33 @@ Last updated: 2026-06-07 0323 UTC by Claude
 
 ## Just finished (2026-06-07, Claude)
 
+- Windows-side manage.py VALIDATED (changelog 1105): on Daemonic-PC (RX 9060 XT),
+  status/capabilities/doctor all green under portable 3.11.9 -- config.toml read;
+  run/node_capabilities.json written (accel detect+select=vulkan, tier1 AMD RX 9060
+  XT, llama-server build b9219); filesystem/binary/profile checks OK; T1
+  safe_config=pass (env_hermes_installed=no). Plus an off-host AST/syntax re-check
+  (completeness-verified copy): COMPILE OK + AST OK. Closes the pending Windows-side
+  caveats on the launcher, the TOML migration, and the capabilities/detection layer.
+  Live CLI lifecycle ALSO proven this session: up (llama pid 3044 + API pid 8340,
+  GPU auto-fit) -> status (both up) -> doctor --deep (live persona completion smoke
+  PASS) -> test quick (offline 14/14 + health persona+API OK) -> down (clean) ->
+  status (down). FINDING: doctor --deep flagged API /health not responding right
+  after up while test health moments later showed it OK -- API readiness race
+  (embedder/Chroma init); see fix-its.
+
+## Just finished (2026-06-06, Claude)
+
+- Phase 0.5 #4 IPC DECIDED (changelog 2105): NATS+JetStream is the primary
+  control-plane bus for the Phase 3 daemon (nats-server as a supervised child,
+  loopback, JetStream R=1) -- groundwork for the Phase 10 mesh -- with a stdlib
+  loopback-TCP compatibility fallback behind one EventBus interface. Cross-platform
+  support verified (nats-server binaries for Win/Linux/ARM64; nats-py official
+  client). Full rationale + sources: `docs/ipc_decision.md`. roadmap #4 -> [x];
+  Phase 3 + knowledge.md IPC text rewritten; nats-server added to the Phase 3 child
+  map. Phase 0.5 remaining is live-host work: manage.py AST + up/down on the Win
+  Vulkan box (do-able now); the Linux x64 + ARM64 pass is DEFERRED 2026-06-06 (no
+  hardware -- trigger: hardware available); then #5 egress story + installer/doctor
+  parity. roadmap Phase 0.5 owns the deferral status + Exit Gate note.
 - COMMITTED + PUSHED: the consolidation arc is on origin/main as b75a853 (21 files).
 - Phase C done (changelog 0323): archived 11 bash lifecycle scripts to
   scripts/archive/ (start/stop/llama/api/status/doctor/smoke_agent/unified_test) --
@@ -100,16 +127,16 @@ Last updated: 2026-06-07 0323 UTC by Claude
   lifecycle. Ports start_llama_server_win.sh+start_api.sh / stop_llama_servers.sh /
   status.sh / doctor.sh (incl. the safe-config T1 gate, PyYAML + regex paths). NOT
   yet live-host tested (no model/llama-server in sandbox). Handoff:
-  `archive/handoffs/handoff_persona_20260606_1838.md`. See changelog 1838 +
+  `archive/handoffs/handoff_persona_20260606_1138.md`. See changelog 1838 +
   roadmap Phase 0.5 (launcher item now [~]).
 
 ## Just finished (2026-06-05, Claude)
 
 Full detail in `changelog.md` (0108 / 0128 / 2226 / 2229) and
-`archive/handoffs/handoff_persona_20260605_2248.md`. Also done earlier this run:
+`archive/handoffs/handoff_persona_20260605_1548.md`. Also done earlier this run:
 T1 (handoff 0755) + ops-script modernization (handoff 0102).
 
-- Handoff written: `archive/handoffs/handoff_persona_20260606_0053.md` (covers the
+- Handoff written: `archive/handoffs/handoff_persona_20260605_1753.md` (covers the
   roadmap, the distributed-mesh design, and the portability audit; has the
   uncommitted-files list + commit guidance).
 - Portability audit + cross-OS hardening: `docs/portability_audit.md` (findings +
@@ -143,7 +170,7 @@ T1 (handoff 0755) + ops-script modernization (handoff 0102).
   PERSONA_PORT=8090, not the 8080 default). config.env gained RAG_ENABLED=1 +
   ANONYMIZED_TELEMETRY=False.
 
-## EVO-X2 state (as of 2026-06-03 2118 UTC)
+## EVO-X2 state (as of 2026-06-03 1418 PDT)
 
 - Stack was UP and healthy after a clean restart (persona pid 20606 on :8090, api
   pid 20683 on :8000; all /health green). Deployed model is Instruct-2507 (NOT
@@ -194,6 +221,17 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 
 ## Housekeeping fix-its
 
+- DONE 2026-06-07 (verified live): API /health readiness race -- doctor --deep right
+  after `up` saw API /health down while `test health` moments later showed it OK
+  (embedder/Chroma init delay). cmd_up now polls API /health (timeout 120, respects
+  --no-wait) after start_api. Confirmed: `up` printed "API /health responding".
+- 2026-06-07 (low): offline suite prints a StarletteDeprecationWarning (httpx vs
+  httpx2 in the FastAPI TestClient). Cosmetic; address when convenient.
+- DONE 2026-06-07 (verified live): capabilities `llama_build: null` -- a cold Vulkan
+  `--version` exceeded the 10s timeout, so build went null while backends came from
+  the --list-devices fallback. Bumped `--version` to 30s + one retry in
+  llama_version_info (build still parsed from --version only). Confirmed:
+  capabilities now reports `"llama_build": "b9219"`.
 - DONE 2026-06-04: `setup_native_stack.sh` env writer modernized to the unified
   single-server topology and made non-destructive (FORCE_ENV=1 + .bak). Clobber
   hazard closed. See `changelog.md` 1017.
