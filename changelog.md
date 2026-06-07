@@ -14,6 +14,16 @@ Conventions:
 
 ---
 
+## 2026-06-07 1201 PDT -- Silence StarletteDeprecationWarning in offline suite (Brandon + Claude)
+
+- tests/test_api_offline.py: added a scoped warnings.filterwarnings (message
+  r"Using .*starlette\.testclient.* is deprecated") before the TestClient import,
+  so the cosmetic httpx/httpx2 deprecation no longer prints. Verified the regex
+  suppresses the exact message and leaves unrelated DeprecationWarnings intact.
+- Pinned FastAPI-chain deps deliberately untouched (warning is test-harness only,
+  not the serving path); avoids a Starlette/httpx bump in the 3.11.9 env. Closes
+  the low-pri fix-it. Re-run Windows-side to confirm clean 22/22.
+
 ## 2026-06-07 1155 PDT -- T2.2 validated 22/22 Windows-side (Brandon + Claude)
 
 - Ran tests/test_api_offline.py on the portable 3.11.9 interpreter: ALL PASS, 22/22

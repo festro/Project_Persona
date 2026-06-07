@@ -12,6 +12,16 @@ import os
 import sys
 import json
 import tempfile
+import warnings
+
+# Cosmetic: Starlette's TestClient emits a deprecation notice about httpx/httpx2
+# (httpx >=0.27 Client-init change). Test-harness only, not the serving path; we
+# suppress it here rather than bump a pinned FastAPI-chain dependency. Must run
+# before the starlette.testclient import below.
+warnings.filterwarnings(
+    "ignore",
+    message=r"Using .*starlette\.testclient.* is deprecated",
+)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)

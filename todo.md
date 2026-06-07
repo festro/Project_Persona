@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1155 PDT by Claude
+Last updated: 2026-06-07 1201 PDT by Claude
 
 ## Rules of the road
 
@@ -238,8 +238,11 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
   after `up` saw API /health down while `test health` moments later showed it OK
   (embedder/Chroma init delay). cmd_up now polls API /health (timeout 120, respects
   --no-wait) after start_api. Confirmed: `up` printed "API /health responding".
-- 2026-06-07 (low): offline suite prints a StarletteDeprecationWarning (httpx vs
-  httpx2 in the FastAPI TestClient). Cosmetic; address when convenient.
+- DONE 2026-06-07 1158: StarletteDeprecationWarning (httpx/httpx2 in the FastAPI
+  TestClient) silenced via a scoped warnings.filterwarnings in
+  tests/test_api_offline.py (before the TestClient import). Pinned deps untouched
+  (test-harness only, not the serving path). Re-run Windows-side to confirm clean
+  output + still 22/22, then commit.
 - DONE 2026-06-07 (verified live): capabilities `llama_build: null` -- a cold Vulkan
   `--version` exceeded the 10s timeout, so build went null while backends came from
   the --list-devices fallback. Bumped `--version` to 30s + one retry in
