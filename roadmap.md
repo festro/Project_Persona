@@ -186,7 +186,12 @@ persona replies over both the native and OpenAI-compatible paths.
       rag_collections. Off-mount verified (name logic 8/8; server AST+COMPILE OK).
       CAVEAT: turning it on does not migrate existing global_memory rows. Live
       validation pending.
-- [ ] Topic routing policy
+- [~] Topic routing policy -- CODE DONE 2026-06-07 (OFF by default): deterministic
+      keyword classify_topic(text) + resolve_topic precedence (topic="auto" always
+      classifies; explicit non-chat respected; "chat"/absent classifies only when
+      TOPIC_ROUTING=1). Resolved topic drives thinking/sampling/RAG/inband downstream.
+      /health topic_routing(+topics); /chat debug topic_routing. Off-mount verified
+      (logic 14/14; server AST+COMPILE OK). Live validation pending.
 - [~] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
       2026-06-07: stdlib-sqlite3 services/api/taskboard.py (init/task_set upsert-
       merge/task_get/task_list/delete/count + one-time jobs.jsonl migration); server

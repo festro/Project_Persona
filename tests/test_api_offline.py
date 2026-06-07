@@ -189,6 +189,27 @@ h = client.get("/health").json()
 check("health rag_per_profile present", "rag_per_profile" in h)
 check("health rag_collections is list", isinstance(h.get("rag_collections"), list))
 
+check("classify_topic coding", server.classify_topic("why does my python function throw an exception") == "coding")
+check("classify_topic chat fallback", server.classify_topic("hey how are you") == "chat")
+check("resolve_topic explicit non-chat respected", server.resolve_topic("biology", "python code") == "biology")
+
+r = client.post("/chat", json={"text": "compute the derivative of this polynomial equation", "topic": "auto", "debug": True})
+tr = r.json()["debug"]["topic_routing"]
+check("auto routes to math", tr["resolved"] == "math")
+check("auto routed topic drives think preset", r.json()["debug"]["sampling_preset"] == "think")
+
+r = client.post("/chat", json={"text": "debug this python stack trace", "topic": "chat", "debug": True})
+check("routing off -> chat stays chat", r.json()["debug"]["topic_routing"]["resolved"] == "chat")
+
+_saved_tr = server.TOPIC_ROUTING_DEFAULT
+server.TOPIC_ROUTING_DEFAULT = True
+r = client.post("/chat", json={"text": "debug this python stack trace", "topic": "chat", "debug": True})
+check("routing on -> chat classified to coding", r.json()["debug"]["topic_routing"]["resolved"] == "coding")
+server.TOPIC_ROUTING_DEFAULT = _saved_tr
+
+h = client.get("/health").json()
+check("health topic_routing present", "topic_routing" in h and "topic_routing_topics" in h)
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)

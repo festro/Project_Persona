@@ -211,6 +211,43 @@ THINKING_GATE_KEYWORDS = {
 # overrides this default.
 PRESERVE_THINKING_DEFAULT = os.getenv("PRESERVE_THINKING_DEFAULT", "0").strip().lower() in ("1", "true", "yes", "on")
 
+# Topic routing (2026-06-07). A deterministic keyword classifier that picks the
+# request topic from the text. OFF by default: a request's topic is taken as given
+# (default "chat"), so downstream thinking/sampling/RAG paths are unchanged. A
+# per-request topic of "auto" ALWAYS classifies; with TOPIC_ROUTING=1 a missing or
+# "chat" topic is classified too. An explicit non-chat topic is always respected.
+TOPIC_ROUTING_DEFAULT = os.getenv("TOPIC_ROUTING", "0").strip().lower() in ("1", "true", "yes", "on")
+# topic -> keyword set, checked in this priority order (first strict-max score wins).
+TOPIC_KEYWORDS: Dict[str, set] = {
+    "coding": {
+        "code", "function", "bug", "compile", "compiler", "debug", "regex",
+        "stack trace", "exception", "traceback", "variable", "async", "git",
+        "refactor", "python", "javascript", "typescript", "rust", "java", "sql",
+        "api", "endpoint", "import", "syntax", "runtime", "null pointer",
+    },
+    "math": {
+        "calculate", "equation", "integral", "derivative", "theorem", "proof",
+        "algebra", "geometry", "probability", "matrix", "vector", "factorial",
+        "polynomial", "logarithm", "summation", "modulo", "factorize",
+    },
+    "biology": {
+        "cell", "dna", "rna", "protein", "gene", "genome", "organism", "enzyme",
+        "neuron", "evolution", "species", "bacteria", "virus", "mitochondria",
+        "photosynthesis", "chromosome", "metabolism",
+    },
+    "science": {
+        "physics", "chemistry", "molecule", "atom", "quantum", "energy",
+        "experiment", "hypothesis", "reaction", "thermodynamics", "velocity",
+        "electron", "compound", "isotope", "gravity", "voltage",
+    },
+    "research": {
+        "research", "paper", "citation", "literature", "survey", "methodology",
+        "peer-reviewed", "study", "meta-analysis", "abstract", "findings",
+        "references",
+    },
+}
+TOPIC_PRIORITY = ["coding", "math", "biology", "science", "research"]
+
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
 os.makedirs(PROFILES_DIR, exist_ok=True)
@@ -607,6 +644,39 @@ def rag_kinds_for_topic(topic: str) -> set[str]:
     return set(RAG_KINDS_FOR_CHAT)
 
 
+def classify_topic(text: str) -> str:
+    """Deterministic keyword classifier -> a topic label, "chat" if none match.
+
+    Scores each topic by keyword hits and returns the first topic (in
+    TOPIC_PRIORITY order) holding the strict-max score, so ties resolve to the
+    higher-priority topic.
+    """
+    low = (text or "").lower()
+    best, best_score = "chat", 0
+    for topic in TOPIC_PRIORITY:
+        score = sum(1 for kw in TOPIC_KEYWORDS.get(topic, ()) if kw in low)
+        if score > best_score:
+            best, best_score = topic, score
+    return best
+
+
+def resolve_topic(req_topic: Optional[str], text: str) -> str:
+    """Resolve the effective topic from the request value + text.
+
+    - "auto"            -> always classify from text.
+    - explicit non-chat -> respected as given.
+    - "" / "chat"       -> classify only when TOPIC_ROUTING is on, else "chat".
+    """
+    rt = (req_topic or "").strip().lower()
+    if rt == "auto":
+        return classify_topic(text)
+    if rt and rt != "chat":
+        return rt
+    if TOPIC_ROUTING_DEFAULT:
+        return classify_topic(text)
+    return rt or "chat"
+
+
 # -----------------------
 # Llama helpers
 # -----------------------
@@ -973,6 +1043,8 @@ async def health():
         "thinking_mode_topics": sorted(list(THINKING_MODE_TOPICS)),
         "thinking_auto_gate": THINKING_AUTO_GATE,
         "preserve_thinking_default": PRESERVE_THINKING_DEFAULT,
+        "topic_routing": TOPIC_ROUTING_DEFAULT,
+        "topic_routing_topics": TOPIC_PRIORITY,
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
@@ -996,7 +1068,7 @@ async def health():
 @app.post("/chat")
 async def chat(req: ChatRequest):
     profile = (req.profile or DEFAULT_PROFILE).strip()
-    topic = (req.topic or "chat").strip().lower()
+    topic = resolve_topic(req.topic, req.text)
     ensure_profile_files(profile)
 
     rag_docs: List[str] = []
@@ -1061,6 +1133,11 @@ async def chat(req: ChatRequest):
                 "resolved": preserve,
                 "reasoning_chars": len(reasoning),
             },
+            "topic_routing": {
+                "enabled": TOPIC_ROUTING_DEFAULT,
+                "requested": (req.topic or "chat"),
+                "resolved": topic,
+            },
             "distill": distill_dbg,
         }
 
@@ -1095,7 +1172,7 @@ def _messages_to_text(messages: List[OA_Message]) -> str:
 @app.post("/v1/chat/completions")
 async def v1_chat_completions(req: OA_ChatCompletionsReq):
     user_text = _messages_to_text(req.messages)
-    topic = ((req.topic or "chat") if req.topic is not None else "chat").strip().lower()
+    topic = resolve_topic(req.topic, user_text)
     profile = (req.profile or DEFAULT_PROFILE).strip()
     ensure_profile_files(profile)
 

@@ -14,6 +14,28 @@ Conventions:
 
 ---
 
+## 2026-06-07 1613 PDT -- Topic routing policy, OFF by default (Brandon + Claude)
+
+- server.py: classify_topic(text) -- deterministic keyword classifier (coding/math/
+  biology/science/research, else chat; scores keyword hits, first TOPIC_PRIORITY
+  topic with the strict-max score wins). resolve_topic(req_topic, text) precedence:
+  "auto" always classifies; an explicit non-chat topic is respected as-is;
+  ""/"chat" classifies only when TOPIC_ROUTING is on, else stays "chat".
+- /chat + /v1 now resolve the topic via resolve_topic before everything downstream,
+  so an unlabeled request can route to the right thinking/sampling/RAG-kinds/inband
+  path instead of defaulting to chat.
+- Config: TOPIC_ROUTING (default 0 = off -> topic taken as given, behavior
+  unchanged), TOPIC_KEYWORDS, TOPIC_PRIORITY.
+- Observability: /health adds topic_routing + topic_routing_topics; /chat debug adds
+  topic_routing {enabled, requested, resolved}.
+- tests/test_api_offline.py: +8 checks (classify coding/chat; explicit respected;
+  /chat auto->math drives think preset; routing off keeps chat; routing on classifies
+  chat->coding; /health fields). Standalone topic harness 14/14.
+- Verified: server.py AST+COMPILE OK (spliced authoritative full file, 1238 lines;
+  mount truncates at ~1057). Full offline suite + live smoke pending Windows-side.
+- This is the last Phase 1 feature item draftable offline; remaining Phase 1 = M6
+  (live) + T2.4 (--jinja migration).
+
 ## 2026-06-07 1243 PDT -- Per-profile Chroma collections, OFF by default (Brandon + Claude)
 
 - server.py: RAG retrieval/writeback can now be scoped per persona. New

@@ -196,7 +196,12 @@ behavior. T2.3 (2026-06-07) adds `preserve_thinking` (req flag +
 persona surface is `<think>`-free by default once Qwen3.6 thinking fires); when
 preserve is on -- intended for the Phase 3 daemon's Hermes-forwarded work -- the
 answer is returned un-sanitized with the reasoning surfaced (`reasoning` on
-`/chat`, `reasoning_content` on `/v1`).
+`/chat`, `reasoning_content` on `/v1`). Topic routing (2026-06-07, off by default
+via `TOPIC_ROUTING`): `classify_topic(text)` is a deterministic keyword classifier
+and `resolve_topic` decides the effective topic -- `topic="auto"` always
+classifies, an explicit non-chat topic is respected, and a missing/`chat` topic
+classifies only when routing is on. The resolved topic then drives the
+thinking/sampling preset, RAG kinds, and in-band reasoning selection.
 Defaults mirror the per-profile Hermes config.yaml (Qwen3.6 sampling guidance).
 Target unified-topology values:
 
@@ -212,6 +217,7 @@ CACHE_TYPE_K=q8_0
 CACHE_TYPE_V=q8_0
 THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
+TOPIC_ROUTING=0
 THINKING_AUTO_GATE=0
 PRESERVE_THINKING_DEFAULT=0
 API_PORT=8000
