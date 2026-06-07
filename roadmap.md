@@ -163,9 +163,21 @@ persona replies over both the native and OpenAI-compatible paths.
       22/22 (real /chat + /v1 endpoints, gate logic live). The
       chat_template_kwargs/messages migration is folded into T2.4 (its --jinja
       reasoning_content split is the same world).
-- [ ] T2.3 preserve_thinking for Hermes-originated requests
+- [x] T2.3 preserve_thinking for Hermes-originated requests -- DONE 2026-06-07
+      (Path A): preserve_thinking flag (req field + PRESERVE_THINKING_DEFAULT, off
+      by default); split_reasoning() pulls in-band <think> out before sanitizing;
+      preserve=true returns the answer un-sanitized + reasoning (`reasoning` on
+      /chat, `reasoning_content` on /v1 incl. stream). VALIDATED Windows-side:
+      offline suite 35/35 (preserve logic exercised through the real /chat + /v1
+      endpoints). Live-model spot check folded into the Phase 1 Exit Gate proof.
+      DESIGN NOTE: preserve mode also skips the lossy persona
+      two-part sanitizer (agent loops want the full answer) -- revisit if persona
+      formatting is ever wanted alongside preserved reasoning.
 - [-] T2.4 in-band <think> chokepoint -- RE-SCOPE: llama.cpp emits reasoning in
-      `reasoning_content` under --jinja, so the user channel is already clean
+      `reasoning_content` under --jinja, so the user channel is already clean. The
+      non-jinja in-band path is now handled too: split_reasoning() (T2.3) strips
+      <think> at the persona surface by default. Remaining T2.4 = the --jinja
+      messages migration (shared with the deferred T2.2->B work).
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
 - [ ] Per-profile Chroma collections connected to the API (on disk, not wired)
 - [ ] Topic routing policy

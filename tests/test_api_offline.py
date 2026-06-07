@@ -122,6 +122,44 @@ r = client.post("/chat", json={"text": "hi", "topic": "science", "debug": True})
 check("gate on -> thinking topic still deterministic think", r.json()["debug"]["thinking_mode_resolved"] == "/think")
 server.THINKING_AUTO_GATE = False
 
+check("split_reasoning wrapped", server.split_reasoning("<think>r</think>a") == ("r", "a"))
+check("split_reasoning none", server.split_reasoning("plain answer") == ("", "plain answer"))
+check("split_reasoning unclosed", server.split_reasoning("<think>partial only") == ("partial only", ""))
+
+
+async def fake_query_llama_think(url, prompt, tokens, temperature, timeout_s, extra=None):
+    return (
+        "<think>weigh the options step by step</think>"
+        "Here is the actual answer, long enough to survive the writeback filters fine.",
+        {"tokens_generated": 9, "tokens_evaluated": 40},
+    )
+
+
+server.query_llama = fake_query_llama_think
+
+r = client.post("/chat", json={"text": "plan something", "topic": "chat", "debug": True})
+body = r.json()
+check("/chat default strips think from text", "<think>" not in body["text"] and "weigh the options" not in body["text"])
+check("/chat default reasoning empty", body["reasoning"] == "")
+check("/chat default preserve resolved false", body["debug"]["preserve_thinking"]["resolved"] is False)
+
+r = client.post("/chat", json={"text": "plan something", "topic": "chat", "preserve_thinking": True, "debug": True})
+body = r.json()
+check("/chat preserve returns reasoning", body["reasoning"] == "weigh the options step by step")
+check("/chat preserve answer un-sanitized", body["text"].startswith("Here is the actual answer"))
+check("/chat preserve no forced Next actions", "Next actions:" not in body["text"])
+
+r = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "plan"}], "preserve_thinking": True})
+msg = r.json()["choices"][0]["message"]
+check("/v1 preserve emits reasoning_content", msg.get("reasoning_content") == "weigh the options step by step")
+check("/v1 preserve content is the answer", msg["content"].startswith("Here is the actual answer"))
+
+r = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "plan"}]})
+msg = r.json()["choices"][0]["message"]
+check("/v1 default has no reasoning_content", "reasoning_content" not in msg)
+
+server.query_llama = fake_query_llama
+
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
 sys.exit(1 if failures else 0)

@@ -176,7 +176,13 @@ can refine the coarse topic bucket: `classify_triviality()` gives a deterministi
 per-request verdict (keywords, length, code/multi-question cues) and, in the
 `auto` path, promotes a non-thinking-topic request to think when non-trivial.
 Explicit on/off and `THINKING_MODE_TOPICS` stay deterministic; gate off = prior
-behavior.
+behavior. T2.3 (2026-06-07) adds `preserve_thinking` (req flag +
+`PRESERVE_THINKING_DEFAULT`, off): `split_reasoning()` pulls the in-band
+`<think>...</think>` out of the raw reply before the sanitizer runs (so the
+persona surface is `<think>`-free by default once Qwen3.6 thinking fires); when
+preserve is on -- intended for the Phase 3 daemon's Hermes-forwarded work -- the
+answer is returned un-sanitized with the reasoning surfaced (`reasoning` on
+`/chat`, `reasoning_content` on `/v1`).
 Defaults mirror the per-profile Hermes config.yaml (Qwen3.6 sampling guidance).
 Target unified-topology values:
 
@@ -193,6 +199,7 @@ CACHE_TYPE_V=q8_0
 THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
 THINKING_AUTO_GATE=0
+PRESERVE_THINKING_DEFAULT=0
 API_PORT=8000
 RAG_ENABLED=1
 EMBED_MODEL=BAAI/bge-small-en-v1.5

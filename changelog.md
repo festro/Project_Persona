@@ -14,6 +14,44 @@ Conventions:
 
 ---
 
+## 2026-06-07 1212 PDT -- T2.3 validated 35/35 Windows-side (Brandon + Claude)
+
+- Ran tests/test_api_offline.py on the portable 3.11.9 interpreter: ALL PASS, 35/35
+  (the 9 new T2.3 checks green: split_reasoning units, /chat default strip + empty
+  reasoning, /chat preserve reasoning + un-sanitized answer, /v1 preserve
+  reasoning_content, /v1 default none). Preserve logic exercised through the real
+  /chat + /v1 endpoints (only query_llama faked). roadmap T2.3 -> [x]. Live-model
+  spot check folded into the Phase 1 Exit Gate proof.
+
+## 2026-06-07 1208 PDT -- T2.3 preserve_thinking, Path A (Brandon + Claude)
+
+- server.py: new `split_reasoning(text) -> (reasoning, answer)` pulls the in-band
+  Qwen3 <think>...</think> out of the raw model content (handles normal wrap,
+  multiple blocks, case, and a truncated unclosed <think>); no-op when absent (the
+  future --jinja reasoning_content path).
+- preserve_thinking flag: req field on ChatRequest + OA_ChatCompletionsReq, default
+  from PRESERVE_THINKING_DEFAULT (off). resolve_preserve_thinking() = req value else
+  default. Intended for the Phase 3 daemon to set on Hermes-forwarded work.
+- /chat + /v1 now split reasoning BEFORE sanitizing. Default (off): reasoning is
+  stripped then the persona two-part sanitizer runs -- this also closes the latent
+  leak where <think> would bleed into the persona paragraph once Qwen3.6 thinking
+  fires. Preserve (on): answer returned un-sanitized + reasoning surfaced
+  (`reasoning` on /chat; `reasoning_content` on the /v1 message, plus a
+  reasoning_content delta on the stream).
+- DESIGN NOTE: preserve mode skips the lossy two-part persona sanitizer (agent loops
+  want the whole answer). Documented in roadmap T2.3 as revisitable.
+- Observability: /health adds preserve_thinking_default; /chat debug adds
+  preserve_thinking {resolved, reasoning_chars}.
+- T2.4 partially advanced: the non-jinja in-band <think> stripping is now done by
+  split_reasoning; only the --jinja messages migration remains.
+- tests/test_api_offline.py: +9 checks (split_reasoning units; /chat default strips
+  think + empty reasoning; /chat preserve returns reasoning + un-sanitized answer;
+  /v1 preserve emits reasoning_content; /v1 default has none). Suite 22 -> 31 live.
+- Verified: authoritative file complete + balanced through the /v1 return (Read;
+  the sandbox mount truncates at ~1084 lines, a known artifact). Standalone logic
+  harness 12/12 on the extracted split_reasoning/resolve_preserve_thinking. Full
+  offline suite + live validation pending Windows-side (Brandon).
+
 ## 2026-06-07 1201 PDT -- Silence StarletteDeprecationWarning in offline suite (Brandon + Claude)
 
 - tests/test_api_offline.py: added a scoped warnings.filterwarnings (message

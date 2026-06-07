@@ -194,6 +194,14 @@ THINKING_GATE_KEYWORDS = {
     if t.strip()
 }
 
+# T2.3 preserve_thinking (2026-06-07). OFF by default (direct chat strips reasoning
+# to the persona surface). Hermes-originated requests -- forwarded by the Phase 3
+# daemon's task dispatcher -- set preserve_thinking=true so the model's reasoning
+# survives the response (returned in `reasoning` on /chat and `reasoning_content`
+# on /v1) instead of being discarded by the persona sanitizer. Per-request flag
+# overrides this default.
+PRESERVE_THINKING_DEFAULT = os.getenv("PRESERVE_THINKING_DEFAULT", "0").strip().lower() in ("1", "true", "yes", "on")
+
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
 os.makedirs(PROFILES_DIR, exist_ok=True)
@@ -490,6 +498,34 @@ def _is_bad_bullet(b: str) -> bool:
     if len(s) < 3:
         return True
     return False
+
+_THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
+
+
+def split_reasoning(text: str) -> Tuple[str, str]:
+    """Split in-band Qwen3 reasoning from the user-facing answer.
+
+    Returns (reasoning, answer). Handles the normal <think>...</think> wrap and a
+    truncated open <think> with no close (the remainder is treated as reasoning,
+    answer empty). No-op -- ("", text) -- when no think tag is present, e.g. the
+    --jinja path where reasoning already arrives in reasoning_content (T2.4).
+    """
+    t = text or ""
+    blocks = _THINK_RE.findall(t)
+    if blocks:
+        reasoning = "\n\n".join(b.strip() for b in blocks).strip()
+        answer = _THINK_RE.sub("", t).strip()
+        return reasoning, answer
+    m = re.search(r"<think>", t, re.IGNORECASE)
+    if m:
+        return t[m.end():].strip(), ""
+    return "", t.strip()
+
+
+def resolve_preserve_thinking(flag: Optional[bool]) -> bool:
+    """Resolve the preserve-thinking flag: explicit request value, else the env default."""
+    return PRESERVE_THINKING_DEFAULT if flag is None else bool(flag)
+
 
 def sanitize_persona_reply(text: str) -> str:
     t = _canonicalize((text or "").strip())
@@ -881,6 +917,7 @@ class ChatRequest(BaseModel):
     profile: str = "default"
     debug: bool = False
     thinking_mode: Optional[str] = None
+    preserve_thinking: Optional[bool] = None
 
 class OA_Message(BaseModel):
     role: Literal["system", "user", "assistant"] = "user"
@@ -896,6 +933,7 @@ class OA_ChatCompletionsReq(BaseModel):
     profile: Optional[str] = None
     debug: Optional[bool] = False
     thinking_mode: Optional[str] = None
+    preserve_thinking: Optional[bool] = None
 
 
 # -----------------------
@@ -922,6 +960,7 @@ async def health():
         "thinking_mode_default": THINKING_MODE_DEFAULT,
         "thinking_mode_topics": sorted(list(THINKING_MODE_TOPICS)),
         "thinking_auto_gate": THINKING_AUTO_GATE,
+        "preserve_thinking_default": PRESERVE_THINKING_DEFAULT,
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
         "embedder_ok": _embedder is not None,
@@ -968,12 +1007,14 @@ async def chat(req: ChatRequest):
     preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode, req.text)
 
     async with persona_sem:
-        reply, stats = await query_llama(
+        raw_reply, stats = await query_llama(
             PERSONA_URL, prompt, PERSONA_MAX_TOKENS, temperature, PERSONA_TIMEOUT_S,
             extra=sampling_extra,
         )
 
-    reply = sanitize_persona_reply(reply)
+    reasoning, answer = split_reasoning(raw_reply)
+    preserve = resolve_preserve_thinking(req.preserve_thinking)
+    reply = answer if preserve else sanitize_persona_reply(answer)
 
     distill_dbg = await distill_and_store_facts(req.text, reply, profile=profile, topic=topic)
 
@@ -1000,10 +1041,14 @@ async def chat(req: ChatRequest):
                 "is_nontrivial": gate_nontrivial,
                 "signals": gate_signals,
             },
+            "preserve_thinking": {
+                "resolved": preserve,
+                "reasoning_chars": len(reasoning),
+            },
             "distill": distill_dbg,
         }
 
-    return {"text": reply, "persona": True, "debug": debug}
+    return {"text": reply, "persona": True, "reasoning": reasoning if preserve else "", "debug": debug}
 
 
 @app.get("/jobs/{job_id}")
@@ -1043,11 +1088,13 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
     temperature = float(req.temperature) if req.temperature is not None else preset_temp
 
     async with persona_sem:
-        reply, stats = await query_llama(
+        raw_reply, stats = await query_llama(
             PERSONA_URL, prompt, max_tokens, temperature, PERSONA_TIMEOUT_S,
             extra=sampling_extra,
         )
-    reply = sanitize_persona_reply(reply)
+    reasoning, answer = split_reasoning(raw_reply)
+    preserve = resolve_preserve_thinking(req.preserve_thinking)
+    reply = answer if preserve else sanitize_persona_reply(answer)
 
     await distill_and_store_facts(user_text, reply, profile=profile, topic=topic)
 
@@ -1064,6 +1111,8 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
         async def event_stream() -> AsyncGenerator[str, None]:
             base = {"id": cmpl_id, "object": "chat.completion.chunk", "created": created, "model": model}
             yield _sse({**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
+            if preserve and reasoning:
+                yield _sse({**base, "choices": [{"index": 0, "delta": {"reasoning_content": reasoning}, "finish_reason": None}]})
             for piece in re.findall(r"\S+\s*|\s+", reply):
                 if not piece:
                     continue
@@ -1073,12 +1122,16 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+    message: Dict[str, Any] = {"role": "assistant", "content": reply}
+    if preserve and reasoning:
+        message["reasoning_content"] = reasoning
+
     return {
         "id": cmpl_id,
         "object": "chat.completion",
         "created": created,
         "model": model,
-        "choices": [{"index": 0, "message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}],
+        "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
         "usage": {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,

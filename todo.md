@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1201 PDT by Claude
+Last updated: 2026-06-07 1212 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,15 @@ Last updated: 2026-06-07 1201 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- T2.3 preserve_thinking, Path A (changelog 1208): split_reasoning() extracts in-band
+  <think> before sanitizing (also fixes the latent <think>-leak pre-Qwen3.6);
+  preserve_thinking flag (req + PRESERVE_THINKING_DEFAULT, off) returns the answer
+  un-sanitized + reasoning (`reasoning` on /chat, `reasoning_content` on /v1 incl.
+  stream). /health preserve_thinking_default; /chat debug preserve_thinking. +9
+  offline checks (35 live). Advances T2.4 (in-band strip done; --jinja migration
+  remains). VALIDATED Windows-side: offline suite 35/35 (changelog 1212). roadmap
+  T2.3 -> [x]. Commit staged (commit_msg_t23.log). Live-model spot check -> Exit Gate.
 
 - T2.2 thinking gate, Path A (changelog 1151): chose the prefix path over the
   messages migration (latter folded into T2.4). server.py gains classify_triviality
@@ -222,7 +231,12 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
      optional live-model spot check (set THINKING_AUTO_GATE=1, POST /chat debug=true
      with Qwen3.6 served) folded into the Phase 1 Exit Gate proof. The
      chat_template_kwargs/messages migration is now T2.4's.
-   - T2.3: wire `preserve_thinking: true` for Hermes-originated requests.
+   - T2.3: CODE DONE 2026-06-07 Path A (changelog 1208) -- preserve_thinking flag +
+     split_reasoning. LIVE validation PENDING (Brandon, Qwen3.6 served): with
+     /think firing, POST /chat (and /v1) with preserve_thinking true vs false and
+     confirm reasoning is surfaced (reasoning / reasoning_content) under preserve
+     and stripped from the default persona text. Then run the offline suite (31).
+     The daemon (Phase 3) sets the flag on Hermes-forwarded work; default stays off.
    - T2.4: RE-SCOPE first -- llama.cpp emits reasoning in `reasoning_content` under
      --jinja, so the user channel is already <think>-free server-side. Decide if a
      persona-side chokepoint is still needed (in-band/non-jinja paths only).
