@@ -39,7 +39,7 @@ Mixture-of-Experts (MoE) models (Qwen3-30B-A3B, Qwen3.5-35B-A3B, Qwen3.6-35B-A3B
 
 ## Model Roles (single-model topology)
 
-Project_Persona migrated from a multi-model topology (separate persona / reasoning / coder servers) to a **single-model topology** in May 2026. One model file serves all roles via prompt engineering and the model's native thinking-mode toggle. See `HANDOFF_2026-05-09_0250_single-model-migration.md` for rationale.
+Project_Persona migrated from a multi-model topology (separate persona / reasoning / coder servers) to a **single-model topology** in May 2026. One model file serves all roles via prompt engineering and the model's native thinking-mode toggle. See `archive/handoffs/HANDOFF_2026-05-09_0250_single-model-migration.md` (decision) and `archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md` (model lock) for rationale.
 
 The single model handles:
 
@@ -54,7 +54,7 @@ Role differentiation happens through:
 
 ### Recommended model
 
-**Qwen3.6-35B-A3B** (or Qwen3-30B-A3B-Instruct-2507 as the more conservative fallback)
+**Qwen3.6-35B-A3B** (the committed model on every host; Instruct-2507 is a dropped fallback — see below)
 
 - 35B total / 3B activated parameters (MoE — well-matched to bandwidth-bound APUs)
 - Apache 2.0 license
@@ -65,9 +65,9 @@ Role differentiation happens through:
 
 **Recommended quantization for the tested hardware:** Q5_K_XL (Unsloth Dynamic 2.0) — ~26 GB, comfortable on 96 GB unified memory, near-Q6 quality.
 
-Alternative: Qwen3-30B-A3B-Instruct-2507 at Q5_K_M (bartowski imatrix) — ~22 GB, no thinking-mode toggle but otherwise current within the Qwen3 family.
+Dropped fallback: Qwen3-30B-A3B-Instruct-2507 at Q5_K_M (bartowski imatrix) — ~22 GB. The 2507 release has **no thinking-mode toggle**, which breaks the single-model premise (thinking off/on = the persona/reasoning split). It was the rollback-only choice if the llama.cpp arch-support gate (T0.1) had failed.
 
-The exact model lock is gated behind a llama.cpp arch-support empirical test (T0.1) — see `HANDOFF.md` Critical Path. Until that test passes, the fallback is Qwen3-30B-A3B-Instruct-2507.
+Model lock status: both T0 gates passed — **T0.1** (llama.cpp arch-support, 2026-05-18) and **T0.2** (tool-calling template round-trip, needed for the Hermes/MCP agent path, 2026-06-03). Qwen3.6-35B-A3B is the committed model on every host; the Instruct-2507 fallback is not in use.
 
 ---
 
@@ -76,7 +76,7 @@ The exact model lock is gated behind a llama.cpp arch-support empirical test (T0
 Put your model files in the `models/` directory inside the project folder:
 
 ```
-~/Live/AIStack/Project_Persona/
+Project_Persona/
 └── models/
     └── Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf      ← unified model (or your choice)
 ```
@@ -89,14 +89,14 @@ If you enable vision (`VISION_ENABLED=1`), also include the multimodal projector
     └── mmproj-F16.gguf                       ← vision projector (~900 MB)
 ```
 
-Then update `run/config.env` to match your filenames:
+Then set your filenames in `run/config.toml` (the primary typed config, read by `manage.py`; `run/config.env` remains as a fallback):
 
 ```
 PERSONA_MODEL=Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf
 MMPROJ_PATH=models/mmproj-F16.gguf            # only when VISION_ENABLED=1
 ```
 
-The system reads filenames from `config.env` — you can name your files anything as long as the config matches. The `models/` directory is excluded from version control.
+The system reads filenames from the config — you can name your files anything as long as the config matches. The `models/` directory is excluded from version control.
 
 ---
 
@@ -131,12 +131,12 @@ Performance scales with available RAM and GPU bandwidth. The system is designed 
 - CPU/APU: **AMD RYZEN AI MAX+ 395** (Strix Halo, gfx1151)
 - GPU backend: **Vulkan via Mesa/RADV** (native gfx1151 identification, uma=1, fp16=1, KHR_coopmat present, bf16=0)
 - Memory architecture: Unified (no discrete VRAM split — full 96 GB available to both CPU and GPU)
-- Tested model: Qwen3-30B-A3B Q5_K_M (target: Qwen3.6-35B-A3B Q5_K_XL pending T0.1)
+- Committed model: Qwen3.6-35B-A3B Q5_K_XL (T0.1 arch-support gate passed 2026-05-18). The earlier Qwen3-30B-A3B Q5_K_M figures were the Instruct-2507 fallback's.
 - ROCm: 7.2.0 installed, used via `HSA_OVERRIDE_GFX_VERSION=11.0.1` (gfx1101 codegen workaround); Vulkan is the primary inference backend on this hardware
 
 ### Inference engine notes
 
-llama.cpp via llama-server is the primary inference engine. **vLLM** is a documented fallback option for the case where llama.cpp doesn't support a target model architecture — vLLM has native ROCm support including for gfx1151 (with kernel 6.18.4+ for native, or via the gfx1101 override on older kernels). See `HANDOFF.md` for the inference-engine compatibility analysis.
+llama.cpp via llama-server is the primary inference engine. **vLLM** is a documented fallback option for the case where llama.cpp doesn't support a target model architecture — vLLM has native ROCm support including for gfx1151 (with kernel 6.18.4+ for native, or via the gfx1101 override on older kernels). See `archive/handoffs/HANDOFF_2026-05-15_0127_compat-reeval-tiered.md` for the inference-engine compatibility analysis.
 
 ---
 

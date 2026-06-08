@@ -40,11 +40,11 @@ This separation keeps the conversational layer fast and expressive while giving 
 
 ### Single Unified Model
 
-Inference is served by a single **Qwen3-family MoE model** via llama.cpp with parallel slots and continuous batching. Role differentiation (persona / reasoning / coder) happens through prompt engineering and the model's native thinking-mode toggle, not through separate model deployments. This gives the throughput of slot-based concurrency with the simplicity of one set of weights.
+Inference is served by a single **Qwen3.6-35B-A3B MoE model** (UD Q5_K_XL) via llama.cpp with parallel slots and continuous batching. Role differentiation (persona / reasoning / coder) happens through prompt engineering and the model's native thinking-mode toggle, not through separate model deployments. This gives the throughput of slot-based concurrency with the simplicity of one set of weights.
 
 ### Memory & Context
 
-Project_Persona uses **Qdrant** for typed semantic memory — facts, episodes, entities, decisions — built up over time across sessions. Combined with Hermes' own session-lineage memory, this gives the agent both knowledge depth and conversational continuity.
+Project_Persona uses a persistent vector store for typed semantic memory — facts, episodes, entities, decisions — built up over time across sessions. The current store is **ChromaDB** (fastembed embeddings); the planned migration to **Qdrant** is Phase 2a. Combined with Hermes' own session-lineage memory, this gives the agent both knowledge depth and conversational continuity.
 
 A **Sorting Line** auto-classifies files dropped into `inbox/` and routes them into the right memory collections. A **Sleep Cycle** runs during idle periods to consolidate, summarize, and discover relationships across memory.
 
@@ -59,11 +59,11 @@ A **Godot Engine** avatar is a core goal — a real-time, expressive face for th
 | Layer | Component | License | Status |
 |---|---|---|---|
 | Inference | llama.cpp via llama-server (Vulkan backend) | MIT | ✅ Working |
-| Model | Qwen3-family MoE (Q5_K_M/Q5_K_XL) | Apache 2.0 | ⏳ Migrating to single-model topology |
+| Model | Qwen3.6-35B-A3B (UD Q5_K_XL) | Apache 2.0 | ✅ Single-model topology (live) |
 | API | FastAPI Companion API (Python, port 8000, OpenAI-compatible) | MIT | ✅ Running |
 | Vector store | Qdrant (planned) — replacing ChromaDB | Apache 2.0 | ⏳ Phase 2a |
 | Agent backbone | Hermes Agent (Nous Research) | MIT | ⏳ Planned daemon child |
-| Frontend | OpenWebUI (port 3000) | BSD-3 + branding clause | ✅ Running |
+| Frontend | OpenWebUI (port 3000) | BSD-3 + branding clause | ⏳ Selected as primary; dormant (Phase 2) |
 | Voice (planned) | Whisper.cpp (STT) + Piper TTS + Wyoming protocol | MIT / GPL-3.0 / MIT | ⏳ Phase 5 |
 | Avatar (planned) | Godot Engine | MIT | ⏳ Phase 4 |
 | Profile structure | 2-file per profile: `SOUL.md` + `.hermes.md` (Hermes naming) | — | ✅ Convention locked |
@@ -74,23 +74,23 @@ Tested on a **GMKtec EVO-X2** (AMD RYZEN AI MAX+ 395, Strix Halo iGPU, 96GB unif
 
 ### Key files
 
-- `HANDOFF.md` — living "where are we right now and what's next" document; open this first when resuming work
-- `HANDOFF.html` — same content, browser-renderable with TOC and collapsible sections
-- `knowledge.md` — long-form rolling project state, system components, full roadmap, all TODO blocks
-- `HANDOFF_YYYY-MM-DD_HHMM_*.md` — frozen decision records for major milestones
-- `archive/` — superseded historical docs (AIP_knowledge.md, Mercury borrow plan addendum, etc.)
+- `todo.md` — short-term "just finished / next up"; open this first when resuming work
+- `roadmap.md` — phased feature/track completion status with per-phase Exit Gates
+- `knowledge.md` — architecture, scope, and system components (the "what it is / how it works")
+- `changelog.md` — reverse-chronological history of when features and gates flipped
+- `archive/handoffs/` — frozen dated decision records for major milestones
 
 ---
 
 ## Roadmap
 
-The project is organized into phases and tiered work blocks. Current state and detailed acceptance criteria live in `HANDOFF.md` (current state) and `knowledge.md` (long-form roadmap). High-level summary:
+The project is organized into phases and tiered work blocks. Current state lives in `todo.md`; phase/feature status and detailed acceptance criteria live in `roadmap.md`; architecture in `knowledge.md`. High-level summary:
 
 - ✅ Core API with persona response + per-profile structure
 - ✅ ChromaDB RAG (global memory)
 - ✅ GPU offload via Vulkan on tested hardware
 - ✅ OpenWebUI frontend integration (locked as primary)
-- 🔄 Single-model migration (Qwen3-family with parallel slots; replaces multi-model topology)
+- ✅ Single-model topology live (Qwen3.6-35B-A3B with parallel slots; replaced multi-model topology)
 - 🔄 Hermes Agent integration as daemon-managed agent backbone
 - ⏳ Qdrant vector store migration (replaces ChromaDB)
 - ⏳ Always-on daemon with three-strike restart, asyncio child process management

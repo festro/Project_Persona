@@ -931,6 +931,142 @@ def detect_accelerators():
     return found
 
 
+def _vulkaninfo_max_device_local_mb():
+    """Largest VK MEMORY_HEAP_DEVICE_LOCAL_BIT heap (MiB) across all GPUs, or None.
+    Cross-vendor: vulkaninfo ships with the AMD/NVIDIA/Intel driver. The DEVICE_LOCAL
+    heap is the card's VRAM (a RAM carve-out on integrated GPUs -- memory_model
+    flags that case)."""
+    if not _which("vulkaninfo"):
+        return None
+    rc, out = _run(["vulkaninfo"], timeout=30)
+    if rc is None or not out:
+        return None
+    best = None
+    in_heaps = False
+    size = None
+    for line in out.splitlines():
+        if "memoryHeaps[" in line:
+            in_heaps = True
+            size = None
+            continue
+        if not in_heaps:
+            continue
+        if "memoryTypes" in line:          # heaps block ends
+            in_heaps = False
+            size = None
+            continue
+        m = re.search(r"size\s*=\s*(\d+)", line)
+        if m:
+            size = int(m.group(1))
+            continue
+        if "DEVICE_LOCAL" in line and size is not None:
+            mb = size // (1024 * 1024)
+            best = mb if best is None else max(best, mb)
+            size = None
+    return best
+
+
+def detect_vram_mb():
+    """Best-effort max dedicated VRAM (MiB) among usable GPUs, or None. Used by
+    the model provisioner to size a download. On unified/integrated hosts this may
+    be a RAM carve-out, not the real budget -- pair with memory_model so the
+    matcher budgets against system RAM there instead of this value."""
+    best = _vulkaninfo_max_device_local_mb()   # primary: cross-vendor
+    if best is not None:
+        return best
+    # NVIDIA -- nvidia-smi, authoritative, already MiB
+    if _which("nvidia-smi"):
+        rc, txt = _run(["nvidia-smi", "--query-gpu=memory.total",
+                        "--format=csv,noheader,nounits"])
+        if rc == 0:
+            vals = [int(x) for x in re.findall(r"\d+", txt or "")]
+            if vals:
+                best = max(vals)
+    # AMD / Intel on Linux -- sysfs, bytes, no vendor tool required
+    if not IS_WINDOWS:
+        try:
+            for p in Path("/sys/class/drm").glob("card*/device/mem_info_vram_total"):
+                try:
+                    mb = int(p.read_text().strip()) // (1024 * 1024)
+                    best = mb if best is None else max(best, mb)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    # Windows -- registry qwMemorySize per adapter, bytes. Reliable for >4 GB,
+    # unlike Win32_VideoController.AdapterRAM (a 32-bit value that wraps).
+    if IS_WINDOWS:
+        rc, txt = _run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control"
+             "\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}\\*' -Name "
+             "'HardwareInformation.qwMemorySize' -EA SilentlyContinue | "
+             "ForEach-Object { $_.'HardwareInformation.qwMemorySize' }"],
+            timeout=15)
+        if rc == 0:
+            vals = [int(x) for x in re.findall(r"\d+", txt or "")]
+            if vals:
+                mb = max(vals) // (1024 * 1024)
+                best = mb if best is None else max(best, mb)
+    return best
+
+
+def _vulkan_device_types():
+    """deviceType strings from vulkaninfo --summary (one per GPU), lowercased."""
+    if not _which("vulkaninfo"):
+        return []
+    rc, out = _run(["vulkaninfo", "--summary"])
+    if rc is None:
+        return []
+    types = []
+    for line in out.splitlines():
+        if "deviceType" in line and "=" in line:
+            types.append(line.split("=", 1)[1].strip().lower())
+    return types
+
+
+def detect_memory_model(accels):
+    """unified | discrete | cpu. Drives whether the provisioner budgets against
+    system RAM (APU/unified memory) or dedicated VRAM (discrete card)."""
+    usable = [a for a in accels if a.get("usable_for_llm")]
+    if not usable:
+        return "cpu"
+    types = _vulkan_device_types()
+    if any("discrete" in t for t in types):
+        return "discrete"
+    if types and all(("integrated" in t or "cpu" in t or "virtual" in t) for t in types):
+        return "unified"
+    # Fallback heuristic on device names (integrated graphics / APUs)
+    apu_hints = ("strix", "radeon graphics", "ryzen", "uhd graphics", "iris",
+                 "vega ", "780m", "880m", "890m", "8060s", "integrated")
+    names = " ".join((a.get("device") or "").lower() for a in usable)
+    if any(h in names for h in apu_hints):
+        return "unified"
+    return "discrete"
+
+
+def detect_camera():
+    """True if a camera / video-capture input is present, False if not, None if
+    undetermined. Drives the provisioner's vision default: VISION_ENABLED defaults
+    on only when a camera exists (otherwise off, with opt-in)."""
+    try:
+        if IS_WINDOWS:
+            rc, out = _run(
+                ["powershell", "-NoProfile", "-Command",
+                 "@(Get-CimInstance Win32_PnPEntity -EA SilentlyContinue | "
+                 "Where-Object { $_.PNPClass -eq 'Camera' -or "
+                 "$_.Service -eq 'usbvideo' }).Count"],
+                timeout=15)
+            if rc == 0:
+                nums = re.findall(r"\d+", out or "")
+                return bool(nums) and int(nums[-1]) > 0
+            return None
+        # Linux: V4L2 capture nodes
+        return any(Path("/dev").glob("video*"))
+    except Exception:
+        return None
+
+
 def _scan_backends(text):
     low = (text or "").lower()
     backends = []
@@ -990,8 +1126,11 @@ def detect_host(root, cfg):
         "cpu_count": os.cpu_count(),
         "ram_mb": ram_total,
         "ram_available_mb": ram_avail,
+        "vram_mb": detect_vram_mb(),
+        "memory_model": detect_memory_model(accels),
         "accel_selected": selected,
         "accel_present": accels,
+        "camera_present": detect_camera(),
         "llama_build": build,
         "llama_backends_compiled": compiled,
         "models": models,

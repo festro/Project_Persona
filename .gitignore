@@ -86,7 +86,10 @@ agent_*.json
 job*.json
 *_result.json
 scan_result.json
-tools/
+# tools/ holds the taskman orchestration SCRIPTS required by /agent/run
+# (taskman.py, taskman2.py) -- track the .py; ignore only json artifacts dropped
+# here. (Job artifacts actually land in run/jobs/, already ignored above.)
+tools/*.json
 
 # ── Task Board SQLite store (default data/ already ignored; guard overrides) ─
 tasks.db
