@@ -14,6 +14,51 @@ Conventions:
 
 ---
 
+## 2026-06-07 1758 PDT -- Phase 1 live validation complete: messages + per-profile + Task Board (Brandon + Claude)
+
+- Ran the three owed LIVE passes on Qwen3.6 (build e7bd3b3) via run_logged.py;
+  each left logs/exit_gate_live.log (overwritten per pass). All ALL REQUIRED PASS,
+  scan Error=0 Traceback=0 Warning=0; api.log + persona.log clean (no errors,
+  truncated=0 throughout).
+- T2.4 messages (PERSONA_USE_MESSAGES=1, 1746): [messages] section PASS -- reasoning
+  sourced from server reasoning_content, text <think>-free, /v1 reasoning_content
+  present. roadmap T2.4 -> [x]. FOLLOW-UP: retire the post-hoc sanitizer on the
+  messages path.
+- Per-profile Chroma (RAG_PER_PROFILE=1 + RAG_ENABLED=1, 1752): [per-profile]
+  section PASS -- mem_alice + mem_bob collections created. roadmap per-profile -> [x].
+- Task Board (1758): POST /agent/run with a read-only job (task_id smoke-taskboard,
+  steps-only, no edits/commands) returned status ok / returncode 0; the run recorded
+  into data/tasks.db; GET /jobs + /jobs/{id} returned the row with started/finished
+  timestamps; /health task_store count=1. roadmap Task Board -> [x].
+- FINDING (residue): the smoke job's post_context git status shows the per-profile
+  run left untracked persona/profiles/alice/ + persona/profiles/bob/ on disk. Decide:
+  gitignore the test profiles or clean them up before commit. (mem_alice/mem_bob also
+  persist in the Chroma store.)
+- Phase 1 now: Exit Gate [x] + T2.1/T2.2/T2.3 [x] + topic routing [x] + T2.4 [x] +
+  per-profile [x] + Task Board [x]. Only M6 (single-model migration confirmation)
+  remains open; clearing it unblocks the Hermes H-track.
+
+## 2026-06-07 1716 PDT -- tests/run_logged.py test-run logger (Brandon + Claude)
+
+- tests/run_logged.py: new stdlib wrapper that runs any test script with the
+  launching interpreter (preserves portable python), tees the child's merged
+  stdout+stderr to the console live, and writes logs/<label>.log (overwritten
+  each run; latest only -- no dated files cluttering the folder). Captures
+  as-is (no warning filtering changed), in true chronological order (stderr
+  folded into stdout). tz stamp abbreviated (PDT/PST).
+- Log header records: label, Pacific start time, full command, cwd, python
+  version+path, platform, git HEAD (+clean/dirty), and which feature flags were
+  set for the run (PERSONA_USE_MESSAGES, RAG_PER_PROFILE, RAG_ENABLED,
+  TOPIC_ROUTING, THINKING_AUTO_GATE, PRESERVE_THINKING_DEFAULT, EMBED_BACKEND,
+  PERSONA_PORT, API_PORT). Footer records finish time, duration, child exit
+  code, log path, and a quick scan tally (PASS/FAIL/Error/Traceback/Warning).
+- Motivation: a green "ALL PASS" can still hide suppressed warnings or stderr
+  noise; every run now leaves an auditable artifact next to api.log/persona.log.
+- Usage: .\portable\python\python.exe tests\run_logged.py tests\test_api_offline.py
+  (or exit_gate_live.py). Optional --label NAME overrides the log prefix.
+- Exits with the child's return code (CI-friendly). Compile-checked off-mount
+  (py_compile OK); not run against the live repo from the sandbox.
+
 ## 2026-06-07 1640 PDT -- exit_gate_live.py adaptive + session milestone handoff (Brandon + Claude)
 
 - tests/exit_gate_live.py: added adaptive [messages] (PERSONA_USE_MESSAGES) and

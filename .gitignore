@@ -47,6 +47,10 @@ persona/profiles/*/USER.md
 persona/profiles/*/hermes_state.db
 persona/profiles/*/sessions/
 
+# ── Per-profile gate test fixtures (exit_gate_live.py creates these) ──
+persona/profiles/alice/
+persona/profiles/bob/
+
 # ── Portable Windows runtime (PortableGit + extracted binaries) ─
 portable/
 

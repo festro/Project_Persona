@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1640 PDT by Claude
+Last updated: 2026-06-07 1758 PDT by Claude
 
 ## Rules of the road
 
@@ -16,6 +16,20 @@ Last updated: 2026-06-07 1640 PDT by Claude
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
 ## Just finished (2026-06-07, Claude)
+
+- PHASE 1 LIVE VALIDATION COMPLETE (changelog 1758). All three owed passes green on
+  Qwen3.6 (build e7bd3b3) via run_logged.py: T2.4 messages (1746), per-profile Chroma
+  (1752, mem_alice/mem_bob created), Task Board /agent/run smoke (1758, recorded ok
+  into data/tasks.db). Default Exit Gate re-proven (1729). Logs + server logs clean
+  (Error=0/Traceback=0/Warning=0, truncated=0). roadmap: T2.4, per-profile, Task Board
+  all -> [x]. Phase 1 now has only M6 open.
+- FOLLOW-UPS surfaced: (a) retire the post-hoc sanitizer on the messages path (T2.4
+  payoff); (b) the per-profile run left untracked persona/profiles/alice/ + bob/ on
+  disk -- gitignore or clean before commit.
+- Test-run logger: tests/run_logged.py (changelog 1716). Wraps any test script, tees
+  stdout+stderr live, writes logs/<label>.log (overwritten each run, undated) with a
+  header (command/git HEAD/feature flags) + footer (exit code/duration/scan). Proven
+  this session driving all four live gate runs. Offline suite = 64/64 ALL PASS.
 
 - Session milestone handoff: archive/handoffs/handoff_persona_20260607_1640.md
   (changelog 1640). Summarizes the full arc + the LIVE validation owed.
@@ -264,15 +278,17 @@ make every node run on Windows + Linux, x86-64 + ARM64, CPU/CUDA/ROCm/Vulkan
 live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 (torch optional).
 
-1. ENTRY POINT (Brandon to run, post results next session): stand up the Qwen3.6
-   llama-server on :8090 (Windows portable flow; llama.cpp Vulkan build + the
-   Qwen3.6 GGUF are already on this host). Use `scripts/start_llama_server_win.sh`
-   with `--jinja`. GOTCHA: it does NOT survive being launched via `bash.exe
-   scripts/...` from PowerShell (backgrounded server torn down on shell exit) --
-   run it FOREGROUND in a dedicated window. Then with the API up
-   (`bootstrap_portable_python.ps1 -Run`), POST /v1/chat/completions and verify
-   T2.1 picks no_think for a "chat" topic and think for science/coding/math/
-   research (via /chat debug `sampling_preset`). This unblocks T2.2.
+1. COMMIT this session's validated work (git is Windows-side): tests/run_logged.py
+   (new) + changelog.md/todo.md/roadmap.md doc updates (1716 + 1758) + the roadmap
+   [x] flips. DECIDE the per-profile residue FIRST: gitignore persona/profiles/alice/
+   + bob/ (test profiles) or remove them, so they do not land in the commit. Then
+   M6 is the only Phase 1 item left.
+   NOTE: stack is UP + Phase 1 validated this session (changelog 1758) -- the old
+   "stand up Qwen3.6 / verify T2.1" entry point is DONE.
+2. M6 single-model migration confirmation (LIVE) -- the last open Phase 1 item;
+   clearing it unblocks the Hermes H-track. See roadmap Phase 1 / Phase 9.
+3. T2.4 PAYOFF: retire the post-hoc sanitizer on the messages path now that
+   PERSONA_USE_MESSAGES is live-proven to deliver clean reasoning_content.
 2. Close out T1 on a live host (needs network + target): run
    `setup_native_stack.sh` (or just the env_hermes step) on EVO-X2 and/or the
    Windows portable host so `doctor.sh` reports env_hermes_installed=yes.

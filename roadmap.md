@@ -173,7 +173,7 @@ persona replies over both the native and OpenAI-compatible paths.
       DESIGN NOTE: preserve mode also skips the lossy persona
       two-part sanitizer (agent loops want the full answer) -- revisit if persona
       formatting is ever wanted alongside preserved reasoning.
-- [~] T2.4 --jinja messages migration -- CODE DONE 2026-06-07 (OFF by default,
+- [x] T2.4 --jinja messages migration -- CODE DONE 2026-06-07 (OFF by default,
       PERSONA_USE_MESSAGES). New query_llama_messages (POST /v1/chat/completions with
       chat_template_kwargs{enable_thinking}; parses content + reasoning_content +
       usage), build_persona_messages (system/user split, no /think prefix), and a
@@ -182,32 +182,36 @@ persona replies over both the native and OpenAI-compatible paths.
       preferred; split_reasoning is the in-band fallback. /health persona_use_messages
       + persona_chat_url. Off-mount verified (functions AST OK; parse logic 6/6; endpoint
       wiring balanced). LIVE VALIDATION REQUIRED -- the only piece that can't be proven
-      offline (real --jinja reasoning_content split). Once green it can retire the
+      offline (real --jinja reasoning_content split). LIVE VALIDATED 2026-06-07 1746
+      (exit_gate_live [messages], PERSONA_USE_MESSAGES=1): reasoning came from the
+      server reasoning_content and text was <think>-free. FOLLOW-UP: retire the
       post-hoc sanitizer on the messages path.
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
-- [~] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
+- [x] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
       (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile
       collection ("mem_<profile>") via _get_collection; off = the single shared
       RAG_GLOBAL_COLLECTION exactly as before. /health rag_per_profile +
       rag_collections. VALIDATED: offline suite 56/56 (name logic + health). LIVE
-      SMOKE remaining: actual mem_<profile> creation/isolation under
-      RAG_PER_PROFILE=1 (offline runs RAG_ENABLED=0). CAVEAT: turning it on does not
-      migrate existing global_memory rows.
+      VALIDATED 2026-06-07 1752 (exit_gate_live [per-profile], RAG_PER_PROFILE=1 +
+      RAG_ENABLED=1): mem_alice/mem_bob collections created. CAVEAT: turning it on
+      does not migrate existing global_memory rows. RESIDUE: the run also created
+      untracked persona/profiles/alice/ + bob/ on disk -- gitignore or clean up.
 - [x] Topic routing policy -- DONE 2026-06-07 (OFF by default): deterministic keyword
       classify_topic(text) + resolve_topic precedence (topic="auto" always classifies;
       explicit non-chat respected; "chat"/absent classifies only when TOPIC_ROUTING=1).
       Resolved topic drives thinking/sampling/RAG/inband downstream. /health
       topic_routing(+topics); /chat debug topic_routing. VALIDATED: offline suite 56/56
       (auto->math drives the think preset through the real endpoint).
-- [~] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
+- [x] Task Board (`data/tasks.db`) replaces the in-memory jobs dict -- CODE DONE
       2026-06-07: stdlib-sqlite3 services/api/taskboard.py (init/task_set upsert-
       merge/task_get/task_list/delete/count + one-time jobs.jsonl migration); server
       wired (TASKS_DB config, init at startup, /agent/run records run->ok/error/
       timeout, /jobs list + /jobs/{id} from the board, /health task_store). Off-mount
       verified (taskboard 15/15; server AST+COMPILE OK). VALIDATED: offline suite
-      56/56 (/jobs CRUD + health task_store). LIVE SMOKE remaining: a real /agent/run
-      (taskman2 subprocess) recording into the board -- the one path the offline suite
-      can't exercise.
+      56/56 (/jobs CRUD + health task_store). LIVE VALIDATED 2026-06-07 1758: a real
+      /agent/run (smoke-taskboard, read-only job) ran taskman2 and recorded ok into
+      the board; /jobs + /jobs/{id} returned the row with timestamps + returncode 0;
+      /health task_store count=1.
 
 Exit Gate: llama-server live on :8090; `/chat` and `/v1/chat/completions` return
 real persona replies; a "chat" topic resolves no_think and
