@@ -3,7 +3,7 @@
 Living reference for what Project_Persona is and how it works. See `todo.md` for
 current state and `changelog.md` for history. Conventions: see `D:\Projects\WORKFLOW.md`.
 
-Last updated: 2026-06-06 2105 PDT by Claude
+Last updated: 2026-06-07 1827 PDT by Claude
 
 ## Elevator pitch
 
@@ -67,8 +67,9 @@ API surface (verified against `services/api/server.py` 2026-06-05). The working
 path is `/chat` (sync persona reply with RAG and optional in-band reasoning) and
 `/v1/chat/completions` (OpenAI-compatible). The latter now honors the `stream`
 field: when `stream=true` it emits Server-Sent Events as `chat.completion.chunk`
-objects terminated by `data: [DONE]` (the reply is finalized through the sanitizer
-first, then chunked -- a pseudo-stream, not token-by-token from the model);
+objects terminated by `data: [DONE]` (the reply is finalized via
+`finalize_persona_reply` first -- sanitized or not per the path, see below -- then
+chunked: a pseudo-stream, not token-by-token from the model);
 `usage` reports real `prompt_tokens` (llama.cpp `tokens_evaluated`),
 `completion_tokens`, and `total_tokens`. `/health` reports config and component
 status; `/` returns a small status JSON (service/health/docs) and `/favicon.ico`
@@ -90,11 +91,28 @@ near-term store; the broader Phase 3/10 Task Board semantics build on it.
 
 ### Stable architectural decisions
 
-Single-model topology (decided 2026-05-09). One Qwen3-30B-A3B-class MoE model
-at Q5_K_M, served from one llama.cpp instance with parallel slots and continuous
-batching. Chosen for fit to bandwidth-limited unified memory, a native
-thinking-mode toggle that maps onto the persona/reasoning split, and a smaller
-ops surface. Trade-off: loss of fault isolation between roles.
+Single-model topology (decided 2026-05-09; model locked 2026-05-15). One
+Qwen3.6-35B-A3B MoE model (UD Q5_K_XL), served from one llama.cpp instance with
+parallel slots and continuous batching, on EVERY host. Chosen for fit to
+bandwidth-limited unified memory, a native thinking-mode toggle that maps the
+"light casual chat" role (thinking off) and the "heavy lifting" role (thinking
+on) onto one set of weights, and a smaller ops surface. Concurrency / sub-agents
+(Hermes fan-out, Phase 8) run across the parallel slots of this single model, not
+a second model. Trade-off: loss of fault isolation between roles.
+
+Model lock history: M1 (2026-05-14) first picked Qwen3-30B-A3B-Instruct-2507, but
+the 2507 release SPLIT the dual-mode model (Instruct-2507 = non-thinking only),
+breaking the thinking-toggle premise. The 2026-05-15 re-eval moved to
+Qwen3.6-35B-A3B, which restores `enable_thinking` and adds `preserve_thinking`
+(maps onto Hermes delegation). Instruct-2507 was kept as the known-good
+rollback-only fallback against two Qwen3.6 risks gated in T0: T0.1 (llama.cpp
+`qwen3_5_moe` arch support -- load/generate) and T0.2 (tool-calling template
+round-trip, needed for the Hermes/MCP agent path). BOTH PASSED -- T0.1 2026-05-18,
+T0.2 2026-06-03 -- so Qwen3.6 is confirmed on the arch and tool-calling axes and
+the Instruct-2507 fallback (no thinking mode) is not in use. (Had T0.2 alone
+failed, the planned mitigation was a GBNF grammar, not the fallback.) The earlier multi-server persona/reasoning/coder split and
+a two-distinct-model-files arrangement were both evaluated and dropped (either
+defeats the single-model consolidation).
 
 Hermes Agent as agent-work backbone (decided 2026-05-11, implementation
 deferred). Hermes (Nous Research, MIT) runs as a daemon child, pulls work from
@@ -169,16 +187,21 @@ Ports: companion API 8000, unified llama-server 8090 (moved from 8080 on
 2026-05-19 to avoid a host-port collision with an unrelated co-tenant
 container), OpenWebUI 3000 (dormant).
 
-Unified llama-server config (verified working on EVO-X2): Qwen3-30B-A3B-Instruct
--2507 Q5_K_M, full GPU offload (49/49 layers on Vulkan0 / RADV GFX1151), 4
-parallel slots at 8192 ctx each (32K total), q8_0 KV cache, Flash Attention on,
-chat template auto-detected as Hermes 2 Pro. Vulkan backend reports bf16=0 on
-this build, which does not affect Q5_K_M weights or the q8_0 cache but must be
-flagged for any config that assumes bf16.
+Unified llama-server config: Qwen3.6-35B-A3B-UD-Q5_K_XL, full GPU offload, 4
+parallel slots, q8_0 KV cache, Flash Attention on, `--jinja` (thinking-mode
+chat template). LIVE on Windows / RX 9060 XT (16 GB) this week via manage.py
+(build e7bd3b3 on llama-server b9219); GPU auto-fit omits --n-gpu-layers so the
+model fits VRAM. Historical reference: the prior Instruct-2507 fallback ran
+49/49 layers on EVO-X2 Vulkan0 / RADV GFX1151 at 8192 ctx/slot. Vulkan backends
+may report bf16=0, which does not affect Q5_K weights or the q8_0 cache but must
+be flagged for any config that assumes bf16.
 
-Runtime tunables live in `run/llama-servers.env` (llama-server flags) and
-`scripts/start_api.sh` (API/reasoning vars). Consolidation into `run/config.env`
-is underway: as of T2.1 (2026-06-05) `run/config.env` exists and holds the
+Runtime tunables: `run/config.toml` is the primary typed source (base + runtime +
+per-OS overlays), read by manage.py via stdlib tomllib (2026-06-06; changelog
+2028). The legacy `run/llama-servers.env` (llama-server flags), `run/config.env`,
+and `scripts/start_api.sh` (API vars) remain as the .env fallback path. The
+env-side consolidation that preceded the TOML migration: as of T2.1 (2026-06-05)
+`run/config.env` holds the
 thinking-mode (`THINKING_MODE_*`) and per-mode sampling (`SAMPLING_*`) tunables;
 `start_api.sh` sources it after `llama-servers.env` (config.env overrides).
 Sampling is no longer hardcoded -- server.py resolves think/no_think once
@@ -207,14 +230,25 @@ path (T2.4, off by default via `PERSONA_USE_MESSAGES`): both endpoints call
 and on switches to `/v1/chat/completions` with `messages` +
 `chat_template_kwargs{enable_thinking}` (needs `--jinja`); under
 `--reasoning-format deepseek` the server returns reasoning in `reasoning_content`,
-with `split_reasoning()` as the in-band fallback.
+with `split_reasoning()` as the in-band fallback. Reply finalization (T2.4 payoff,
+2026-06-08) runs through `finalize_persona_reply()` / `will_sanitize()`: the lossy
+two-part `sanitize_persona_reply` is retired on the messages path (the server already
+returns clean, format-following content there), so `/chat` + `/v1` return the content
+as-is; `PERSONA_SANITIZE_MESSAGES=1` is an off-by-default escape hatch to re-apply it.
+The raw `/completion` path always sanitizes (unchanged), and `preserve_thinking`
+bypasses sanitizing on both paths. `/health` reports `persona_sanitize_messages`;
+`/chat` debug reports `sanitizer_applied`.
 Defaults mirror the per-profile Hermes config.yaml (Qwen3.6 sampling guidance).
-Target unified-topology values:
+The authoritative values live in `run/config.toml` ([base] + per-OS [linux] /
+[windows] overlays); the block below is a flat reference. Note PERSONA_CTX is
+per-OS: 32768 on linux/EVO-X2, 16384 on windows (= 4096/slot at PERSONA_PARALLEL=4,
+a deliberate 16 GB VRAM fit -- this is the live `n_ctx=4096` seen in persona.log,
+not drift). Reference values:
 
 ```
 HOST=127.0.0.1
 PERSONA_PORT=8090
-PERSONA_MODEL=Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf
+PERSONA_MODEL=Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf
 PERSONA_CTX=32768
 GPU_LAYERS_PERSONA=999
 PERSONA_PARALLEL=4
@@ -225,6 +259,7 @@ THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
 TOPIC_ROUTING=0
 PERSONA_USE_MESSAGES=0
+PERSONA_SANITIZE_MESSAGES=0
 THINKING_AUTO_GATE=0
 PRESERVE_THINKING_DEFAULT=0
 API_PORT=8000
@@ -233,7 +268,15 @@ EMBED_MODEL=BAAI/bge-small-en-v1.5
 ```
 
 Models are user-provided GGUF files in `models/` (gitignored, excluded from the
-project license). Reasoning/thinking-mode env vars use canonical
+project license). PLANNED (Phase 0.5, see `roadmap.md` +
+`docs/model_provisioner_design_20260607_2158.md`): a first-run auto-provisioner
+that profiles the host and consults a committed playbook
+(`run/model_playbook.toml`) mapping the resource envelope (RAM/VRAM/CPU/accel/arch)
+to a ranked multi-family catalog -- Raspberry-Pi/8 GB floor up to the committed
+Qwen3.6-35B-A3B at the top, vision-capable preferred -- then auto-downloads the
+best fit (huggingface_hub) and wires it into config.toml, so a fresh host
+self-configures without a manual model fetch. Reasoning/thinking-mode env
+vars use canonical
 `ASYNC_REASONING_*` / `REASONING_INBAND_*` names, with back-compat fallback to
 the legacy `ASYNC_SCIENTIST_*` / `SCIENTIST_INBAND_*` names.
 
@@ -254,8 +297,9 @@ section is the architectural description; per-phase completion status and test
 gates live in `roadmap.md`.
 
 Phase 1 -- Core API: largely in place (OpenAI-compatible endpoints, global RAG,
-2-file profile loader, GPU offload). Remaining: per-profile Chroma, Task Board
-replacing the jobs dict, topic routing policy.
+2-file profile loader, GPU offload). Per-profile Chroma, the Task Board replacing
+the jobs dict, and topic routing policy are all DONE (2026-06-07). Remaining: M6
+single-model migration sign-off (see `roadmap.md` Phase 1).
 
 Phase 2 -- Frontend and UX: OpenWebUI as thin client; SQLite conversation
 history as source of truth; persona task surfacing; hybrid conversation
@@ -305,8 +349,9 @@ deploying at scale comply with its branding terms independently.
 - Cross-OS/arch portability audit + action plan (Win+Linux, x86-64+ARM64,
   CPU/CUDA/ROCm/Vulkan; Apple out; status in `roadmap.md` Phase 0.5):
   `docs/portability_audit.md`
-- Python 3.14 stack compatibility + recommended interpreter version (use 3.12 for
-  full RAG; 3.14 is API-only, ChromaDB blocked): `docs/py314_compatibility.md`.
+- Python 3.14 stack compatibility + recommended interpreter version (DECIDED:
+  Python 3.11.9 embeddable runs the full RAG stack; 3.14 is API-only, ChromaDB
+  blocked): `docs/py314_compatibility.md`.
   Portable embeddable-python bootstrap: `scripts/bootstrap_portable_python.ps1`.
 - Frozen handoff records: `archive/handoffs/` (dated). Future handoffs use the
   `handoff_persona_<YYYYMMDD>_<HHMM>.md` naming from the workflow spec; existing
@@ -317,6 +362,7 @@ deploying at scale comply with its branding terms independently.
 - Hermes egress risk surface + safe-config recipe (Appendix A):
   `archive/handoffs/HANDOFF_2026-05-10_1738_agent-swarm-hermes-adoption.md`.
 - Hermes Agent docs: https://hermes-agent.nousresearch.com/docs/
-- Model cards: https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507 ;
-  https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF ;
-  https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF
+- Model card (canonical): https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF
+  (Qwen3.6-35B-A3B-UD-Q5_K_XL). Dropped fallback (no thinking mode):
+  https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507 ;
+  https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF

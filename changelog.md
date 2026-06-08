@@ -14,6 +14,130 @@ Conventions:
 
 ---
 
+## 2026-06-08 0856 PDT -- T2.4 verified Windows-side + offline self-test now logs (Brandon + Claude)
+
+- CANONICAL VALIDATION: Brandon ran tests/test_api_offline.py on the portable 3.11.9
+  interpreter Windows-side -> 72/72 ALL PASS (the off-mount sandbox run was fastapi
+  0.136.3; this is the pinned-chain confirmation). T2.4 payoff is fully validated.
+- tests/test_api_offline.py: the offline suite now writes its own
+  logs/test_api_offline.log when run directly (previously only tests/run_logged.py
+  emitted a log, so a direct `python tests\test_api_offline.py` left nothing in logs/).
+  Tee mirrors stdout to the log with a header (started/python/platform) + footer
+  (finished/scan checks=PASS/FAIL/log path). stdout is restored to the real stream
+  before the log handle closes (else interpreter-shutdown flush hit the closed tee ->
+  ValueError + exit 120).
+- tests/run_logged.py: sets RUN_LOGGED=1 in the child env. The self-test skips its own
+  log when RUN_LOGGED is set, so the wrapper stays the single logger (its default label
+  "test_api_offline" would otherwise collide with the self-log path). Mechanism validated
+  off-mount: direct run writes the log + exit 0; RUN_LOGGED=1 run writes no self-log.
+- OWED: a Windows-side re-run after the logging edits to reconfirm 72/72 + that
+  logs/test_api_offline.log appears (logic unchanged; logging mechanism proven in
+  isolation). NOT committed (mid-phase = local-only, no push).
+
+## 2026-06-08 0846 PDT -- T2.4 payoff: retire post-hoc sanitizer on the messages path (Claude)
+
+- services/api/server.py: the lossy two-part sanitize_persona_reply is RETIRED on the
+  messages path now that PERSONA_USE_MESSAGES is live-proven (1746, 06-07) to return
+  clean content + server-side reasoning_content. New PERSONA_SANITIZE_MESSAGES env flag
+  (OFF by default = retired) is the escape hatch: set 1 to re-apply the sanitizer on the
+  messages path if a model ignores the format contract.
+- New helpers will_sanitize(preserve) + finalize_persona_reply(answer, preserve)
+  centralize the reply-finalization decision; /chat and /v1 both call
+  finalize_persona_reply (replaced the inline `answer if preserve else sanitize...`).
+  Decision table: preserve -> never sanitize (unchanged); messages path -> sanitize only
+  if PERSONA_SANITIZE_MESSAGES; raw /completion path -> always sanitize (UNCHANGED, proven
+  default deployment byte-identical).
+- /health gains persona_sanitize_messages. /chat debug gains sanitizer_applied (audits
+  whether the post-hoc sanitizer ran -- usable in a live POST to confirm the messages
+  path skipped it).
+- tests/test_api_offline.py: +8 checks (now 72/72). Messages path returns server content
+  verbatim with no forced "Next actions:" and debug sanitizer_applied=false; escape hatch
+  re-sanitizes; raw /completion path still sanitizes; /v1 messages content verbatim;
+  health key present. OFF-MOUNT VALIDATED: py_compile + AST OK, suite 72/72 ALL PASS
+  (sandbox fastapi 0.136.3). Canonical Windows-side run on portable 3.11.9 still OWED.
+- NOT committed (local-only when committed; mid-phase = no push per push-at-milestones).
+  roadmap T2.4 FOLLOW-UP closed; todo "Next" #2 cleared.
+
+## 2026-06-07 2254 PDT -- Model provisioner P2: playbook + matcher (Brandon + Claude)
+
+- run/model_playbook.toml (NEW, tracked, human-editable): 10-model Apache-2.0
+  catalog with quant ladders, vision flags, ranks, repos, mmproj; [meta] reserves +
+  vision boosts + cpu file cap. Catalog stamped "verified 2026-06-07" (sizes/repos
+  are estimates to re-verify at download time).
+- scripts/provision_match.py (NEW, pure stdlib + tomllib): envelope_from_caps +
+  compute_budget (max of RAM-reserve and VRAM-reserve; unified uses RAM only) +
+  largest-fitting-quant + rank scoring with vision soft-preference and camera boost
+  + cpu-only file cap. Emits model/quant/file/repo/mmproj/ctx/vision_enabled/
+  full_gpu_offload/budget. Camera gates vision_enabled (per the P1 decision).
+- tests/test_provision_match.py (NEW): 7/7 PASS offline against the real playbook.
+  Picks: RX 9060 XT (16GB VRAM/32GB) -> qwen3.6-35b (matches live config, partial
+  offload); EVO 96GB unified -> qwen3.6-35b full-offload ctx16384; 16/8GB+cam ->
+  pixtral-12b vision; Pi 8GB headless -> qwen3-4b text; Pi+cam -> smolvlm2 vision;
+  4GB -> none (below 8GB floor).
+- KNOWN TUNABLE: tight-budget ctx step-down drops the RX 9060 XT pick to ctx 8192
+  vs the working 16384; KV-aware ctx sizing deferred to P3/P4.
+- NEXT: P3 (huggingface_hub downloader + license/disk preflight + config wiring),
+  P4 (manage.py `provision` + first-run hook). Vision default = camera-gated.
+
+## 2026-06-07 2200 PDT -- Model provisioner design + profiler P1 (Brandon + Claude)
+
+- DESIGN: docs/model_provisioner_design_20260607_2158.md -- first-run host profile
+  -> playbook match -> confirm (--yes bypass) -> huggingface_hub download -> wire
+  config.toml. Wide hardware range (Raspberry-Pi/8 GB CPU floor to 96 GB unified /
+  discrete VRAM); vision-capable PREFERRED (soft), never a hard filter.
+- LICENSING (Brandon directive): default catalog = OSI-open / AGPL-compatible only
+  (Apache-2.0 / MIT, ungated) -> SmolVLM, Qwen2.5-VL 7B/32B, Pixtral, Mistral Small
+  3.1, Qwen3/Qwen3.6. EXCLUDED from defaults (gated/restrictive): Gemma, Llama, and
+  Qwen2.5-VL 3B/72B (Qwen license, not Apache). Removes first-run token/accept
+  friction. Catalog license-verified via web search 2026-06-07.
+- PROFILER P1 (manage.py, CODE DONE): detect_vram_mb() -- PRIMARY source is
+  vulkaninfo's largest MEMORY_HEAP_DEVICE_LOCAL_BIT heap (cross-vendor; ships with
+  the GPU driver, confirmed at C:\WINDOWS\system32\vulkaninfo.exe on the RX 9060 XT),
+  with nvidia-smi / Linux sysfs mem_info_vram_total / Windows registry qwMemorySize
+  as fallbacks. detect_memory_model() (vulkaninfo deviceType + APU-name heuristic)
+  + detect_host() now emit vram_mb + memory_model. NPU classify already present
+  (Intel/OpenVINO tier 2 usable=false; Hailo/Gaudi tier 3). Parser verified against
+  the host's real vulkaninfo output -> 16304 MiB (discrete RX 9060 XT DEVICE_LOCAL
+  heap; the machine also has an integrated Radeon at a 10.5 GiB RAM carve-out, max
+  wins). VALIDATED live on the RX 9060 XT (Daemonic-PC): vram_mb=16304,
+  memory_model=discrete. PENDING only: an EVO-X2 run to confirm "unified".
+- node_capabilities.json schema gains vram_mb + memory_model + camera_present.
+- detect_camera() added (Windows CIM PNPClass Camera/usbvideo; Linux /dev/video*).
+  VISION DEFAULT decision (Brandon): camera-gated at every tier -- VISION_ENABLED on
+  iff a camera is detected, else off with opt-in; vision-capable model + mmproj
+  fetched regardless. Compiled + sandbox-checked (no camera -> False).
+- roadmap Phase 0.5 provisioner item -> [~] with design link; knowledge.md noted.
+
+## 2026-06-07 1827 PDT -- Doc reconciliation: model identity + obsolete-entry sweep (Brandon + Claude)
+
+- Combed the living docs for obsolete/conflicting entries; findings recorded in
+  `docs/doc_audit_conflicts_20260607_1827.md` (~20 items, tiered P1-P3).
+- MODEL IDENTITY (P1): reconciled all docs to the single committed model
+  Qwen3.6-35B-A3B-UD-Q5_K_XL on EVERY host. knowledge.md "Stable architectural
+  decisions" rewritten (30B-class -> 35B; added light/heavy = thinking toggle and
+  Hermes sub-agents on parallel slots; model-lock history with T0.1 arch + T0.2
+  tool-calling gates, both passed, Instruct-2507 = dropped no-thinking fallback).
+  knowledge.md operational config + env block PERSONA_MODEL + model-card links
+  updated. README_models_hardware.md: Instruct-2507 demoted to dropped fallback,
+  "pending T0.1" gating removed, T0.1/T0.2 pass status added, ~/Live/AIStack path
+  + config.env -> config.toml. README.md: model row + roadmap line -> single-model
+  live; "uses Qdrant" -> ChromaDB now/Qdrant Phase 2a; OpenWebUI Running ->
+  dormant; retired HANDOFF.md/.html "open first" pointers -> todo/roadmap/
+  knowledge/changelog + archive/handoffs.
+- Roadmap: stale "Current position" proof text -> Phase 1 Exit Gate proven, only
+  M6 left; "Unix-socket IPC" cross-cutting label -> NATS-based; Qwen3.5/3.6
+  re-eval note clarified (3.6 already committed); NEW Phase 0.5 item -- first-run
+  model auto-provisioning sized to detected resources (node_capabilities.json).
+- knowledge.md: stale Phase 1 "Remaining" list (per-profile/Task Board/topic
+  routing all done) corrected; config.toml flagged as primary over config.env;
+  py314 pointer 3.12 -> 3.11.9; first-run provisioner noted.
+- todo.md: Hermes H-track ref Phase 9 -> Phase 8 (Phase 9 is DELETED).
+- Stamps bumped (knowledge/roadmap/todo). M6 confirmation runbook added:
+  `docs/m6_confirmation_runbook_20260607_1827.md`.
+- LEFT FOR BRANDON (flagged, not edited): tools/taskman2.py is gitignored
+  (.gitignore L89) yet /agent/run shells to it -- verify intent; live n_ctx vs
+  PERSONA_CTX/262K context numbers reconcile; README emoji/no-stamp style.
+
 ## 2026-06-07 1758 PDT -- Phase 1 live validation complete: messages + per-profile + Task Board (Brandon + Claude)
 
 - Ran the three owed LIVE passes on Qwen3.6 (build e7bd3b3) via run_logged.py;

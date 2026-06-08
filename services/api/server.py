@@ -58,6 +58,16 @@ PERSONA_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/completion"
 # OFF by default -> the proven raw /completion + /think-prefix path is unchanged.
 PERSONA_CHAT_URL = f"http://{LLAMA_HOST}:{PERSONA_PORT}/v1/chat/completions"
 PERSONA_USE_MESSAGES = os.getenv("PERSONA_USE_MESSAGES", "0").strip().lower() in ("1", "true", "yes", "on")
+# T2.4 payoff (2026-06-08): the messages path is live-proven to deliver clean
+# content + reasoning_content server-side (reasoning split into reasoning_content
+# under --jinja + --reasoning-format deepseek), so the lossy post-hoc two-part
+# sanitizer is RETIRED on that path -- the chat template's system "Hard output
+# requirements" own the format. With PERSONA_USE_MESSAGES on, /chat + /v1 return the
+# server content as-is. PERSONA_SANITIZE_MESSAGES is an OFF-by-default escape hatch:
+# set it to 1 to re-apply sanitize_persona_reply on the messages path if a model
+# ignores the format contract. The proven raw /completion path is unaffected and
+# still sanitizes (preserve_thinking still bypasses sanitizing on both paths).
+PERSONA_SANITIZE_MESSAGES = os.getenv("PERSONA_SANITIZE_MESSAGES", "0").strip().lower() in ("1", "true", "yes", "on")
 
 # Feature toggles
 # ASYNC_REASONING_ENABLED replaces ASYNC_SCIENTIST_ENABLED (back-compat: old name still read).
@@ -609,6 +619,26 @@ def sanitize_persona_reply(text: str) -> str:
     bullets = bullets[:4]
 
     return (head + "\n\nNext actions:\n" + "\n".join([f"* {b}" for b in bullets])).strip()
+
+
+def will_sanitize(preserve: bool) -> bool:
+    """Whether the post-hoc persona sanitizer applies to this reply.
+
+    False when preserve_thinking is set (agent/Hermes path wants the full answer).
+    False on the messages path unless PERSONA_SANITIZE_MESSAGES re-enables it (T2.4
+    payoff -- the server already returns clean, format-following content there).
+    True otherwise (the proven raw /completion path).
+    """
+    if preserve:
+        return False
+    if PERSONA_USE_MESSAGES and not PERSONA_SANITIZE_MESSAGES:
+        return False
+    return True
+
+
+def finalize_persona_reply(answer: str, preserve: bool) -> str:
+    """Resolve the user-facing reply from the model answer per will_sanitize()."""
+    return sanitize_persona_reply(answer) if will_sanitize(preserve) else answer
 
 
 def format_rag_context(docs: List[str]) -> str:
@@ -1183,6 +1213,7 @@ async def health():
         "topic_routing": TOPIC_ROUTING_DEFAULT,
         "topic_routing_topics": TOPIC_PRIORITY,
         "persona_use_messages": PERSONA_USE_MESSAGES,
+        "persona_sanitize_messages": PERSONA_SANITIZE_MESSAGES,
         "persona_chat_url": PERSONA_CHAT_URL,
         "sampling_presets": SAMPLING_PRESETS,
         "rag_enabled": RAG_ENABLED,
@@ -1232,7 +1263,7 @@ async def chat(req: ChatRequest):
         max_tokens=PERSONA_MAX_TOKENS, sampling_extra=sampling_extra,
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
-    reply = answer if preserve else sanitize_persona_reply(answer)
+    reply = finalize_persona_reply(answer, preserve)
 
     distill_dbg = await distill_and_store_facts(req.text, reply, profile=profile, topic=topic)
 
@@ -1264,6 +1295,7 @@ async def chat(req: ChatRequest):
                 "resolved": preserve,
                 "reasoning_chars": len(reasoning),
             },
+            "sanitizer_applied": will_sanitize(preserve),
             "topic_routing": {
                 "enabled": TOPIC_ROUTING_DEFAULT,
                 "requested": (req.topic or "chat"),
@@ -1322,7 +1354,7 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
         max_tokens=max_tokens, sampling_extra=sampling_extra,
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
-    reply = answer if preserve else sanitize_persona_reply(answer)
+    reply = finalize_persona_reply(answer, preserve)
 
     await distill_and_store_facts(user_text, reply, profile=profile, topic=topic)
 

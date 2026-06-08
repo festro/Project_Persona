@@ -28,6 +28,46 @@ REPO = os.path.dirname(HERE)
 API = os.path.join(REPO, "services", "api")
 sys.path.insert(0, API)
 
+from datetime import datetime
+
+
+def _pacific_now():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Los_Angeles"))
+    except Exception:
+        return datetime.now().astimezone()
+
+
+class _Tee:
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, s):
+        for st in self._streams:
+            st.write(s)
+        return len(s)
+
+    def flush(self):
+        for st in self._streams:
+            st.flush()
+
+
+_log_fh = None
+if not os.getenv("RUN_LOGGED"):
+    LOG_DIR = os.path.join(REPO, "logs")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    _log_fh = open(os.path.join(LOG_DIR, "test_api_offline.log"), "w", encoding="utf-8", newline="\n")
+    sys.stdout = _Tee(sys.__stdout__, _log_fh)
+    _now = _pacific_now()
+    print("=" * 72)
+    print("Project_Persona offline self-test log")
+    print("started  : " + _now.strftime("%Y-%m-%d %H%M ") + (_now.tzname() or "local"))
+    print("python   : " + sys.version.split()[0] + "  (" + sys.executable + ")")
+    print("platform : " + sys.platform)
+    print("=" * 72)
+    print()
+
 TMP = tempfile.mkdtemp(prefix="persona_apitest_")
 os.environ.update({
     "AI_ROOT": TMP,
@@ -56,9 +96,12 @@ from fastapi.testclient import TestClient
 
 client = TestClient(server.app)
 failures = []
+checks_run = 0
 
 
 def check(name, cond):
+    global checks_run
+    checks_run += 1
     print(("PASS" if cond else "FAIL"), name)
     if not cond:
         failures.append(name)
@@ -227,7 +270,9 @@ async def fake_query_llama_messages(url, messages, max_tokens, temperature, time
 
 server.query_llama_messages = fake_query_llama_messages
 _saved_msgs = server.PERSONA_USE_MESSAGES
+_saved_san = server.PERSONA_SANITIZE_MESSAGES
 server.PERSONA_USE_MESSAGES = True
+server.PERSONA_SANITIZE_MESSAGES = False
 r = client.post("/chat", json={"text": "explain the idea", "topic": "science", "preserve_thinking": True, "debug": True})
 body = r.json()
 check("messages path: preserve surfaces server reasoning", body["reasoning"] == "server-side reasoning block")
@@ -237,11 +282,49 @@ check("messages path: default does not leak reasoning", "server-side reasoning" 
 r = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}], "preserve_thinking": True})
 m = r.json()["choices"][0]["message"]
 check("messages path: /v1 reasoning_content", m.get("reasoning_content") == "server-side reasoning block")
+
+r = client.post("/chat", json={"text": "explain the idea", "topic": "science", "debug": True})
+body = r.json()
+check("T2.4: messages path returns server content verbatim",
+      body["text"] == "The answer here is long enough to pass the writeback filters easily.")
+check("T2.4: messages path skips forced Next actions", "Next actions:" not in body["text"])
+check("T2.4: debug reports sanitizer not applied", body["debug"]["sanitizer_applied"] is False)
+
+r = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}]})
+mc = r.json()["choices"][0]["message"]["content"]
+check("T2.4: /v1 messages path content verbatim",
+      mc == "The answer here is long enough to pass the writeback filters easily.")
+
+server.PERSONA_SANITIZE_MESSAGES = True
+r = client.post("/chat", json={"text": "explain the idea", "topic": "science", "debug": True})
+body = r.json()
+check("T2.4: escape hatch re-sanitizes messages path", "Next actions:" in body["text"])
+check("T2.4: debug reports sanitizer applied under hatch", body["debug"]["sanitizer_applied"] is True)
+
 server.PERSONA_USE_MESSAGES = _saved_msgs
+server.PERSONA_SANITIZE_MESSAGES = _saved_san
 server.query_llama_messages = None
 
+r = client.post("/chat", json={"text": "plan something", "topic": "chat", "debug": True})
+body = r.json()
+check("T2.4: raw /completion path still sanitizes", "Next actions:" in body["text"])
+check("T2.4: raw path debug reports sanitizer applied", body["debug"]["sanitizer_applied"] is True)
+
 check("health persona_use_messages present", "persona_use_messages" in client.get("/health").json())
+check("health persona_sanitize_messages present", "persona_sanitize_messages" in client.get("/health").json())
 
 print()
 print("RESULT:", "ALL PASS" if not failures else ("FAILURES: " + ", ".join(failures)))
+
+if _log_fh is not None:
+    _end = _pacific_now()
+    print("=" * 72)
+    print("finished : " + _end.strftime("%Y-%m-%d %H%M ") + (_end.tzname() or "local"))
+    print("scan     : checks={} PASS={} FAIL={}".format(checks_run, checks_run - len(failures), len(failures)))
+    print("log file : " + _log_fh.name)
+    print("=" * 72)
+    sys.stdout.flush()
+    sys.stdout = sys.__stdout__
+    _log_fh.close()
+
 sys.exit(1 if failures else 0)

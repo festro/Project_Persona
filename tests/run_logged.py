@@ -125,6 +125,10 @@ def main():
 
     child_env = dict(os.environ)
     child_env["PYTHONUNBUFFERED"] = "1"
+    # Tell self-logging test scripts (e.g. test_api_offline.py) to skip their own
+    # log file -- this wrapper is already capturing to logs/<label>.log, and the
+    # default label collides with the test's own logs/test_api_offline.log path.
+    child_env["RUN_LOGGED"] = "1"
 
     counts = {"PASS": 0, "FAIL": 0, "Traceback": 0, "Warning": 0, "Error": 0}
 

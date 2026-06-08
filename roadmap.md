@@ -5,7 +5,7 @@ phase ladder from basic functionality to extended functionality. Each phase is
 "locked" to a functional state: it has an Exit Gate (concrete, testable
 acceptance criteria) that must be green before the next phase starts.
 
-Last updated: 2026-06-07 1110 PDT by Claude
+Last updated: 2026-06-07 1827 PDT by Claude
 
 ## Boundaries (do not duplicate)
 
@@ -44,11 +44,13 @@ Hermes adoption; M-series = single-model migration milestones.
 
 ## Current position
 
-Active: Phase 1 completion. Foundation (Phase 0) is green. Qwen3.6 llama-server now
-stands up LIVE on :8090 (Windows, via manage.py, 2026-06-07) with the API on :8000
-and a passing /agent/run smoke; thinking mode is active under --jinja. Remaining
-Phase 1 proof: live /chat persona replies + streaming + per-topic sampling
-(no_think vs think) and embedder_ok/chroma_ok on /health. See `todo.md`.
+Active: Phase 1 completion. Foundation (Phase 0) is green. Qwen3.6 llama-server
+stands up LIVE on :8090 (Windows, via manage.py) with the API on :8000; thinking
+mode active under --jinja. The Phase 1 Exit Gate is PROVEN (2026-06-07, changelog
+1222) and all feature items below are [x] except M6. Remaining Phase 1 work: M6
+single-model migration sign-off (a sustained-load M2b re-run on the Qwen3.6 build
+is the one owed piece -- see `docs/m6_confirmation_runbook_20260607_1827.md`).
+See `todo.md`.
 
 ---
 
@@ -128,6 +130,16 @@ audit + support matrix:
       compatibility fallback, both behind one EventBus interface. Unix sockets ruled
       out (no asyncio AF_UNIX on the Windows ProactorEventLoop). See
       docs/ipc_decision.md.
+- [~] First-run model auto-provisioning: on first launch, profile the host and
+      consult a committed playbook (`run/model_playbook.toml`) that maps the
+      resource envelope (RAM / VRAM / CPU / accel / arch) to a ranked, multi-family
+      model catalog, then auto-download the best fit (huggingface_hub) and wire it
+      into config.toml. Wide range: Raspberry-Pi-class / 8 GB CPU floor up to 96 GB
+      unified / discrete-VRAM (Tier 4 primary = the committed Qwen3.6-35B-A3B).
+      Vision capability is a PREFERRED (soft) requirement. DESIGN 2026-06-07:
+      `docs/model_provisioner_design_20260607_2158.md`. Needs profiler additions
+      (vram_mb, unified-vs-discrete, NPU classify -- Intel/OpenVINO usable,
+      Hailo/Coral detect-but-never-select). Phased P1-P4 in the design.
 - [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables
       as a Linux-only bonus
 - [ ] Cross-OS installer/doctor parity (Windows + Debian + other Linux)
@@ -184,8 +196,11 @@ persona replies over both the native and OpenAI-compatible paths.
       wiring balanced). LIVE VALIDATION REQUIRED -- the only piece that can't be proven
       offline (real --jinja reasoning_content split). LIVE VALIDATED 2026-06-07 1746
       (exit_gate_live [messages], PERSONA_USE_MESSAGES=1): reasoning came from the
-      server reasoning_content and text was <think>-free. FOLLOW-UP: retire the
-      post-hoc sanitizer on the messages path.
+      server reasoning_content and text was <think>-free. FOLLOW-UP DONE 2026-06-08
+      0846: post-hoc sanitizer RETIRED on the messages path (PERSONA_SANITIZE_MESSAGES
+      OFF-by-default escape hatch; will_sanitize/finalize_persona_reply helpers;
+      /health persona_sanitize_messages + /chat debug sanitizer_applied). Off-mount
+      72/72; raw /completion path unchanged. Canonical Windows-side portable run owed.
 - [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
 - [x] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
       (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile
@@ -360,12 +375,16 @@ core survives losing one member.
 - [-] Vision input
 - [-] MTP / speculative decoding
 - [-] Dual-memory unification (conversations.db + Chroma)
-- [-] Qwen3.5/3.6 maturity re-evaluation after ~2026-08 (TODO #36)
+- [-] Next-gen Qwen (post-3.6) maturity re-evaluation after ~2026-08 (TODO #36).
+      NOTE: Qwen3.6-35B-A3B is already the committed model; this is a forward-looking
+      re-check of newer releases, not a pending adoption of 3.6.
 
 ## Cross-cutting components
 
 These evolve across phases rather than completing once (detail in `knowledge.md`
 -> System components): Task Board (`data/tasks.db`), SQLite stores
-(`conversations.db`), ChromaDB/RAG layer, Unix-socket IPC. Their readiness is
-tracked inside the phase whose Exit Gate first depends on them (Task Board ->
-Phase 1/8; conversations.db -> Phase 2; IPC -> Phase 3).
+(`conversations.db`), ChromaDB/RAG layer, NATS-based IPC (NATS+JetStream primary,
+stdlib loopback-TCP fallback; Unix sockets were ruled out -- see Phase 0.5 IPC
+decision). Their readiness is tracked inside the phase whose Exit Gate first
+depends on them (Task Board -> Phase 1/8; conversations.db -> Phase 2; IPC ->
+Phase 3).

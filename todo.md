@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-07 1758 PDT by Claude
+Last updated: 2026-06-08 0856 PDT by Claude
 
 ## Rules of the road
 
@@ -14,6 +14,54 @@ Last updated: 2026-06-07 1758 PDT by Claude
   its phase/track IDs; do not restate them.
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
+
+## Just finished (2026-06-08, Claude)
+
+- T2.4 PAYOFF DONE (changelog 0846; handoff handoff_persona_20260608_0846.md): the
+  lossy two-part sanitize_persona_reply is RETIRED on the messages path. New
+  PERSONA_SANITIZE_MESSAGES env flag (OFF by default = retired; escape hatch to re-
+  sanitize). New will_sanitize/finalize_persona_reply helpers centralize the decision;
+  /chat + /v1 call finalize_persona_reply. /health persona_sanitize_messages; /chat
+  debug sanitizer_applied. tests/test_api_offline.py +8 -> 72/72 (off-mount, fastapi
+  0.136.3). Raw /completion path UNCHANGED. roadmap T2.4 FOLLOW-UP closed. NOT committed
+  (mid-phase = LOCAL COMMIT ONLY, no push). OWED: canonical Windows-side run on portable
+  3.11.9 (off-mount is not the pinned chain). No live model needed -- this is a
+  format/finalization change, not a generation change.
+  CANONICAL RUN DONE (0856): Brandon ran it Windows-side on portable 3.11.9 -> 72/72
+  ALL PASS. T2.4 payoff fully validated.
+- OFFLINE SELF-TEST NOW LOGS (changelog 0856): tests/test_api_offline.py writes
+  logs/test_api_offline.log on a direct run (Brandon noticed a direct run left logs/
+  empty -- only run_logged.py logged before). Tee + header/footer; stdout restored
+  before close (avoids the closed-tee flush -> exit 120). run_logged.py sets RUN_LOGGED=1
+  so the self-test skips its own log under the wrapper (no path collision). Mechanism
+  validated off-mount. OWED: a Windows-side re-run after these logging edits to
+  reconfirm 72/72 + that the log file appears.
+
+## Just finished (2026-06-07 evening, Claude)
+
+- SESSION ARC (changelog 1827/2200/2254; handoff handoff_persona_20260607_2300.md).
+  Three threads, ALL mid-phase = LOCAL COMMITS ONLY, no push (per the new push-at-
+  milestones rule):
+  1. DOC RECONCILIATION: single-model Qwen3.6-35B-A3B-UD-Q5_K_XL is canonical on
+     EVERY host (Instruct-2507 = dropped no-thinking fallback; T0.1 arch + T0.2
+     tool-calling gates both passed). Obsolete-entry sweep across knowledge/roadmap/
+     todo/READMEs: retired HANDOFF.md pointers, Qdrant/OpenWebUI status, Unix-socket
+     ->NATS label, Phase 9->8, py314 3.12->3.11.9, config.toml-primary, stamps.
+     Audit: docs/doc_audit_conflicts_20260607_1827.md.
+  2. .gitignore tools/ -> tools/*.json so the taskman /agent/run scripts are
+     tracked. VERIFY Windows-side: `git ls-files tools/`; if empty,
+     `git add tools/taskman.py tools/taskman2.py` (else fresh clones break
+     /agent/run). Context-size "drift" was a non-issue (per-OS 32768 linux / 16384
+     windows; live 4096/slot = the windows fit).
+  3. MODEL PROVISIONER (new Phase 0.5 feature): design
+     docs/model_provisioner_design_20260607_2158.md. P1 (manage.py) -- detect_vram_mb
+     (vulkaninfo DEVICE_LOCAL heap, x-vendor) + detect_memory_model + detect_camera;
+     node_capabilities.json gains vram_mb/memory_model/camera_present. VALIDATED live
+     RX 9060 XT: vram_mb=16304, memory_model=discrete. P2 -- run/model_playbook.toml
+     (10 Apache-2.0 models) + scripts/provision_match.py + tests/test_provision_match.py
+     (7/7). RESOLVED: model=open/AGPL-compatible only; vision default = camera-gated.
+- M6 confirmation runbook: docs/m6_confirmation_runbook_20260607_1827.md (the actual
+  Phase 1 close was DEFERRED while we did the above; M6 is still the Phase 1 head).
 
 ## Just finished (2026-06-07, Claude)
 
@@ -264,9 +312,13 @@ T1 (handoff 0755) + ops-script modernization (handoff 0102).
 ## EVO-X2 state (as of 2026-06-03 1418 PDT)
 
 - Stack was UP and healthy after a clean restart (persona pid 20606 on :8090, api
-  pid 20683 on :8000; all /health green). Deployed model is Instruct-2507 (NOT
-  Qwen3.6 -- that is Windows-portable-only). Details in `changelog.md` 2118/2112.
-  Re-verify before relying on it.
+  pid 20683 on :8000; all /health green). At that snapshot EVO-X2 still had the
+  legacy Instruct-2507 loaded. Details in `changelog.md` 2118/2112. Re-verify
+  before relying on it.
+  CONVERGENCE (2026-06-07 directive): single model EVERYWHERE -- EVO-X2 is to swap
+  to Qwen3.6-35B-A3B-UD-Q5_K_XL (file already on disk, sha256-verified; gated on
+  bumping EVO-X2 llama.cpp to the Qwen3.6-capable build). Instruct-2507 is the
+  dropped fallback, not a parallel deployment.
 
 ## Next (in order)
 
@@ -278,17 +330,41 @@ make every node run on Windows + Linux, x86-64 + ARM64, CPU/CUDA/ROCm/Vulkan
 live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 (torch optional).
 
-1. COMMIT this session's validated work (git is Windows-side): tests/run_logged.py
-   (new) + changelog.md/todo.md/roadmap.md doc updates (1716 + 1758) + the roadmap
-   [x] flips. DECIDE the per-profile residue FIRST: gitignore persona/profiles/alice/
-   + bob/ (test profiles) or remove them, so they do not land in the commit. Then
-   M6 is the only Phase 1 item left.
-   NOTE: stack is UP + Phase 1 validated this session (changelog 1758) -- the old
-   "stand up Qwen3.6 / verify T2.1" entry point is DONE.
-2. M6 single-model migration confirmation (LIVE) -- the last open Phase 1 item;
-   clearing it unblocks the Hermes H-track. See roadmap Phase 1 / Phase 9.
-3. T2.4 PAYOFF: retire the post-hoc sanitizer on the messages path now that
-   PERSONA_USE_MESSAGES is live-proven to deliver clean reasoning_content.
+1. M6 single-model migration confirmation (LIVE) -- NOW THE HEAD. The last open
+   Phase 1 item; clearing it unblocks the Hermes H-track. See roadmap Phase 1 /
+   Phase 8 (Hermes; Phase 9 is DELETED).
+   DONE 2026-06-07 1827: the validated-work COMMIT is in -- `git status` Windows-side
+   = working tree clean, up to date with origin/main. The 1758 session's
+   run_logged.py + exit_gate_live adaptive + test_api_offline warning-silence + doc
+   updates + roadmap [x] flips were already committed + pushed in a prior session;
+   the sandbox-mount "modified" list was the stale-index phantom. Per-profile
+   residue needed no action (persona/profiles/alice|bob already gitignored, L50-52).
+2. T2.4 PAYOFF -- DONE 2026-06-08 0846 (changelog/roadmap). Sanitizer retired on the
+   messages path behind PERSONA_SANITIZE_MESSAGES (OFF=retired). Off-mount 72/72; the
+   canonical Windows-side portable 3.11.9 run is the only thing owed.
+3. EVO-X2 single-model CONVERGENCE (2026-06-07 directive: one model everywhere).
+   Queue behind M6; do NOT interleave with the Phase 1 close. Steps, in order:
+   (a) PREREQUISITE -- verify EVO-X2 llama.cpp is Qwen3.6-capable: ssh in and run
+       `llama-server --version`; need >= b8770 (qwen3_5_moe arch). If older, bump
+       the build FIRST (this is the only blocker; the Qwen3.6 file is already on
+       disk there, sha256-verified -- see HANDOFF_2026-05-20_0102 Open issues #2).
+   (b) Only AFTER (a) passes: swap run/config.toml [linux] PERSONA_MODEL from
+       Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf to
+       Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf. Decide [linux] PERSONA_CTX (currently
+       32768; 96 GB unified has headroom for more than the 16 GB windows fit).
+   (c) Live-validate on EVO-X2 (up -> /health green -> a thinking-topic /chat shows
+       reasoning_content) and move Instruct-2507 to models/archive/ as rollback.
+   WARNING: flipping (b) before (a) breaks EVO-X2's launcher (old llama-server
+   cannot load the arch). config.toml left UNTOUCHED until the build is confirmed.
+4. MODEL PROVISIONER P3/P4 (Phase 0.5; design + P1 + P2 done -- see
+   docs/model_provisioner_design_20260607_2158.md). P3: huggingface_hub downloader
+   (base GGUF + mmproj), license/disk preflight, write pick into config.toml; P4:
+   manage.py `provision` cmd + first-run hook in cmd_up. BEFORE P3 download code
+   depends on it: re-verify run/model_playbook.toml repo IDs + filenames + quant
+   sizes against real HF pages (they are 2026-06-07 estimates). DECIDE: may
+   `provision` overwrite an existing PERSONA_MODEL, or only fill when unset?
+   Also refine the KV-aware ctx sizing (the tight-budget step-down currently picks
+   8192 vs the working 16384 on the RX 9060 XT).
 2. Close out T1 on a live host (needs network + target): run
    `setup_native_stack.sh` (or just the env_hermes step) on EVO-X2 and/or the
    Windows portable host so `doctor.sh` reports env_hermes_installed=yes.
@@ -321,10 +397,10 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 
 ## Housekeeping fix-its
 
-- 2026-06-07 (low, CONFIRM): live persona.log shows `new slot, n_ctx = 4096` across
-  4 slots on the Qwen3.6 run -- implies live --ctx-size ~16384, not the documented
-  PERSONA_CTX=32768 target (which at --parallel 4 should give ~8192/slot). Could be
-  an intentional 16 GB VRAM fit or config drift. Confirm against run/config.toml.
+- DONE 2026-06-07 (confirmed): live persona.log `new slot, n_ctx = 4096` x4 is the
+  INTENDED windows fit, not drift -- run/config.toml [windows] PERSONA_CTX=16384 /
+  PERSONA_PARALLEL=4 = 4096/slot (16 GB VRAM). The 32768 figure is the [linux]
+  overlay. knowledge.md env block annotated with the per-OS split.
 - 2026-06-07 (info, WATCH): persona.log has recurring `W slot update_slots: erased
   invalidated context checkpoint` paired with `speculative decoding will use
   checkpoints` (Qwen3.6 MTP). Expected churn under parallel mixed prompts; low
@@ -381,9 +457,11 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 - The egress safe-config is the construction-time half of containment; the runtime
   half (H1.6 kernel netns/iptables + daemon env hygiene) is still required and is
   not in T1.
-- Two model files / two flows by design: native EVO-X2 uses Instruct-2507; the
-  Windows portable flow uses Qwen3.6. The Windows native env points at a model not
-  present there -- expected.
+- Single model EVERYWHERE (2026-06-07 directive): Qwen3.6-35B-A3B-UD-Q5_K_XL on
+  every host, EVO-X2 included. The earlier "two flows" (EVO=Instruct-2507,
+  Windows=Qwen3.6) was transitional host-state, NOT a design -- EVO-X2 converges to
+  Qwen3.6 (legacy llama.cpp build bump is the only blocker). Instruct-2507 = dropped
+  no-thinking fallback. See knowledge.md "Stable architectural decisions".
 - git on D:\Projects repos must run Windows-side (portable git at
   `D:\Projects\Tools\PortableGit\cmd`); the Linux sandbox mount corrupts the index.
 - llama-server "stability ghost" (died once 05-19/20, no graceful-shutdown
