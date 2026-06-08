@@ -17,7 +17,10 @@ Section 7 linking exception.
 Repo: https://github.com/festro/Project_Persona
 Target OS: Debian Linux. Daily driver: Windows. Reference hardware: GMKtec
 EVO-X2 (AMD Ryzen AI MAX+ 395 / Radeon 8060S "Strix Halo", gfx1151, 96 GB
-unified memory).
+unified memory -- but the BIOS carves out a chunk as dedicated iGPU VRAM, so the
+OS / `free -h` shows only ~62 GiB system RAM; size GPU memory from
+`manage.py capabilities` vram_mb, system RAM from free separately. Ubuntu 24.04,
+Python 3.12.3, ~/Git/Project_Persona, headless/SSH).
 
 ## Repo map
 
@@ -191,10 +194,15 @@ Unified llama-server config: Qwen3.6-35B-A3B-UD-Q5_K_XL, full GPU offload, 4
 parallel slots, q8_0 KV cache, Flash Attention on, `--jinja` (thinking-mode
 chat template). LIVE on Windows / RX 9060 XT (16 GB) this week via manage.py
 (build e7bd3b3 on llama-server b9219); GPU auto-fit omits --n-gpu-layers so the
-model fits VRAM. Historical reference: the prior Instruct-2507 fallback ran
-49/49 layers on EVO-X2 Vulkan0 / RADV GFX1151 at 8192 ctx/slot. Vulkan backends
-may report bf16=0, which does not affect Q5_K weights or the q8_0 cache but must
-be flagged for any config that assumes bf16.
+model fits VRAM. EVO-X2 CONVERGED 2026-06-08: now runs the same Qwen3.6 on a fresh
+llama.cpp b9219 Vulkan build (built from source -- prereq `spirv-headers`; see
+docs/llama_build_matrix.md), at 8192 ctx/slot (32768/4), full offload. The prior
+Instruct-2507 fallback (49/49 layers on RADV GFX1151) is archived in models/archive/
+as rollback. Single model now on every host. Vulkan backends may report bf16=0, which
+does not affect Q5_K weights or the q8_0 cache but must be flagged for any config that
+assumes bf16. TUNABLE: with thinking ON (messages path / enable_thinking) the
+PERSONA_MAX_TOKENS=192 default starves the answer (CoT eats the budget) -- raise to
+>= ~4096 for thinking deployments; the default raw path (messages OFF) is unaffected.
 
 Runtime tunables: `run/config.toml` is the primary typed source (base + runtime +
 per-OS overlays), read by manage.py via stdlib tomllib (2026-06-06; changelog

@@ -201,7 +201,15 @@ persona replies over both the native and OpenAI-compatible paths.
       OFF-by-default escape hatch; will_sanitize/finalize_persona_reply helpers;
       /health persona_sanitize_messages + /chat debug sanitizer_applied). Off-mount
       72/72; raw /completion path unchanged. Canonical Windows-side portable run owed.
-- [ ] M6 single-model migration milestone confirmed (M2b passed, M5 done)
+- [x] M6 single-model migration milestone confirmed (M2b passed, M5 done) -- DONE
+      2026-06-08: EVO-X2 converged to Qwen3.6-35B-A3B-UD-Q5_K_XL on a fresh llama.cpp
+      b9219 Vulkan build (old b8157 could not load qwen3_5_moe). Live-validated
+      (/health green, thinking + reasoning_content via messages path, RAG live);
+      Instruct-2507 archived. Single model now on EVERY host (Windows + EVO-X2) per
+      the 2026-06-07 directive. config.toml [linux] committed + pushed from EVO-X2.
+      See changelog 1029. Build dep: spirv-headers (docs/llama_build_matrix.md).
+      Tunable: PERSONA_MAX_TOKENS >= 4096 when thinking is on (raw default path
+      unaffected).
 - [x] Per-profile Chroma collections connected to the API -- CODE DONE 2026-06-07
       (OFF by default): RAG_PER_PROFILE routes memory_add/query to a per-profile
       collection ("mem_<profile>") via _get_collection; off = the single shared

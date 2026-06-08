@@ -166,10 +166,27 @@ Requires the Vulkan SDK / loader + headers. Works across NVIDIA, AMD, and Intel,
 and is the recommended path for Strix Halo and any node where the vendor toolkit is
 unavailable.
 
+Debian/Ubuntu prerequisites (CONFIRMED on EVO-X2 / Ubuntu 24.04, 2026-06-08): besides
+the Vulkan loader+headers (`pkg-config --exists vulkan`) and a GLSL compiler (`glslc`),
+recent llama.cpp also needs the SPIRV-Headers (and SPIRV-Tools) CMake packages for the
+shader generator -- without them configure fails at
+`ggml/src/ggml-vulkan/CMakeLists.txt` `find_package(SPIRV-Headers)`:
+
 ```
-cmake -B build -DGGML_VULKAN=ON
-cmake --build build --config Release -j
+sudo apt-get install -y spirv-headers spirv-tools glslc libvulkan-dev
 ```
+
+Then build:
+
+```
+cmake -B build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j"$(nproc)"
+```
+
+NOTE: a `git clone --depth 1 --branch b<NNNN>` shallow clone makes
+`llama-server --version` report `version: 1` (the build number can't be counted from a
+1-commit history); the binary is still that tag. For correct mesh metadata, clone full
+depth or pass `-DLLAMA_BUILD_NUMBER=<NNNN>`.
 
 ### Intel GPU (SYCL)
 

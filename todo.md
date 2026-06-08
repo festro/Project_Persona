@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-08 0856 PDT by Claude
+Last updated: 2026-06-08 1029 PDT by Claude
 
 ## Rules of the road
 
@@ -17,6 +17,15 @@ Last updated: 2026-06-08 0856 PDT by Claude
 
 ## Just finished (2026-06-08, Claude)
 
+- EVO-X2 SINGLE-MODEL CONVERGENCE DONE (changelog 1029; handoff
+  handoff_persona_20260608_1029.md) -- M6 milestone closed. EVO-X2 now runs Qwen3.6
+  on a fresh llama.cpp b9219 Vulkan build (built from source over SSH; prereq
+  spirv-headers). Full repo sync to origin/main first, native venv refreshed.
+  Live-validated end to end (incl. T2.4 reasoning_content via messages path).
+  Instruct-2507 archived. Single model on EVERY host. config.toml [linux] committed +
+  pushed from EVO-X2 (milestone). Findings: 62 GiB system RAM = BIOS iGPU carve-out of
+  96 GB unified; PERSONA_MAX_TOKENS>=4096 needed when thinking on; shallow-clone makes
+  --version read 1 (cosmetic). See "EVO-X2 state".
 - T2.4 PAYOFF DONE (changelog 0846; handoff handoff_persona_20260608_0846.md): the
   lossy two-part sanitize_persona_reply is RETIRED on the messages path. New
   PERSONA_SANITIZE_MESSAGES env flag (OFF by default = retired; escape hatch to re-
@@ -309,16 +318,22 @@ T1 (handoff 0755) + ops-script modernization (handoff 0102).
   PERSONA_PORT=8090, not the 8080 default). config.env gained RAG_ENABLED=1 +
   ANONYMIZED_TELEMETRY=False.
 
-## EVO-X2 state (as of 2026-06-03 1418 PDT)
+## EVO-X2 state (as of 2026-06-08 1029 PDT) -- CONVERGED
 
-- Stack was UP and healthy after a clean restart (persona pid 20606 on :8090, api
-  pid 20683 on :8000; all /health green). At that snapshot EVO-X2 still had the
-  legacy Instruct-2507 loaded. Details in `changelog.md` 2118/2112. Re-verify
-  before relying on it.
-  CONVERGENCE (2026-06-07 directive): single model EVERYWHERE -- EVO-X2 is to swap
-  to Qwen3.6-35B-A3B-UD-Q5_K_XL (file already on disk, sha256-verified; gated on
-  bumping EVO-X2 llama.cpp to the Qwen3.6-capable build). Instruct-2507 is the
-  dropped fallback, not a parallel deployment.
+- CONVERGENCE COMPLETE 2026-06-08 (changelog 1029; handoff
+  handoff_persona_20260608_1029.md). EVO-X2 now runs the single model
+  Qwen3.6-35B-A3B-UD-Q5_K_XL on a fresh llama.cpp b9219 Vulkan build (built from
+  source; old b8157 could not load qwen3_5_moe). Synced to origin/main first
+  (8e4b92b -> 11e2948), native venv refreshed (py3.12.3). Live-validated: llama
+  /health green, API /health green (embedder fastembed + chroma ok), default /chat
+  coherent, messages-path /chat returns reasoning_content (T2.4). Instruct-2507
+  archived to models/archive/. Stack left UP steady-state (messages OFF default).
+- Build: llama_cpp/build is a symlink -> ~/src/llama.cpp/build (clone at tag b9219;
+  old tree at llama_cpp/build.stale.*). Rebuild = re-pull ~/src/llama.cpp + cmake.
+  Prereq pkg: spirv-headers (see docs/llama_build_matrix.md).
+- WATCH: PERSONA_MAX_TOKENS=192 starves thinking-mode answers (raise >= 4096 if
+  enabling messages/thinking); raw default path unaffected. Occasional raw-path
+  empty-reply -> sanitizer placeholder (variance, intermittent).
 
 ## Next (in order)
 
@@ -342,20 +357,13 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 2. T2.4 PAYOFF -- DONE 2026-06-08 0846 (changelog/roadmap). Sanitizer retired on the
    messages path behind PERSONA_SANITIZE_MESSAGES (OFF=retired). Off-mount 72/72; the
    canonical Windows-side portable 3.11.9 run is the only thing owed.
-3. EVO-X2 single-model CONVERGENCE (2026-06-07 directive: one model everywhere).
-   Queue behind M6; do NOT interleave with the Phase 1 close. Steps, in order:
-   (a) PREREQUISITE -- verify EVO-X2 llama.cpp is Qwen3.6-capable: ssh in and run
-       `llama-server --version`; need >= b8770 (qwen3_5_moe arch). If older, bump
-       the build FIRST (this is the only blocker; the Qwen3.6 file is already on
-       disk there, sha256-verified -- see HANDOFF_2026-05-20_0102 Open issues #2).
-   (b) Only AFTER (a) passes: swap run/config.toml [linux] PERSONA_MODEL from
-       Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf to
-       Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf. Decide [linux] PERSONA_CTX (currently
-       32768; 96 GB unified has headroom for more than the 16 GB windows fit).
-   (c) Live-validate on EVO-X2 (up -> /health green -> a thinking-topic /chat shows
-       reasoning_content) and move Instruct-2507 to models/archive/ as rollback.
-   WARNING: flipping (b) before (a) breaks EVO-X2's launcher (old llama-server
-   cannot load the arch). config.toml left UNTOUCHED until the build is confirmed.
+3. EVO-X2 single-model CONVERGENCE -- DONE 2026-06-08 1029 (changelog/roadmap M6;
+   handoff handoff_persona_20260608_1029.md). Built llama.cpp b9219 from source for
+   Vulkan (prereq spirv-headers), symlinked llama_cpp/build, swapped config.toml
+   [linux] -> Qwen3.6 (committed+pushed from EVO-X2), archived Instruct-2507,
+   live-validated. PERSONA_CTX kept at 32768 (the 96 GB box shows ~62 GiB system RAM
+   -- BIOS iGPU carve-out -- so no ctx increase; full offload fits VRAM). Single model
+   now on every host. See "EVO-X2 state" above.
 4. MODEL PROVISIONER P3/P4 (Phase 0.5; design + P1 + P2 done -- see
    docs/model_provisioner_design_20260607_2158.md). P3: huggingface_hub downloader
    (base GGUF + mmproj), license/disk preflight, write pick into config.toml; P4:

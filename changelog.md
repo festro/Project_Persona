@@ -14,6 +14,43 @@ Conventions:
 
 ---
 
+## 2026-06-08 1029 PDT -- EVO-X2 single-model convergence: Qwen3.6 live on b9219 Vulkan (Brandon + Claude)
+
+- MILESTONE: EVO-X2 (Daemonic-evox2, Strix Halo) converged to the single model
+  Qwen3.6-35B-A3B-UD-Q5_K_XL, completing the 2026-06-07 "single model everywhere"
+  directive. Done over SSH (relay). config.toml [linux] PERSONA_MODEL swapped off
+  Instruct-2507; Instruct-2507 moved to models/archive/ as rollback. Committed +
+  PUSHED from EVO-X2 (milestone, not an exception).
+- llama.cpp BUMP (the gate): EVO-X2's old build was stale/broken (Apr-1 binary,
+  missing libmtmd.so.0, < b8770 so no qwen3_5_moe arch). Built fresh from a clean
+  clone at tag b9219 with -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release; symlinked
+  llama_cpp/build -> ~/src/llama.cpp/build (old tree moved to llama_cpp/build.stale.*).
+  manage.py resolves it via the default llama_cpp/build/bin path; no config edit.
+- BUILD DEP (new, Ubuntu 24.04): the Vulkan configure needs the SPIRV-Headers CMake
+  package -- `sudo apt-get install -y spirv-headers spirv-tools`. Without it,
+  ggml/src/ggml-vulkan/CMakeLists.txt fails find_package(SPIRV-Headers). cmake 3.30.5,
+  gcc 13.3, vulkan-dev 1.3.275, glslc were already present. Recorded in
+  docs/llama_build_matrix.md.
+- COSMETIC: `--depth 1` shallow clone makes llama-server --version report
+  `version: 1 (45b455e)` -- the build NUMBER can't be counted from a shallow tree.
+  45b455e IS tag b9219 (clean git describe). Functionally b9219; only the mesh
+  metadata string is affected. Fix later via full clone or -DLLAMA_BUILD_NUMBER=9219.
+- VALIDATED LIVE on EVO-X2: llama-server loads qwen3_5_moe (old build could not),
+  /health green; API /health green on the refreshed native venv (py3.12.3,
+  embedder_ok fastembed + chroma_ok true); default /chat returns coherent persona
+  answers (Daemonic voice + 2-part format); messages path (PERSONA_USE_MESSAGES=1)
+  returns server reasoning_content with sanitizer_applied=false -> T2.4 live-proven
+  on EVO-X2 too.
+- TUNABLE (finding): with thinking ON (messages path / enable_thinking), the default
+  PERSONA_MAX_TOKENS=192 STARVES the answer -- the CoT consumes the whole budget and
+  text comes back empty. Needs >= ~4096 (at 4096 the reasoning concluded and a full
+  answer emitted). Default raw path (messages OFF) is unaffected; persona stays short.
+- VARIANCE (watch): the raw /completion path occasionally returns an empty/unusable
+  reply -> sanitize_persona_reply emits its placeholder ("I can help with local,
+  offline assistance..."). Intermittent (2 of 3 retries were clean); matches the
+  documented advisory-/think variance. Not a defect.
+- EVO-X2 left running steady-state: Qwen3.6, messages OFF (default), API+llama up.
+
 ## 2026-06-08 0856 PDT -- T2.4 verified Windows-side + offline self-test now logs (Brandon + Claude)
 
 - CANONICAL VALIDATION: Brandon ran tests/test_api_offline.py on the portable 3.11.9
