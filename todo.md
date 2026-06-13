@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-08 1029 PDT by Claude
+Last updated: 2026-06-12 2311 PDT by Claude
 
 ## Rules of the road
 
@@ -14,6 +14,20 @@ Last updated: 2026-06-08 1029 PDT by Claude
   its phase/track IDs; do not restate them.
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
+
+## Just finished (2026-06-12, Claude)
+
+- PHASE 8 HERMES STARTED -- T1 close-out + H1 DONE (changelog 2311; handoff
+  handoff_persona_20260612_2311.md). hermes-agent v0.16.0 installed on EVO-X2 (isolated/
+  portable: uv + CPython 3.11.15 + pinned editable clone ~/src/hermes-agent@9b1e0d6f in
+  env_hermes/; no global mutations). H1 validated against v0.16.0: HERMES_HOME->profile
+  dir, model.sampling.* + tools.disabled valid; profile config.yaml migrated 0->28
+  (safe-config preserved), committed 70d7fb2. Egress off via 4 layers (tools.disabled +
+  API-key-gating + terminal.backend=local + browser.allow_private_urls=false). KEY
+  FINDINGS: (a) Hermes = NousResearch full agent, installs via install.sh/uv NOT pip --
+  setup_native_stack.sh needs updating; (b) Linux-only (WSL2), so Hermes node = EVO-X2;
+  (c) Hermes has its OWN kanban+dispatcher -> H2 must decide native-kanban vs bridge
+  taskboard.py.
 
 ## Just finished (2026-06-08, Claude)
 
@@ -440,9 +454,10 @@ live-host test manage.py up/down (Win Vulkan + Linux), then dependency tiers
 
 ## Blocked / waiting
 
-- Hermes adoption (H1-H6) -- gated on single-model migration; M5 done, M2b passed.
-  Confirm M6 before starting H1. H1 also now owns the config.yaml schema
-  validation (Next #2).
+- Hermes adoption: M6 + T1 close-out + H1 ALL DONE 2026-06-12 (hermes-agent v0.16.0
+  on EVO-X2; config validated + migrated). NEXT = H2: decide whether to ride Hermes'
+  NATIVE kanban (HERMES_KANBAN_*) + dispatcher or bridge to taskboard.py, then wire
+  Hermes to claim + execute work. NOT blocked.
 - T4 deferred/opt-in items (dual-memory unification, vision, MTP / speculative
   decoding) -- each has a documented trigger; none active.
 - TODO #36 -- re-evaluate Qwen3.5/3.6 maturity after ~2026-08 (separate from the

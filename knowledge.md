@@ -180,9 +180,14 @@ construction (model pinned to the local llama-server, no cloud fallback, all
 auxiliary tasks routed to the local main model, egress tools disabled, Qwen3.6
 per-mode sampling). It is git-tracked (no secrets; Hermes secrets live in a
 separate `.env`). `doctor.sh` validates the default profile's `config.yaml`
-against the safe-config schema as the T1 acceptance gate. Exact Hermes key paths
-for `model.sampling` and `tools.disabled` are schema-provisional pending H1
-validation against the installed hermes-agent.
+against the safe-config schema as the T1 acceptance gate. H1 VALIDATED 2026-06-12
+against the installed hermes-agent v0.16.0: `model.sampling.default/thinking` and
+`tools.disabled` are valid key paths (parsed verbatim), and `HERMES_HOME` resolves
+config to the profile dir. The config was migrated in place to schema version 28
+(additive; safe-config preserved). Egress is off via four independent layers:
+`tools.disabled` + egress tools being API-key-gated (no provider keys set) +
+`terminal.backend: local` + `browser.allow_private_urls: false` (+ coarse
+`agent.disabled_toolsets`). See changelog 2026-06-12 2311.
 
 ## Operational notes
 
@@ -293,10 +298,17 @@ legacy `~/Live/AIStack/` workspace; Project_Persona should eventually own a clea
 Git-rooted venv. Not blocking.
 
 Hermes runs in its own isolated `env_hermes/` venv (gitignored, same isolation
-pattern as `env_webui/`), created by `setup_native_stack.sh` (SKIP_HERMES=1 to
-skip). This keeps Hermes' dependency tree off the API venv. The daemon that
-launches Hermes must set `HERMES_HOME` to the active profile dir and must never
-inherit cloud credentials (see the egress handoff, Appendix A).
+pattern as `env_webui/`). This keeps Hermes' dependency tree off the API venv. The
+daemon that launches Hermes must set `HERMES_HOME` to the active profile dir and must
+never inherit cloud credentials (see the egress handoff, Appendix A).
+INSTALL (corrected 2026-06-12): hermes-agent = NousResearch/hermes-agent (MIT), a full
+agent (TUI/gateway/skills/memory/MCP/cron/subagents) with its OWN kanban + dispatcher.
+It does NOT install via `pip install hermes-agent` (the old setup_native_stack.sh path,
+now wrong) -- use install.sh OR the portable path proven on EVO-X2: `uv venv env_hermes
+--python 3.11` + `uv pip install -e ~/src/hermes-agent[all,dev]` from a pinned clone
+(isolated, no global mutations). Native Windows is UNSUPPORTED (WSL2 only) -> the Hermes
+node is EVO-X2. ARCH NOTE (H2): Hermes' native kanban (`HERMES_KANBAN_*`) likely
+supersedes / should bridge the project's `taskboard.py` for agent work.
 
 ## Architecture roadmap
 

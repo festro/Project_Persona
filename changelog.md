@@ -14,6 +14,37 @@ Conventions:
 
 ---
 
+## 2026-06-12 2311 PDT -- Phase 8 Hermes: T1 close-out (env_hermes) + H1 config validated (Brandon + Claude)
+
+- MILESTONE: Phase 8 H-track started. hermes-agent INSTALLED on EVO-X2 and H1
+  (config schema validation) PASSED. Done over SSH (relay).
+- WHAT HERMES IS (corrects the repo): NousResearch/hermes-agent (MIT), a full agent
+  (TUI, messaging gateway, skills, memory, MCP, cron, subagents) + its OWN kanban +
+  worker dispatcher. Drives any OpenAI-compatible endpoint -> points at the persona
+  :8090/v1. NOT a `pip install hermes-agent` package: installs via install.sh OR uv
+  editable. Native Windows unsupported (WSL2 only) -> Hermes node = EVO-X2 (Linux).
+- INSTALL (portable, per Brandon's directive): isolated + pinned, no global mutations.
+  uv 0.11.19 (user-local ~/.local/bin); clone ~/src/hermes-agent pinned at 9b1e0d6f;
+  `uv venv env_hermes --python 3.11` (uv fetched CPython 3.11.15); `uv pip install -e
+  ~/src/hermes-agent[all,dev]` into env_hermes. Verified: hermes-agent v0.16.0,
+  OpenAI SDK 2.24.0. node v18.19.1 already present (TUI). T1 close-out done:
+  env_hermes/bin/python exists -> manage.py detection satisfied.
+  scripts/setup_native_stack.sh still uses the WRONG `pip install hermes-agent` --
+  needs updating to this flow.
+- H1 VALIDATED against v0.16.0 (all three key paths): HERMES_HOME -> profile dir
+  (`config path` resolved to persona/profiles/default/config.yaml); model.sampling.
+  default/thinking (all 5 keys) parsed verbatim; tools.disabled egress list preserved
+  + valid (config check: no Required missing). Config MIGRATED in place 0 -> 28
+  (additive; model/sampling/tools.disabled/security all preserved). Committed +
+  pushed from EVO-X2 (70d7fb2).
+- EGRESS POSTURE (defense in depth, all confirmed): tools.disabled list +
+  egress tools are API-key-gated (no EXA/TAVILY/BROWSERBASE keys set -> off) +
+  terminal.backend=local + browser.allow_private_urls=false + agent.disabled_toolsets.
+- ARCHITECTURE NOTE for H2-H6: Hermes ships its own kanban (HERMES_KANBAN_HOME/BOARD/
+  DB/WORKSPACES_ROOT) + dispatcher. The Phase 8 "Hermes pulls from OUR Task Board
+  (taskboard.py)" plan should ride Hermes' native kanban, or bridge the two -- revisit
+  at H2.
+
 ## 2026-06-08 1029 PDT -- EVO-X2 single-model convergence: Qwen3.6 live on b9219 Vulkan (Brandon + Claude)
 
 - MILESTONE: EVO-X2 (Daemonic-evox2, Strix Halo) converged to the single model
