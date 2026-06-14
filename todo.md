@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-14 1535 PDT by Claude (mesh sec 5b eviction+node_id; Phase 10 runner; roadmap renumbered; pidfile pushed aa145fa)
+Last updated: 2026-06-14 1655 PDT by Claude (SESSION CLOSE: handoff_persona_20260614_1655.md; local 2eb8c94, origin aa145fa)
 
 ## Rules of the road
 
