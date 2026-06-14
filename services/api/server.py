@@ -1232,6 +1232,10 @@ async def health():
         "rag_kinds_for_chat": sorted(list(RAG_KINDS_FOR_CHAT)),
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
         "task_store": {"db": TASKS_DB, "count": taskboard.count()},
+        "delegate": {
+            "default_assignee": os.getenv("DELEGATE_DEFAULT_ASSIGNEE", "default"),
+            "default_tenant": os.getenv("DELEGATE_DEFAULT_TENANT", "persona"),
+        },
     }
 
 
@@ -1318,6 +1322,38 @@ async def get_job(job_id: str):
     if not job:
         return {"status": "not_found"}
     return job
+
+
+# H2 bridge: delegate a unit of work to the Hermes kanban (executed by a Hermes
+# worker on EVO-X2, mirrored back by tools/hermes_bridge.py). Unlike /agent/run
+# this does NOT execute taskman2 -- it only writes a "delegated" Task Board row.
+# The bridge picks up delegated rows, creates the Hermes card, and mirrors the
+# outcome back into this same row (statuses: delegated -> running -> ok|error|
+# timeout|blocked). See docs/h2_bridge_design_20260613_0204.md.
+DELEGATE_DEFAULT_ASSIGNEE = os.getenv("DELEGATE_DEFAULT_ASSIGNEE", "default")
+DELEGATE_DEFAULT_TENANT = os.getenv("DELEGATE_DEFAULT_TENANT", "persona")
+
+
+@app.post("/agent/delegate")
+async def agent_delegate(payload: dict):
+    title = str(payload.get("title") or "").strip()
+    if not title:
+        return JSONResponse(status_code=400, content={"error": "title_required"})
+    job_id = str(payload.get("job_id") or payload.get("task_id") or f"delegate-{uuid.uuid4().hex[:12]}")
+    existing = taskboard.task_get(job_id)
+    if existing is not None:
+        return JSONResponse(status_code=409, content={"error": "job_exists", "job_id": job_id})
+    state = taskboard.task_set(job_id, {
+        "status": "delegated",
+        "kind": "hermes_delegate",
+        "title": title,
+        "body": str(payload.get("body") or ""),
+        "assignee": str(payload.get("assignee") or DELEGATE_DEFAULT_ASSIGNEE),
+        "tenant": str(payload.get("tenant") or DELEGATE_DEFAULT_TENANT),
+        "priority": int(payload.get("priority", 2)),
+        "delegated_at": int(time.time()),
+    })
+    return {"status": "delegated", "job_id": job_id, "job": state}
 
 
 @app.get("/v1/models")

@@ -141,6 +141,46 @@ completion time. Schema carries Tenacity-style failure-semantics columns
 worker recovery. Status enum: QUEUED, CLAIMED, RUNNING, VALIDATING, READY,
 SURFACED, FAILED.
 
+Hermes bridge (`tools/hermes_bridge.py`, Phase 8 H2). The Task Board stays the
+canonical board the persona surfaces; Hermes' own kanban is the execution
+substrate for delegated work. `POST /agent/delegate` writes a `delegated` row
+(no taskman2 run); the bridge (loopback, on EVO-X2) creates the Hermes card via
+`hermes kanban create --json`, then mirrors the outcome back onto the same row
+(`delegated -> running -> ok|error|timeout|blocked`) by reading
+`hermes kanban show --json`. Transport is Hermes' public CLI, never raw kanban.db
+writes; Hermes owns retry/circuit-breaker. Design + open questions:
+`docs/h2_bridge_design_20260613_0204.md`.
+
+Bridge validated LIVE in WSL 2026-06-13 (everything-in-WSL: llama 1.5B + API +
+Hermes + bridge). The full chain works; integration constraints learned (apply on
+EVO-X2; the sub-64K overrides are sim-only):
+- Hermes resolves the "default" kanban assignee's HERMES_HOME to the ROOT (the dir
+  holding `profiles/`), reading `<root>/config.yaml` -- NOT
+  `profiles/default/config.yaml`. Seed `<root>/config.yaml` for the default
+  assignee, or use NAMED profiles (`profiles/<name>/`) which Hermes resolves directly.
+- Hermes enforces >=64K context on the MAIN model AND every auxiliary model
+  (compression/decomposer/...), each detected separately; override per-model with
+  `model.context_length` + `auxiliary.<name>.context_length` for smaller models.
+- The served `PERSONA_CTX` is split across `PERSONA_PARALLEL` slots (per-slot =
+  CTX/PARALLEL); a Hermes worker prompt is ~20k+ tokens, so it needs one large slot
+  (`PERSONA_PARALLEL=1` or a big CTX).
+- Pin `HERMES_KANBAN_HOME` so dispatcher + bridge share one board.
+- The worker must drive a tool-calling agent loop (kanban_show/complete); a 1.5B
+  model fails (0 tool calls). Use a capable model -- EVO-X2's Qwen3.6-35B is the
+  target Hermes' 64K floor is built for. For a WSL completion check without the 35B,
+  the committed per-host config `run/config.daemonic-pc.toml` selects a tool-calling
+  small model (Qwen2.5-7B-Instruct-Q4_K_M, Apache-2.0; ctx 32K, PERSONA_PARALLEL=1)
+  -- NOT a clone patch (see the per-host config note below). `wsl_h2_sim.ps1 -Stage
+  model -PersonaModel <gguf> -ModelUrl <url>` only caches the gguf + reloads.
+  Reproducible harness: `scripts/wsl_h2_sim.ps1` + `docs/wsl_h2_runbook_20260613_0311.md`.
+  PROVEN 2026-06-13: the 7B drives the tool loop the 1.5B couldn't, but on CPU it is
+  ~15-20 min/turn (re-prefilling the ~22k Hermes orientation prompt at ~18 tok/s),
+  ~1-2h/task. GPU offload is NOT reachable in WSL2 for an AMD card -- WSL2 exposes only
+  /dev/dxg, so RADV (needs /dev/dri) finds nothing and vulkaninfo shows only llvmpipe;
+  the shipped llama.cpp is CPU-only. AMD GPU acceleration belongs on the EVO-X2 (real
+  Ubuntu, /dev/dri, RADV), or a Windows-native llama-server + WSL Hermes split (WSL
+  mirrored networking so model.base_url stays 127.0.0.1 for the safe-config gate).
+
 SQLite stores (`data/`). `conversations.db` holds full turns plus windowing and
 distillation state. `tasks.db` is the Task Board. Both portable with the project
 folder.
@@ -195,6 +235,15 @@ Ports: companion API 8000, unified llama-server 8090 (moved from 8080 on
 2026-05-19 to avoid a host-port collision with an unrelated co-tenant
 container), OpenWebUI 3000 (dormant).
 
+Process liveness (2026-06-14; changelog 1407): a recorded pid is not trusted
+alone -- in WSL it could read dead while /health was still up, so `status` once
+lied ("stale pidfile") and `down` orphaned the live server. manage.py now
+corroborates: resolve_live_pid() trusts the pidfile pid, else if /health is up
+recovers the real pid from a /proc cmdline scan (pids_by_cmdline; Linux/WSL only,
+no-op on Windows). `down` kills the resolved live pid (recovers an orphan with no
+pidfile too); `status` reports the health-corroborated state. Reliable manual
+checks remain /health + `ps ... gguf`; hard hammer `pkill -9 -f llama-server`.
+
 Unified llama-server config: Qwen3.6-35B-A3B-UD-Q5_K_XL, full GPU offload, 4
 parallel slots, q8_0 KV cache, Flash Attention on, `--jinja` (thinking-mode
 chat template). LIVE on Windows / RX 9060 XT (16 GB) this week via manage.py
@@ -211,7 +260,13 @@ PERSONA_MAX_TOKENS=192 default starves the answer (CoT eats the budget) -- raise
 
 Runtime tunables: `run/config.toml` is the primary typed source (base + runtime +
 per-OS overlays), read by manage.py via stdlib tomllib (2026-06-06; changelog
-2028). The legacy `run/llama-servers.env` (llama-server flags), `run/config.env`,
+2028). Per-host differences use a COMMITTED override `run/config.<host>.toml`
+(2026-06-13), merged by manage.py AFTER [base]/[runtime]/[<os>], selected by
+host_tag() (lowercased short hostname; PERSONA_HOST env overrides). Canonical
+[linux] is the EVO-X2 35B target; run/config.daemonic-pc.toml is the CPU-WSL
+exception (Qwen2.5-7B). This keeps the D:\ repo the single source of truth (both
+hosts read committed config; no ephemeral clone patching -- the WSL clone is
+disposable/derived). See `WORKFLOW.md` + `docs/workflow_patterns_review_20260613_2112.md`. The legacy `run/llama-servers.env` (llama-server flags), `run/config.env`,
 and `scripts/start_api.sh` (API vars) remain as the .env fallback path. The
 env-side consolidation that preceded the TOML migration: as of T2.1 (2026-06-05)
 `run/config.env` holds the

@@ -1,0 +1,20 @@
+# Project_Persona -- per-host override for "Daemonic-PC" (Brandon's Windows + WSL2 box).
+#
+# THIS FILE IS THE SOURCE OF TRUTH for what this host runs. It lives in the D:\ repo
+# (committed + pushed), so it survives a Windows reinstall and there is one
+# unambiguous source when the project moves to EVO-X2. manage.py merges it AFTER
+# [base]/[runtime]/[linux] when host_tag() == "daemonic-pc" (socket hostname, lowered;
+# override with the PERSONA_HOST env var). The canonical run/config.toml [linux] stays
+# the EVO-X2 / production target (Qwen3.6-35B); this file is the CPU-WSL exception:
+# a small tool-calling model that fits CPU. See WORKFLOW.md + handoff 2112 / changelog.
+#
+# WSL here is CPU-only (no GPU; see knowledge.md). 7B caps at 32K ctx (no YaRN), so
+# PERSONA_PARALLEL=1 gives the whole context to one slot for the ~22k Hermes prompt.
+
+[base]
+PERSONA_PARALLEL = 1
+
+[linux]
+PERSONA_MODEL = "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+PERSONA_CTX = 32768
+GPU_LAYERS_PERSONA = 0

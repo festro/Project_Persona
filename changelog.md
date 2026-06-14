@@ -14,6 +14,387 @@ Conventions:
 
 ---
 
+## 2026-06-14 1407 PDT -- manage.py WSL stale-pidfile robustness fix (D closed) (Claude)
+
+- ROOT CAUSE: in WSL the recorded pid could read dead (pid_alive False) while the
+  server's /health was still up -> status lied ("stale pidfile") and `down` orphaned
+  the live server (stop_named saw the dead pid, deleted the pidfile, and walked away).
+  This was the stale-server trap noted in handoff 0014 / todo.
+- FIX (manage.py): added http_health_up(url) (reuses http_get_json), pids_by_cmdline(
+  needles) (dependency-free /proc cmdline scan; Linux/WSL only, [] on Windows), and
+  resolve_live_pid(pid, health_url, needles) -- trusts the recorded pid, else if /health
+  is up recovers the REAL pid from the process table.
+- stop_named() now takes (health_url, needles) and kills the resolved live pid instead
+  of just unlinking the pidfile; recovers even a fully orphaned server (no pidfile but
+  /health up). cmd_down passes per-service markers: api -> :8000 /health + "server:app";
+  persona -> :PERSONA_PORT /health + ["llama-server","--port <port>"]. Aux servers
+  (scientist/reasoning/coder/persona_win) keep prior behavior (back-compat defaults).
+- cmd_status() now corroborates pid with /health: flags "running but /health down" and
+  the WSL trap ("/health UP on real pid N; pidfile pid M stale") instead of a bare
+  "stale pidfile". Windows path unchanged (scan returns [] -> existing behavior).
+- TEST: tests/test_manage_pid.py (new, stdlib, offline) -- 11 checks monkeypatching
+  pid_alive/http_health_up/pids_by_cmdline/terminate_pid: resolve_live_pid (4 cases) +
+  stop_named (stale-but-up, dead+down, orphan, normal). GREEN on portable 3.11.9 11/11;
+  test_api_offline.py also re-confirmed 84/84.
+- LIVE CONFIRM (WSL, Daemonic-PC 7B, 1427): scripts/verify_pid_recovery.sh (new,
+  reusable on any Linux host) started the real 7B (pid 480), injected a stale pid (517),
+  and proved status surfaced "/health UP on real pid 480" and `down` killed the REAL pid
+  480 with NO orphan left on :8090. The bug class is closed in practice, not just in unit
+  logic. Run: PERSONA_HOST=daemonic-pc bash scripts/verify_pid_recovery.sh.
+- All local; nothing pushed yet.
+
+## 2026-06-14 0014 PDT -- Session close: workflow keep/pass merged to AGENTS.md/WORKFLOW; handoff (Brandon + Claude)
+
+- Keep/pass catalogue (docs/workflow_patterns_review_20260613_2112.md) finalized and
+  merged into the official files: D:\Projects\AGENTS.md gained a "How to run a session"
+  section (one-command-then-read loop, ground-in-logs, verify-runtime, concise,
+  AskUserQuestion discipline, USE+MAINTAIN the TaskCreate widget incl. side tangents,
+  record negative results, PowerShell native-stderr, git push cadence); project
+  WORKFLOW.md carries the source-of-truth/sync + per-host config + WSL gotchas.
+  Decisions: #7 (preamble) PASS; #12 (task widget) KEEP -- maintain it, useful for
+  tangents (Brandon); #15 clarified (git push = milestones; local WSL<->D:\ sync is the
+  frequent redundancy, separate mechanism); #18 done (per-host config).
+- Connected D:\Projects to edit the cross-project AGENTS.md (revised stamp 2026-06-14).
+- Session-close handoff: archive/handoffs/handoff_persona_20260614_0014.md.
+- All local; nothing pushed. NEXT = commit+push (Windows-side), then EVO-X2 Exit Gate.
+
+## 2026-06-13 2340 PDT -- Source-of-truth model finalized + bidirectional sync + revalidated (Brandon + Claude)
+
+- SOURCE-OF-TRUTH MODEL (Brandon, final): GitHub origin/main = durable backstop;
+  WSL clone = PRIMARY dev/run surface (closest to the EVO-X2 target); D:\ repo =
+  REDUNDANT copy + Windows multi-platform testbed + git gateway to origin (holds the
+  only .git; survives Windows reinstall on the D: drive). Keep BOTH folders synced.
+  Supersedes the 2205 "D:\ is the single source of truth" framing. Memory updated
+  (project-persona-source-of-truth); review doc section 0 + WORKFLOW pending merge.
+- scripts/wsl_h2_sim.ps1: new "pullback" stage (reverse sync WSL -> D:\ via rsync;
+  -Prune for --delete) so WSL-primary work flows back to the durable D:\ copy.
+  Protects .git, models/, env*, llama_cpp/, portable/, runtime (Windows-only + heavy
+  artifacts never touched). Forward "sync" (D:\ -> WSL) unchanged. Direction is manual
+  (whoever changed last pushes to the other).
+- REVALIDATION after the per-host-config refactor + source-of-truth churn: -Stage sync
+  carried the new manage.py + config.daemonic-pc.toml into the clone and reconciled its
+  stale patched config.toml; -Stage model/up showed host_config=config.daemonic-pc.toml,
+  model=Qwen2.5-7B, /health ok; -Stage smoke sim-004 / t_f9c45966 reached status="ok"
+  (~26 min) with summary mirrored + finished_at + worker_session_id. Nothing broke; the
+  committed per-host path is equivalent to the old clone patch.
+- KNOWN ISSUE (pre-existing, not from this change): manage.py status reports persona/api
+  pidfiles "stale/not alive" even when both /health respond -- the pidfile pid doesn't
+  match the real process in WSL. Cosmetic for runs (smoke checks /health), but it is the
+  mechanism behind the stale-server trap (down may miss the server). Reliable checks:
+  /health + `ps ... gguf`; force-kill with pkill -9 -f llama-server. Robustness fix owed.
+
+## 2026-06-13 2205 PDT -- Source-of-truth amendment: committed per-host config (Brandon + Claude)
+
+- AMENDMENT (Brandon): the D:\ repo is the SINGLE SOURCE OF TRUTH and durable store
+  (D: drive + git remote survive a Windows reinstall); the WSL clone lives on C: and
+  is disposable/derived. No authored work may live only in the clone; per-host
+  differences must be COMMITTED host-aware config in D:\, not an ephemeral clone patch.
+  Recorded in memory (project-persona-source-of-truth) + the keep/pass review doc.
+- IMPLEMENTED (Option A, host-selected per-host config files):
+  - manage.py: host_tag() (lowercased short hostname; PERSONA_HOST env overrides) +
+    _merge_host_overrides() merges run/config.<host>.toml AFTER [base]/[runtime]/[<os>];
+    `status` prints host_config=... when one applies.
+  - run/config.daemonic-pc.toml (COMMITTED, tracked): Windows+WSL2 box override
+    (Qwen2.5-7B-Instruct-Q4_K_M, ctx 32768, PERSONA_PARALLEL=1, ngl 0). Canonical
+    run/config.toml [linux] stays the EVO-X2 35B target, so EVO-X2 needs no file.
+  - wsl_h2_sim.ps1: the "model" stage NO LONGER patches the clone's config.toml (the
+    7B-vs-35B clone divergence is retired). It only caches the gguf
+    (-PersonaModel/-ModelUrl), reloads, and prints the effective merged config.
+    Dropped -PersonaCtx/-PersonaParallel (now owned by the committed per-host file).
+  - .gitignore: noted run/config.toml + run/config.<host>.toml are tracked source of
+    truth (no broad run/*.toml ignore).
+  - Verified off-mount: daemonic-pc merges to 7B/parallel=1/ngl=0; a host with no
+    override file stays canonical 35B.
+- ADOPTION: run wsl_h2_sim.ps1 -Stage sync once (carries the updated manage.py +
+  config.daemonic-pc.toml into the clone), then -Stage up; confirm `status` shows
+  host_config=config.daemonic-pc.toml and model=Qwen2.5-7B. Local edits only.
+
+## 2026-06-13 2112 PDT -- Phase 8 track C COMPLETE: WSL-green, literal ok+summary (Brandon + Claude)
+
+- MILESTONE (WSL-green achieved): self-contained task sim-003 / t_ad33008e finished
+  status="ok", card "done", run #24 completed in 1618s (~27 min) on the CPU 7B. The
+  bridge mirrored the terminal state back to /jobs WITH the agent's summary
+  ("The task-board bridge receives tasks from a delegating API, breaks them down...
+  reports back ... upon completion."), finished_at + worker_session_id recorded. Full
+  chain proven on a capable model: delegate -> bridge create -> dispatch -> spawn ->
+  agent tool loop -> kanban_complete -> ok+summary mirrored. This is the de-risking
+  milestone; the real H2 Exit Gate (ok+summary on EVO-X2 35B w/ GPU + egress-off) is
+  unchanged. Confirms sim-002's "blocked" was correct agent behavior (bad path), not a
+  defect: ok and blocked both mirror correctly via mirror_outcomes.
+- Track C net: model-swap support + the 7B WSL completion are done. NEXT = EVO-X2 35B
+  (handoff 1504 section B) and the A-track Windows confirm+commit.
+
+## 2026-06-13 1957 PDT -- Phase 8 track C: 7B ran the FULL tool loop; bridge mirrored a terminal state (Brandon + Claude)
+
+- KEY RESULT: the 7B worker drove the complete Hermes tool-calling loop on sim-002 /
+  t_8325c4dc -- worker log shows kanban_show -> read(<file>) -> kanban_block. It
+  reached a TERMINAL Hermes state and the bridge mirrored it back to /jobs as
+  status="blocked" with block_reason "File not found: h2_bridge_design_..md". That is
+  a full, correct end-to-end cycle (delegate -> real multi-tool execution -> terminal
+  state -> mirrored with reason). The 1.5B never made a single tool call; the 7B made
+  several and self-blocked correctly. Bridge + capable-model tool loop = PROVEN.
+- The "blocked" (not "ok") is a TASK/workspace detail, not a bridge/model defect:
+  Hermes runs the worker in an isolated scratch workspace
+  (run/hermes_kanban/kanban/workspaces/t_8325c4dc, empty), so the repo-relative path
+  "docs/h2_bridge_design_..md" resolved inside that empty dir -> not found. The agent
+  correctly blocked instead of hallucinating. "ok" mirrors via the same
+  mirror_outcomes path; banking a literal green ok needs a self-contained (no-file)
+  task -- re-run queued as sim-003.
+- Net: track C de-risk goal fully met. Remaining gap to a literal ok+summary is a
+  task-design tweak; the real ok+summary Exit Gate still belongs on EVO-X2 (GPU).
+
+## 2026-06-13 1945 PDT -- Phase 8 track C: 7B drives the loop on CPU; WSL+AMD has no GPU; diagnostics added (Brandon + Claude)
+
+- RESULT (bridge re-proven with a CAPABLE model): swapped the WSL sim to
+  Qwen2.5-7B-Instruct-Q4_K_M and ran delegate -> bridge create -> dispatch -> spawn
+  -> mirror. Job sim-002 / card t_8325c4dc: claimed (run 23), spawned (pid 7384),
+  heartbeating, status mirrored to /jobs. The 7B DRIVES the agent tool loop -- it
+  completed turn 1 (generated tokens) and advanced to turn 2 -- which the 1.5B never
+  did (0 tool calls). Track C's de-risk goal (a capable model exercises the bridge's
+  tool loop end to end) = MET.
+- THROUGHPUT (from logs/persona.log): pure CPU, ~18 tok/s prefill. Each agent turn
+  re-prefills the ~22k-token Hermes orientation prompt (prompt-cache miss, sim~0.19)
+  = ~15-20 min PER TURN; llama-server pegged at ~1200% CPU. A full task is ~1-2h on
+  CPU. Functional, not practical -- completion is throughput-gated, not a defect.
+- GPU OFFLOAD NOT AVAILABLE IN WSL2 FOR THIS AMD CARD (caps probe): /dev/dxg present
+  but vulkaninfo enumerates ONLY llvmpipe (software, deviceType CPU). RADV
+  (radeon_icd) needs /dev/dri, which WSL2 does not expose; Mesa Dozen did not bring
+  up a device. The shipped llama.cpp is a CPU-only build (--list-devices empty).
+  => GPU completion belongs on EVO-X2 (Strix Halo, real Ubuntu, /dev/dri, RADV) =
+  the H2 Exit Gate target anyway; or a future Windows-native llama-server + WSL
+  Hermes split via mirrored networking. DECISION (Brandon): let the CPU 7B finish
+  this run for a WSL completion; GPU stays on EVO-X2.
+- scripts/wsl_h2_sim.ps1 hardening this session: stream WSL output live (per-line,
+  was buffered via Out-String) so long stages show progress; wrap the native wsl
+  call in ErrorActionPreference=Continue (curl/native stderr no longer throws
+  NativeCommandError under -ErrorAction Stop); curl --no-progress-meter; timestamp
+  each smoke/mirror tick; new "logs" stage (tails WSL persona/api/worker logs into
+  logs/wsl_h2_sim.log) and "caps" stage (GPU/Vulkan/llama-backend probe); the
+  "model" stage now tears the stack down after patching so 'up' reloads the new
+  model (manage.py up skips a live server -- this bit us: a stale 1.5B server kept
+  serving until force-killed).
+- Local edits only, nothing pushed.
+
+## 2026-06-13 1617 PDT -- Phase 8 track C: WSL sim model-swap support (Qwen2.5-7B-Instruct) (Brandon + Claude)
+
+- scripts/wsl_h2_sim.ps1: added a sim-model override so the WSL run can use a
+  tool-calling-capable small model instead of the 1.5B that could not drive
+  Hermes' tool loop. New params -PersonaModel / -PersonaCtx / -PersonaParallel /
+  -ModelUrl; new "model" stage (runs after sync, before setup in the all-pipeline).
+  The stage fetches the GGUF into the WSL clone's models/ (curl -fL -C -, resumable;
+  only if absent) and patches the WSL clone's run/config.toml in place -- table-aware:
+  [linux] PERSONA_MODEL/PERSONA_CTX and [base] PERSONA_PARALLEL only; [windows] and
+  the D:\ repo config.toml are left untouched (35B stays the real EVO-X2 target).
+  Override is sim-only and lives in the WSL clone. Header log now records the model.
+- Recommended model: bartowski/Qwen2.5-7B-Instruct-GGUF, Qwen2.5-7B-Instruct-Q4_K_M.gguf
+  (4.68 GB, single file, Apache-2.0 -- OSI-open, fits the model-license default). Ships
+  the Qwen2.5 tool-calling chat template, which is what manage.py's llama-server --jinja
+  needs to surface tool calls.
+- Caveat recorded: Qwen2.5-7B native context caps at 32K (128K only with YaRN). Run
+  PERSONA_PARALLEL=1 so the full 32K is one KV slot for the ~22k worker prompt; the
+  profiles stage still declares context_length=65536 to Hermes (its >=64K gate) -- that
+  declared value is decoupled from the 32K llama-server serves, fine as long as a single
+  request stays under 32K.
+- Patcher verified off-mount (sample config.toml round-trips through tomli: linux model
+  swapped, base parallel=1, windows untouched). No change to default behavior when
+  -PersonaModel is omitted (ctx/parallel guards skip on "0").
+- Local edit only, nothing pushed. NEXT = Brandon runs the staged WSL flow with the swap.
+
+## 2026-06-13 1504 PDT -- Session close: consolidating handoff + log moved to logs/ (Brandon + Claude)
+
+- Session-close handoff: archive/handoffs/handoff_persona_20260613_1504.md -- full arc
+  (carried fix-its -> H2 bridge decision -> H2a design -> H2b/H2c code -> real-shape
+  reconcile -> WSL live validation), current state, and the EVO-X2 Exit-Gate next steps.
+- scripts/wsl_h2_sim.ps1: log path moved run/ -> logs/wsl_h2_sim.log (designated logs
+  dir); .gitignore + doc refs updated. Orphan run/wsl_h2_sim.log can be deleted.
+- All local commits, nothing pushed.
+
+## 2026-06-13 1458 PDT -- Phase 8 H2d: bridge VALIDATED live in WSL (completion model-gated) (Brandon + Claude)
+
+- MILESTONE: the H2 bridge ran end to end on Windows WSL2 (everything-in-WSL:
+  llama qwen2.5-1.5b + persona API + Hermes v0.16.0 + tools/hermes_bridge.py, all
+  on the WSL native fs). PROVEN live: POST /agent/delegate -> bridge creates the
+  Hermes card (hermes_task_id recorded) -> dispatcher CLAIMS -> SPAWNS worker ->
+  worker runs the real agent (connects to persona :8090/v1, gets task+orientation)
+  -> terminates -> bridge MIRRORS every state (delegated->running->error/blocked)
+  back into /jobs with attempts/started_at/finished_at. Correlation + idempotent
+  create + lifecycle mirror all confirmed against the REAL Hermes, not a fake CLI.
+- COMPLETION NOT reached, by design of the sim model: the 1.5B can't drive Hermes'
+  tool-calling loop -- worker log showed "Messages: 2 (1 user, 0 tool calls)" and
+  "I'm sorry, I can't continue" (it never calls kanban_show()/kanban_complete()).
+  Model-capability floor, NOT a bridge defect. The real target (EVO-X2 Qwen3.6-35B,
+  which Hermes' >=64K-context requirement is built for) is expected to complete.
+- INTEGRATION FINDINGS (all live-confirmed; critical for EVO-X2):
+  1. Hermes resolves the "default" kanban assignee's HERMES_HOME to the ROOT
+     (<root>=persona), reading <root>/config.yaml -- NOT persona/profiles/default/
+     config.yaml. The project's "profile dir = HERMES_HOME" convention collides;
+     FIX applied: seed persona/config.yaml from the default profile (or use NAMED
+     profiles, which map to persona/profiles/<name>/ as Hermes expects).
+  2. Hermes enforces >=64K context on the MAIN model AND every auxiliary model
+     (compression, decomposer, etc.), each detected separately. Override per-model
+     via model.context_length + auxiliary.<name>.context_length for sub-64K models.
+  3. llama PERSONA_CTX is split across PERSONA_PARALLEL slots (per-slot = CTX/PAR).
+     Hermes' ~22k-token worker prompt needs one large slot -> PERSONA_PARALLEL=1
+     (or raise CTX). At PAR=4/CTX=32768 the 8192/slot 400'd "exceeds context".
+  4. Pin HERMES_KANBAN_HOME so the dispatcher + bridge share one board
+     (run/hermes_kanban/kanban.db); confirmed live.
+  5. setup_native_stack.sh uv Hermes flow + init_profiles + kanban init all worked
+     live on WSL (the carried installer fix is now real-world proven).
+- TOOLING: scripts/wsl_h2_sim.ps1 -- staged WSL orchestrator (preflight/sync/setup/
+  profiles/up/dispatch/smoke/mirror/status/down) that tees clean UTF-8 output to
+  logs/wsl_h2_sim.log (Windows-side). Fixes this session: base64->tempfile transport
+  (heredoc/stdin-safe), $body/$Body case-collision (PS dynamic scope), Out-Null
+  output-swallow, console UTF-8 + ANSI-strip (mojibake), -SkipDeps, context/aux
+  overrides + PARALLEL note baked into the profiles stage, the mirror stage.
+- The sim-only config overrides (context_length lies, PARALLEL=1) are NOT needed on
+  EVO-X2's real 35B model; they exist purely so a tiny CPU model could be exercised.
+- Local commit only (WSL clone is separate; D: repo edits here). git Windows-side.
+
+## 2026-06-13 0423 PDT -- Phase 8 H2: wsl_h2_sim.ps1 transport fixes; preflight+sync green on WSL (Brandon + Claude)
+
+- scripts/wsl_h2_sim.ps1 two fixes after live runs on Daemonic-PC WSL2 (Ubuntu-24.04):
+  (1) QUOTING: Windows PowerShell 5.1 mangled embedded shell quotes crossing PS ->
+  wsl.exe -> bash (a `$(... echo 'absent (..)' ...)` line died with `127`,
+  "syntax error near unexpected token `('"). Fix: base64-encode the expanded bash
+  body in PS and decode in WSL -- `wsl -- bash -lc "echo <b64> | base64 -d | bash"`.
+  Immune to quote/space/newline mangling for every stage. (2) OUTPUT: the stage
+  dispatcher piped Invoke-Wsl to Out-Null (to drop the returned exit int), which also
+  swallowed all WSL stdout. Fix: Invoke-Wsl no longer returns the code; dropped the
+  Out-Null. VERIFIED live: -Stage preflight prints uname/python3.12.3/git/uv-absent/
+  AI_ROOT, -Stage sync tars the tree into ~/Git/Project_Persona. NEXT live step:
+  -Stage setup (llama build + uv Hermes install; WSL can fetch CPython 3.11 unlike the
+  sandbox). Local commit only.
+
+## 2026-06-13 0330 PDT -- Phase 8 H2: WSL sim orchestrator (scripts/wsl_h2_sim.ps1) (Brandon + Claude)
+
+- scripts/wsl_h2_sim.ps1: a staged PowerShell driver for the everything-in-WSL H2
+  sim (companion to docs/wsl_h2_runbook_20260613_0311.md). Stages: preflight | sync
+  (tar the Windows working tree -- incl. uncommitted edits -- into the WSL native fs,
+  excluding .git/models/llama_cpp/venvs) | setup (the updated setup_native_stack.sh,
+  CPU by default, -Gpu to opt into Vulkan) | profiles (init_profiles + kanban init) |
+  up (manage.py up + /health) | dispatch | smoke (POST /agent/delegate -> loop
+  kanban dispatch + hermes_bridge --once -> poll /jobs/<id> to a terminal status) |
+  status | down. Pins HERMES_KANBAN_HOME so the bridge + dispatcher share one board.
+  Params: -Distro -RepoWin -WslRepoRel -Stage -Gpu -SkipHermes -JobId -Title -Body
+  -DispatchTicks -TickSleep. Default `-Stage all` leaves the stack up. Not executed
+  here (Windows/WSL only). Local commit only.
+
+## 2026-06-13 0311 PDT -- Phase 8 H2: real Hermes shapes confirmed + bridge reconciled + WSL runbook (Brandon + Claude)
+
+- DIRECTION (Brandon): stage H2 on Windows WSL2 (everything-in-WSL) before EVO-X2;
+  Hermes is Linux/WSL2-only so WSL faithfully mirrors EVO-X2. Migrate when stable.
+- SANDBOX SOURCE DIVE: cloned hermes-agent v0.16.0 @ 9b1e0d6f in the Ubuntu sandbox
+  (uv 0.11.19 present; full install blocked -- uv could not fetch CPython 3.11, host
+  not allowlisted -- so validated against SOURCE, which is authoritative). Resolved
+  most H2 open questions:
+  * kanban board is SHARED ACROSS PROFILES -- kanban_home() walks HERMES_HOME=
+    <root>/profiles/<name> UP to <root>; default DB = <root>/kanban.db (NOT the
+    profile dir). PIN HERMES_KANBAN_HOME so bridge + dispatcher agree.
+  * `kanban create --json` = bare task dict (.id). `kanban show --json` = WRAPPED
+    {"task":{...}, "latest_summary", "runs":[{outcome,summary,error,metadata,
+    ended_at}], "events":[...]} -- no block_reason/log_path keys; block reason lives
+    in the blocked run's summary/error; tasks.result usually null (handoff = latest
+    run summary). status set: triage/todo/scheduled/ready/running/blocked/review/
+    done/archived. dispatcher: `kanban dispatch` (one pass) or `gateway start`
+    (embedded 60s); standalone --daemon deprecated.
+- BRIDGE RECONCILED (tools/hermes_bridge.py): derive_update now reads the WRAPPED
+  show payload (task.* under "task", top-level "runs", block reason from run
+  summary/error, metadata json-string tolerant, finished_at from ended_at);
+  _COLUMN_MAP updated to the real status set (review->blocked, scheduled->None,
+  +archived). tests/test_hermes_bridge.py updated to the real shapes -- 44/44 ALL
+  PASS off-mount (re-run via heredoc into the sandbox-local fs; the 9p mount served
+  a stale truncated read of the edited files -- known gotcha).
+- WSL RUNBOOK: docs/wsl_h2_runbook_20260613_0311.md -- everything-in-WSL topology,
+  install (updated uv flow), env pinning (HERMES_KANBAN_HOME), dispatcher options,
+  and the delegate->dispatch->mirror smoke that is the H2d gate. Confirmed findings
+  baked into section 0; the design doc's open-questions section updated with
+  RESOLVED/LIVE-CONFIRM status.
+- .gitignore: run/hermes_kanban/ (kanban runtime) + tools/_mount_probe.txt (a probe
+  file the sandbox could not unlink -- DELETE Windows-side: del tools\_mount_probe.txt).
+- STILL LIVE-ONLY (the point of the WSL sim): worker safe-config/egress inheritance,
+  gateway headless footprint, timeout tuning. Local commit only (mid-phase).
+
+## 2026-06-13 0256 PDT -- Phase 8 H2b+H2c: delegate endpoint + hermes_bridge.py (off-mount green) (Brandon + Claude)
+
+- H2b (persona side, services/api/server.py): new POST /agent/delegate writes a
+  Task Board row at status="delegated" kind="hermes_delegate" (title/body/assignee/
+  tenant/priority/delegated_at) and does NOT run taskman2 -- the bridge executes it.
+  Guards: title required (400), duplicate job_id (409). /health gains a "delegate"
+  block (default_assignee/default_tenant; env DELEGATE_DEFAULT_ASSIGNEE/_TENANT).
+  Existing /agent/run inline path untouched.
+- H2b tests (tests/test_api_offline.py): +~10 checks -- delegate returns delegated,
+  row kind/timestamps, did-NOT-run-taskman2, no hermes_task_id yet, missing-title
+  400, dup 409, delegated/blocked statuses round-trip /jobs, /health delegate block.
+  NOT run here (needs the pinned FastAPI chain); py_compile OK off-mount. OWED:
+  Windows-side portable 3.11.9 full-suite run (expect 72 + the new checks all PASS).
+- H2c (tools/hermes_bridge.py, NEW, stdlib-only): the bridge. Pure helpers
+  (map_hermes_status, map_hermes_column, build_create_args, parse_created_id,
+  derive_update) + Flow A enqueue_delegated (create cards for delegated rows lacking
+  an id; idempotent on hermes_task_id; inflight marker for reconcile) + Flow B
+  mirror_outcomes (read `hermes kanban show --json`, map running/ok/error/timeout/
+  blocked + summary/metadata/log_path back) + tick() + a main() polling loop. runner
+  + board are INJECTED for testability; transport = Hermes public CLI, not raw DB.
+- H2c tests (tests/test_hermes_bridge.py, NEW): faked `hermes` CLI + in-memory board.
+  43/43 ALL PASS off-mount (python3, stdlib). Covers the status map, create
+  idempotency (two delegated -> two creates, re-run creates nothing), running/
+  completed/blocked mirroring with summary+metadata+log_path, terminal failure
+  derive, and tick().
+- STILL OWED before H2 Exit Gate: H2d EVO-X2 live wire (the 7 open questions in the
+  design doc -- kanban.db path under HERMES_HOME, --json shapes, headless dispatcher
+  mode, assignee/egress inheritance, tenant scoping, timeouts) + the Windows-side
+  offline-suite confirmation for the server.py change. Design only ran the bridge
+  unit suite live; no model/Hermes touched.
+- Local commit only (mid-phase). Files: server.py, tests/test_api_offline.py,
+  tools/hermes_bridge.py (new), tests/test_hermes_bridge.py (new), knowledge.md.
+
+## 2026-06-13 0204 PDT -- Phase 8 H2a: bridge design doc (taskboard.py <-> Hermes kanban) (Brandon + Claude)
+
+- docs/h2_bridge_design_20260613_0204.md: full design for H2's chosen BRIDGE
+  architecture. taskboard.py / persona /jobs stay canonical; Hermes' native kanban
+  is the execution substrate for delegated work; a one-process bridge on EVO-X2
+  keeps them consistent (loopback only, no new egress).
+- Researched Hermes' kanban from the v0.16.0 docs (tutorial + worker-lanes +
+  overview): lifecycle ready->running->blocked/done/archived, task_runs +
+  task_events tables, kanban_* worker tools, the HERMES_KANBAN_* spawn env, the
+  --json CLI, and the (not-yet-paved) external-worker-lane contract.
+- Key design calls: (a) transport = Hermes PUBLIC surface (`kanban create --json`
+  + `kanban watch/runs --json`) NOT raw DB writes; (b) two new persona statuses
+  "delegated" + "blocked" added additively (existing running|ok|error|timeout
+  untouched); (c) status/field/payload mapping tables; (d) correlation = our
+  job_id <-> hermes_task_id captured at create, merge-idempotent mirroring with a
+  last_event_seq high-water mark + reconcile-on-boot; (e) Hermes owns retry/circuit
+  breaker, the bridge only mirrors outcomes.
+- Implementation plan H2a(done)/H2b(persona delegate entry + status tests,
+  off-mount)/H2c(tools/hermes_bridge.py + faked-CLI unit tests, off-mount)/H2d(EVO-X2
+  live wire = the Exit-Gate evidence)/H2e(docs). 7 open questions flagged for EVO-X2
+  confirmation (kanban.db path under HERMES_HOME, --json shapes, headless dispatcher
+  mode, assignee/profile + egress inheritance, tenant scoping, timeouts).
+- Design only; no code. Local commit only (mid-phase).
+
+## 2026-06-13 0049 PDT -- Carried fix-its: installer uv flow + stale model name + gitignore (Brandon + Claude)
+
+- scripts/setup_native_stack.sh: replaced the wrong `pip install hermes-agent` block
+  with the uv editable flow actually used on EVO-X2 (changelog 2311). Now: install
+  user-local uv if missing (astral install.sh -> ~/.local/bin), clone
+  NousResearch/hermes-agent to $HERMES_SRC (default ~/src/hermes-agent), checkout
+  $HERMES_REF (default 9b1e0d6f), `uv venv env_hermes --python 3.11`, then
+  `uv pip install --python env_hermes/bin/python -e $HERMES_SRC[all,dev]`. Repo/ref/src
+  all env-overridable; graceful WARN if uv unavailable. Closes the 2311/2339 carried
+  fix-it. Syntax-checked (bash -n) off-mount.
+- Same file: env writer + next-steps echo still emitted the RETIRED
+  Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf. Swapped to the canonical single model
+  Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf (matches config.toml [linux]/[windows]). A fresh
+  EVO-X2 setup would otherwise have written the wrong PERSONA_MODEL into the .env
+  fallback. (config.toml stays primary; this is the fallback writer only.)
+- .gitignore: added `models/archive/` (previously only models/*.gguf was ignored, so
+  the archived Instruct gguf on EVO-X2 showed as untracked).
+- H2 DIRECTION (Brandon): the kanban lean is BRIDGE taskboard.py <-> Hermes' native
+  kanban (was "leaning native" in the 2311/2339 notes). taskboard.py / persona /jobs
+  stay the canonical board the persona surfaces; H2 wires a bridge to Hermes'
+  HERMES_KANBAN_*. No code yet -- decision recorded for the H2 session.
+- Mid-phase = LOCAL COMMIT ONLY, no push (per the push-at-milestones rule). Edits are
+  Windows-clone files; git runs Windows-side.
+
 ## 2026-06-12 2311 PDT -- Phase 8 Hermes: T1 close-out (env_hermes) + H1 config validated (Brandon + Claude)
 
 - MILESTONE: Phase 8 H-track started. hermes-agent INSTALLED on EVO-X2 and H1

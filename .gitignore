@@ -2,6 +2,13 @@
 models/*.gguf
 models/*.bin
 models/*.part
+models/archive/
+
+# ── Hermes kanban runtime state (H2 bridge) ──────────
+run/hermes_kanban/
+logs/wsl_h2_sim.log
+persona/config.yaml.bak
+tools/_mount_probe.txt
 
 # ── Virtual environments ─────────────────────────────
 env/
@@ -11,6 +18,8 @@ env_webui/
 env_hermes/
 
 # ── Runtime state ────────────────────────────────────
+# NOTE: run/config.toml AND run/config.<host>.toml (per-host overrides) are the
+# COMMITTED source of truth -- do NOT add a broad run/*.toml ignore here.
 run/*.pid
 run/*.sock
 run/*.env

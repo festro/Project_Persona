@@ -95,19 +95,36 @@ fi
 deactivate || true
 
 if [ "$SKIP_HERMES" != "1" ]; then
-  echo "==> Creating isolated Hermes Agent venv (env_hermes)"
+  echo "==> Installing Hermes Agent (NousResearch/hermes-agent) editable via uv, isolated in env_hermes"
   HERMES_VENV="$AI_ROOT/env_hermes"
-  python3 -m venv "$HERMES_VENV"
-  # shellcheck disable=SC1091
-  source "$HERMES_VENV/bin/activate"
-  python -m pip install --upgrade pip wheel setuptools
-  if pip install hermes-agent; then
-    echo "OK: hermes-agent installed into $HERMES_VENV"
-  else
-    echo "WARN: 'pip install hermes-agent' failed. Install Hermes into $HERMES_VENV"
-    echo "      manually, or use the git installer per the Hermes docs, then re-run doctor.sh."
+  HERMES_SRC="${HERMES_SRC:-$HOME/src/hermes-agent}"
+  HERMES_REPO="${HERMES_REPO:-https://github.com/NousResearch/hermes-agent.git}"
+  HERMES_REF="${HERMES_REF:-9b1e0d6f}"
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "==> uv not found; installing user-local uv into ~/.local/bin"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
   fi
-  deactivate || true
+
+  if command -v uv >/dev/null 2>&1; then
+    if [ ! -d "$HERMES_SRC/.git" ]; then
+      git clone "$HERMES_REPO" "$HERMES_SRC"
+    fi
+    git -C "$HERMES_SRC" fetch --all --tags
+    git -C "$HERMES_SRC" checkout "$HERMES_REF"
+    uv venv "$HERMES_VENV" --python 3.11
+    if uv pip install --python "$HERMES_VENV/bin/python" -e "$HERMES_SRC[all,dev]"; then
+      echo "OK: hermes-agent installed editable into $HERMES_VENV (ref $HERMES_REF)"
+    else
+      echo "WARN: 'uv pip install -e $HERMES_SRC[all,dev]' failed. Install Hermes into"
+      echo "      $HERMES_VENV manually per the Hermes docs, then re-run doctor.sh."
+    fi
+  else
+    echo "WARN: uv unavailable; skipping Hermes install. Install it manually:"
+    echo "      uv venv $HERMES_VENV --python 3.11"
+    echo "      uv pip install -e $HERMES_SRC[all,dev]   (then re-run doctor.sh)"
+  fi
 else
   echo "==> SKIP_HERMES=1 set; skipping env_hermes venv"
 fi
@@ -130,7 +147,7 @@ UBATCH_SIZE=512
 CACHE_TYPE_K=q8_0
 CACHE_TYPE_V=q8_0
 PERSONA_PORT=8090
-PERSONA_MODEL=Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf
+PERSONA_MODEL=Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf
 PERSONA_CTX=32768
 GPU_LAYERS_PERSONA=999
 PERSONA_PARALLEL=4
@@ -142,7 +159,7 @@ echo "==> Done."
 echo ""
 echo "Next steps (lifecycle is now manage.py; the old bash scripts are archived):"
 echo "  1) Put the unified GGUF model in: $AI_ROOT/models/"
-echo "     - Qwen_Qwen3-30B-A3B-Instruct-2507-Q5_K_M.gguf"
+echo "     - Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf"
 echo "       (or edit [linux] PERSONA_MODEL in run/config.toml)"
 echo "  2) Init persona profiles:  $AI_ROOT/scripts/init_profiles.sh"
 echo "  3) Start the stack:        python3 $AI_ROOT/manage.py up"

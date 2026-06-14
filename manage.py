@@ -92,6 +92,15 @@ def os_tag():
     return "windows" if IS_WINDOWS else "linux"
 
 
+def host_tag():
+    """Lowercased short hostname used to select a committed per-host config override
+    (run/config.<host>.toml). PERSONA_HOST env wins (escape hatch / testability)."""
+    h = os.environ.get("PERSONA_HOST")
+    if h:
+        return h.strip().lower()
+    return socket.gethostname().split(".")[0].lower()
+
+
 def _merge_flat(cfg, table):
     for k, v in table.items():
         if isinstance(v, dict):
@@ -126,11 +135,39 @@ def load_config_toml(path):
     return cfg
 
 
+def _merge_host_overrides(root, cfg):
+    """Merge a committed per-host override file run/config.<host>.toml over cfg, LAST
+    (after base/runtime/<os>), so D:\\ stays the single source of truth for per-host
+    differences instead of an ephemeral patch on a disposable clone. Returns the file
+    name applied, or None."""
+    hpath = root / "run" / ("config.%s.toml" % host_tag())
+    if not hpath.is_file():
+        return None
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            return None
+    try:
+        with open(hpath, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        warn(f"per-host config unreadable ({e}); ignoring {hpath.name}")
+        return None
+    _merge_flat(cfg, data.get("base", {}))
+    _merge_flat(cfg, data.get("runtime", {}))
+    _merge_flat(cfg, data.get(os_tag(), {}))
+    return hpath.name
+
+
 def load_config(root):
     toml_path = root / "run" / "config.toml"
     if toml_path.is_file():
         cfg = load_config_toml(toml_path)
         if cfg is not None:
+            _merge_host_overrides(root, cfg)
             return cfg
     cfg = {}
     load_env_file(root / "run" / "llama-servers.env", cfg)
@@ -175,6 +212,51 @@ def read_pid(pidfile):
 
 def write_pid(pidfile, pid):
     Path(pidfile).write_text(str(pid), encoding="utf-8")
+
+
+def http_health_up(url, timeout=2.0):
+    if not url:
+        return False
+    try:
+        data, _ = http_get_json(url, timeout=timeout)
+    except Exception:
+        return False
+    return data is not None
+
+
+def pids_by_cmdline(needles):
+    if IS_WINDOWS or not needles:
+        return []
+    if isinstance(needles, str):
+        needles = [needles]
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return []
+    skip = {os.getpid(), os.getppid()}
+    found = []
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        candidate = int(entry.name)
+        if candidate in skip:
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        cmd = raw.replace(b"\x00", b" ").decode("utf-8", "replace")
+        if all(n in cmd for n in needles):
+            found.append(candidate)
+    return found
+
+
+def resolve_live_pid(pid, health_url=None, needles=None):
+    if pid_alive(pid):
+        return pid
+    if http_health_up(health_url):
+        for candidate in pids_by_cmdline(needles):
+            return candidate
+    return None
 
 
 def terminate_pid(pid, timeout=8.0):
@@ -487,20 +569,24 @@ def cmd_up(root, cfg, args):
     return 0 if api_ok else 1
 
 
-def stop_named(root, name):
+def stop_named(root, name, health_url=None, needles=None):
     pidfile = root / "run" / f"{name}.pid"
     pid = read_pid(pidfile)
+    live = resolve_live_pid(pid, health_url, needles)
+    if live is None:
+        if pid is not None:
+            warn(f"{name}: stale pidfile, removing")
+            try:
+                pidfile.unlink()
+            except OSError:
+                pass
+        return
     if pid is None:
-        return
-    if not pid_alive(pid):
-        warn(f"{name}: stale pidfile, removing")
-        try:
-            pidfile.unlink()
-        except OSError:
-            pass
-        return
-    info(f"Stopping {name} (pid {pid})")
-    if terminate_pid(pid):
+        warn(f"{name}: no pidfile but /health still up; killing real pid {live}")
+    elif live != pid:
+        warn(f"{name}: pidfile pid {pid} stale but /health up; killing real pid {live}")
+    info(f"Stopping {name} (pid {live})")
+    if terminate_pid(live):
         ok(f"{name} stopped")
     else:
         err(f"{name} did not stop")
@@ -511,14 +597,28 @@ def stop_named(root, name):
 
 
 def cmd_down(root, cfg, args):
-    stop_named(root, "api")
-    for name in ("persona", "scientist", "reasoning", "coder", "persona_win"):
+    host = cfg.get("HOST", "127.0.0.1")
+    pport = cfg.get("PERSONA_PORT", "8090")
+    stop_named(root, "api", "http://127.0.0.1:8000/health", ["server:app"])
+    stop_named(root, "persona", f"http://{host}:{pport}/health",
+               ["llama-server", f"--port {pport}"])
+    for name in ("scientist", "reasoning", "coder", "persona_win"):
         stop_named(root, name)
     ok("Shutdown complete")
     return 0
 
 
 def cmd_status(root, cfg, args):
+    host = cfg.get("HOST", "127.0.0.1")
+    port = cfg.get("PERSONA_PORT", "8090")
+    health_urls = {
+        "api": "http://127.0.0.1:8000/health",
+        "persona": f"http://{host}:{port}/health",
+    }
+    needles = {
+        "api": ["server:app"],
+        "persona": ["llama-server", f"--port {port}"],
+    }
     print("=== Project_Persona status ===")
     print(f"AI_ROOT: {root}")
     print(f"OS: {platform.system()} {platform.machine()}")
@@ -526,19 +626,31 @@ def cmd_status(root, cfg, args):
     print("Processes:")
     for name in ("api", "persona", "panel"):
         pid = read_pid(root / "run" / f"{name}.pid")
+        hurl = health_urls.get(name)
+        up = http_health_up(hurl) if hurl else False
         if pid_alive(pid):
-            ok(f"{name}: running (pid {pid})")
+            if hurl and not up:
+                ok(f"{name}: running (pid {pid}) -- WARN /health not responding")
+            else:
+                ok(f"{name}: running (pid {pid})")
+        elif up:
+            real = next(iter(pids_by_cmdline(needles.get(name))), None)
+            if real is not None:
+                warn(f"{name}: /health UP on real pid {real}; pidfile pid {pid} stale (WSL trap)")
+            else:
+                warn(f"{name}: /health UP but recorded pid {pid} not alive (stale pidfile)")
         elif pid is not None:
             err(f"{name}: stale pidfile (pid {pid} not alive)")
         else:
             warn(f"{name}: not running")
     print()
     print("Config:")
-    host = cfg.get("HOST", "127.0.0.1")
-    port = cfg.get("PERSONA_PORT", "8090")
     model = cfg.get("PERSONA_MODEL", "<unset>")
     print(f"  host={host}  persona_port={port}  ctx={cfg.get('PERSONA_CTX', '<unset>')}")
     print(f"  model={model}")
+    _hostcfg = root / "run" / ("config.%s.toml" % host_tag())
+    if _hostcfg.is_file():
+        print(f"  host_config={_hostcfg.name} (per-host override applied for '{host_tag()}')")
     print()
     print("Model file:")
     mpath = root / "models" / model

@@ -221,6 +221,34 @@ ids = [j["job_id"] for j in r.json().get("jobs", [])]
 check("/jobs list includes jobA", "jobA" in ids)
 check("/jobs list carries status", any(j["job_id"] == "jobA" and j["status"] == "ok" for j in r.json()["jobs"]))
 
+# H2 bridge: /agent/delegate writes a "delegated" row WITHOUT running taskman2.
+r = client.post("/agent/delegate", json={"job_id": "delgA", "title": "Summarize the design doc",
+                                          "body": "Read docs/ and summarize.", "assignee": "default"})
+dj = r.json()
+check("/agent/delegate returns delegated", dj.get("status") == "delegated" and dj.get("job_id") == "delgA")
+check("/agent/delegate row kind hermes_delegate", dj["job"].get("kind") == "hermes_delegate")
+check("/agent/delegate did NOT run taskman2", "returncode" not in dj["job"] and "result_file" not in dj["job"])
+check("/agent/delegate carries no hermes_task_id yet", "hermes_task_id" not in dj["job"])
+check("/agent/delegate has delegated_at + assignee + tenant",
+      isinstance(dj["job"].get("delegated_at"), int) and dj["job"].get("assignee") == "default"
+      and dj["job"].get("tenant") == "persona")
+r = client.get("/jobs/delgA")
+check("/jobs/<delegate> round-trips status=delegated", r.json().get("status") == "delegated")
+r = client.post("/agent/delegate", json={"body": "no title"})
+check("/agent/delegate without title -> 400", r.status_code == 400)
+r = client.post("/agent/delegate", json={"job_id": "delgA", "title": "dup"})
+check("/agent/delegate duplicate job_id -> 409", r.status_code == 409)
+
+# New bridge statuses (delegated/blocked) round-trip through /jobs additively.
+tb.task_set("delgB", {"status": "blocked", "kind": "hermes_delegate",
+                      "block_reason": "review-required: confirm scope"})
+r = client.get("/jobs/delgB")
+check("/jobs/<id> blocked status round-trips", r.json().get("status") == "blocked")
+check("/jobs/<id> block_reason surfaced", "review-required" in (r.json().get("block_reason") or ""))
+h = client.get("/health").json()
+check("health delegate block present", isinstance(h.get("delegate"), dict)
+      and h["delegate"].get("default_tenant") == "persona")
+
 check("collection_name global when off", server._collection_name("alice") == server.RAG_GLOBAL_COLLECTION)
 _saved_pp = server.RAG_PER_PROFILE
 server.RAG_PER_PROFILE = True

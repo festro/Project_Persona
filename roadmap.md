@@ -340,10 +340,30 @@ migration M6.)
       thinking + tools.disabled all valid; config migrated in place 0->28 (safe-config
       preserved). Egress off via tools.disabled + API-key-gating + terminal.backend=
       local + browser.allow_private_urls=false + disabled_toolsets. Committed 70d7fb2.
-- [ ] H2-H6: Hermes pulls work + executes. ARCH DECISION PENDING (H2): ride Hermes'
-      NATIVE kanban (HERMES_KANBAN_*) + dispatcher rather than the project's
-      taskboard.py, or bridge the two. Then role-prefix template library, cache_prompt
-      amortization, Tenacity-style failure semantics.
+- [~] H2: bridge taskboard.py <-> Hermes' native kanban. ARCH DECISION MADE
+      2026-06-13 (Brandon) = BRIDGE (taskboard.py / persona /jobs stay canonical;
+      Hermes kanban = execution substrate; one loopback bridge on EVO-X2). H2a DESIGN
+      DONE 2026-06-13 (docs/h2_bridge_design_20260613_0204.md): public-CLI transport
+      (kanban create/watch/runs --json, not raw DB), additive delegated/blocked
+      statuses, job_id<->hermes_task_id correlation, Hermes owns retry.
+      H2b DONE off-mount 2026-06-13: POST /agent/delegate writes a "delegated" row
+      (no taskman2), /health delegate block, +~10 offline checks (full suite OWED
+      Windows-side). H2c DONE off-mount 2026-06-13: tools/hermes_bridge.py (enqueue +
+      mirror via Hermes public CLI, injected runner/board) + tests/test_hermes_bridge.py
+      faked-CLI suite 43/43 ALL PASS. SHAPES CONFIRMED 2026-06-13 via a sandbox
+      source-dive into hermes-agent v0.16.0 @ 9b1e0d6f: bridge reconciled to the real
+      wrapped `show --json` + status set (suite now 44/44).
+      BRIDGE VALIDATED LIVE IN WSL 2026-06-13 (changelog 1458; handoff 1458): full
+      chain delegate->card->claim->spawn->worker-runs->mirror confirmed against the
+      REAL Hermes (everything-in-WSL, llama 1.5B). Completion is MODEL-GATED -- the
+      1.5B can't tool-call (0 tool calls); EVO-X2's 35B (which Hermes' >=64K-ctx
+      requirement targets) is expected to complete. Live integration findings folded
+      into knowledge.md + docs/wsl_h2_runbook_20260613_0311.md (default-assignee
+      HERMES_HOME=ROOT; 64K gate on main+aux; PERSONA_CTX/PARALLEL slot sizing; pin
+      HERMES_KANBAN_HOME). NEXT = run H2d on EVO-X2 with the real 35B (no sim
+      overrides) -> expect status=ok + summary; that closes the H2 Exit Gate.
+- [ ] H3-H6: Hermes claims + executes end to end, then role-prefix template library,
+      cache_prompt amortization, Tenacity-style failure semantics.
 - [ ] Runtime egress containment: kernel netns/iptables + daemon env hygiene
       (config-time half exists; runtime half H1.6 still required)
 
