@@ -1,7 +1,9 @@
 # Project_Persona -- Distributed Cooperative Node Mesh (Design Note)
 
-Status: DESIGN -- not started. Extended track (see `roadmap.md` Phase 10).
-Last updated: 2026-06-05 1735 PDT by Claude
+Status: DESIGN -- not started. Extended line beyond the core ladder (see
+`roadmap.md` Phase 9).
+Last updated: 2026-06-14 1535 PDT by Claude (+section 5b coordinated eviction +
+node_id, Brandon's proposal; renumbered to Phase 9 earlier)
 Origin: design discussion 2026-06-05/06 (Brandon + Claude). Decisions below are
 Brandon's calls captured for the record; this note is handoff-quality on its own.
 
@@ -64,8 +66,12 @@ portable Go binary, so we run one system, not two.
   JWT/operator/PKI apparatus.
 - Property: the token grants admission only -- it carries NO per-node identity.
   Anyone holding it is fully trusted at the door.
-- Hard evict = rotate the token (cheap, accepted). A per-key deny-list (section 5)
-  is only advisory because a banned node still holds the token and can re-key.
+- Hard evict = rotate the token (cheap, accepted). On its own a per-key deny-list
+  (section 5) is only advisory: a banned node still holds the token and can
+  self-generate a fresh key to dodge the deny entry. Section 5b (coordinated
+  re-key + a hardware-anchored node id, Brandon 2026-06-14) upgrades this to an
+  ENFORCEABLE eviction -- the honest nodes rotate the token among themselves
+  (excluding the actor) and deny by stable node id, which survives a re-key.
 - Pair with TLS, or run the whole mesh over a WireGuard mesh (section 7), which
   also satisfies the egress-containment posture.
 
@@ -93,16 +99,59 @@ grounded but NAT/DHCP blur it. So hostname = human-friendly LABEL, not a trust
 anchor.
 
 Trustworthy attribution: each node self-generates a keypair on first run (no
-authority, no PKI), uses its public key as its node id, and signs heartbeats and
-results. Hostname for humans, pubkey for identity. Signing also stops one
-token-holder from impersonating another, so the roster/reputation point at the
-right node.
+authority, no PKI), signs heartbeats and results. Signing stops one token-holder
+from impersonating another, so the roster/reputation point at the right node.
+
+Stable node id (Meshtastic-style, Brandon 2026-06-14): a freshly generated keypair
+is trivially regenerated, so a bad actor re-keys and a per-key deny entry misses.
+Add a STABLE per-node id derived at `manage.py` first boot by hashing gathered
+system specs (machine-id, board/CPU/disk serials where readable cross-OS, primary
+NIC MAC) with a per-node salt, persisted alongside `run/node_capabilities.json`.
+Embed this id in the message layer and BIND it to the signing keypair (the node
+signs `node_id = X`). Three distinct roles: hostname = human label, keypair =
+message authenticity, node_id = stable machine anchor. Because node_id does NOT
+change when an actor re-keys, the deny-list can target it. CAVEAT: system specs are
+spoofable, so node_id is a sybil / re-key DETERRENT, not proof -- token rotation
+(section 5b) stays the hard guarantee, and a hardware change forces re-enrollment.
+Salt + hash so raw specs are never exposed on the wire.
 
 Bad-actor handling: reputation comes from the validation layer, not from auth --
 track per-key validation pass/fail, timeouts, and divergent results, then stop
 assigning to / discard results from / advisory-deny bad keys. Two layers, stated
 plainly: AUTH keeps strangers out; VALIDATION keeps bad RESULTS out (an
 authenticated node can still lie). Hard evict remains token rotation.
+
+## 5b. Coordinated eviction + key rotation (proposal, Brandon 2026-06-14)
+
+The concrete mechanism behind "hard evict = rotate the token" (section 4), built
+on the token + the section 5 identity layer. Goal: omit a compromised node so it
+cannot rejoin, without standing PKI.
+
+1. Detect + gossip. The validation/reputation layer flags a bad node id. The
+   honest nodes gossip the flag among themselves over the authenticated mesh; the
+   flagged node is excluded from this exchange.
+2. Joint re-key. Once a quorum of honest nodes agrees, they jointly rotate the
+   shared admission token. The new token is distributed only to known-good node
+   ids; the flagged node is disconnected and never receives it. Deny-by-node-id
+   (section 5) means even a re-key by the actor does not get it back in.
+3. Recovery for nodes that missed the rotation. A legitimate node that was OFFLINE
+   during the re-key returns holding the old, now-invalid token. It is re-keyed
+   OUT OF BAND from an already-updated node over NFC or Bluetooth (physical
+   proximity = the trust gesture), with a QR-code / manual-paste fallback for
+   headless nodes (e.g. EVO-X2) that have no NFC/BT radio.
+
+Must be nailed down before this is safe (tracked in section 9):
+
+- AUTHORIZATION QUORUM. A single compromised node must not be able to trigger a
+  rotation that expels honest nodes (eviction-as-attack). Require a quorum to
+  authorize a re-key -- e.g. the stable 3/5 JetStream core, or N reputation-weighted
+  nodes.
+- CUTOVER WINDOW. Push the new token to all currently-connected good nodes and
+  disconnect the actor BEFORE invalidating the old token, so slow-but-honest nodes
+  are not locked out mid-rotation.
+- SPLIT-BRAIN. A network partition could let two halves independently evict and
+  rotate to DIFFERENT tokens, then refuse to re-merge. The OOB proximity re-key
+  (step 3) is the manual bridge; an automatic reconcile rule is still owed.
 
 ## 6. Standalone autonomy (non-negotiable)
 
@@ -121,6 +170,11 @@ then rides on an already-trusted network. The runtime egress-containment work
 (H1.6) still applies to the model/agent layer.
 
 ## 8. Staged plan (each stage independently testable)
+
+Stage <-> roadmap Item map (Phase 9): Stage 0 = Item 9.1, Stage 1 = 9.2,
+Stage 2 = 9.3, Stage 3 = 9.4, Stage 4 = 9.5. Item 9.0 (EVO-X2 migration to the
+anchor node) is the precondition for all of them. The roadmap is the status
+source of truth; the "Stage" labels here are this design note's own narrative.
 
 - Stage 0 -- cheap experiment, no new infra: the `LLAMA_HOST` offload. Point one
   node's companion API at another node's llama-server (flip the llama-server bind
@@ -152,13 +206,20 @@ then rides on an already-trusted network. The runtime egress-containment work
 - Pure-gossip alternative (SWIM / libp2p, no broker at all) if the peer-cluster
   ever feels too privileged -- PARKED. NATS peer-cluster was chosen for Python
   client maturity and one-binary portability; py-libp2p is immature.
+- Section 5b coordinated eviction: the re-key authorization quorum, the cutover
+  window, and the split-brain reconcile rule (above).
+- node_id derivation: which system specs are stable AND readable cross-OS
+  (machine-id, DMI/board/disk serials, NIC MAC), the salt scheme, and the
+  re-enrollment path on a hardware change.
+- OOB re-key transport: NFC/BT where present vs the QR/manual fallback; treat that
+  enrollment channel as a trust surface (proximity-gated).
 
 ## 10. Dependencies and references
 
 - Depends on roadmap Phase 1 (Task Board), Phase 2a (Qdrant as the networkable
   shared vector store), and Phase 3 (daemon as the node agent). Functionally a
-  Phase 8-and-beyond extended track.
-- Status + per-stage gates: `roadmap.md` Phase 10.
+  Phase 8-and-beyond extended line.
+- Status + per-Item gates: `roadmap.md` Phase 9 (Items 9.0-9.5).
 - Architecture context: `knowledge.md` (Task Board, single-model topology, egress
   posture, System components).
 - NATS topics to read: clustering, JetStream (streams/consumers/KV/object-store),

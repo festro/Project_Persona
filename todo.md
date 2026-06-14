@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-14 1407 PDT by Claude (manage.py pidfile fix; handoff_persona_20260614_1407.md)
+Last updated: 2026-06-14 1535 PDT by Claude (mesh sec 5b eviction+node_id; Phase 10 runner; roadmap renumbered; pidfile pushed aa145fa)
 
 ## Rules of the road
 
@@ -26,6 +26,25 @@ Last updated: 2026-06-14 1407 PDT by Claude (manage.py pidfile fix; handoff_pers
 
 ## Just finished (2026-06-14, Claude)
 
+- MESH DESIGN: coordinated eviction + node_id (changelog 1535). Captured Brandon's
+  proposal in distributed_nodes.md sec 5b -- gossip-flag + joint token re-key excluding
+  the actor, OOB (NFC/BT + QR) recovery, salted-system-spec node_id bound to the
+  keypair. Upgrades the deny-list from advisory -> enforceable. Opens flagged (re-key
+  quorum, cutover, split-brain). roadmap: node_id->9.3, eviction->9.4. Local.
+- PHASE 10 ITEM 10.0 STARTED (changelog 1520): tests/run_all_offline.py one-command
+  offline regression runner (auto-discovers tests/test_*.py). Item 10.0 -> [~]. OWED:
+  run Windows-side + on a Linux host to flip it [x]. Local.
+- ROADMAP SIMPLIFIED + RENUMBERED (changelog 1500). One vocabulary (Phase/Item/Exit
+  Gate/Status); retired track/milestone/stage/leg; Exit Gates are now checklists; T/H/M
+  IDs kept. Status refreshed: Phase 1 -> GREEN, Current position rewritten. PHASE 9/10
+  SWAP: CrewAI tombstone removed; mesh -> Phase 9 (Items 9.0-9.5, EVO-X2 migration =
+  9.0 [~]); NEW Phase 10 = full-system/feature-test capstone. Repo-wide numbering sync
+  DONE: knowledge.md, distributed_nodes.md (+Stage<->Item map), ipc_decision.md,
+  portability_audit.md, llama_build_matrix.md all updated; changelog history + archive/
+  left frozen. Docs only, local -- rides the next milestone push.
+- MILESTONE PUSHED (aa145fa): Track C WSL-GREEN + per-host config + sync + the pidfile
+  fix landed on origin/main (28 files). PortableGit push shows a red NativeCommandError
+  even on success -- judge by the ref-update line, not the error.
 - D CLOSED + LIVE-CONFIRMED -- manage.py WSL stale-pidfile robustness (changelog 1407).
   resolve_live_pid corroborates a dead recorded pid against /health and recovers the real
   pid from /proc; stop_named kills the live server instead of orphaning it; cmd_status

@@ -121,8 +121,9 @@ Hermes Agent as agent-work backbone (decided 2026-05-11, implementation
 deferred). Hermes (Nous Research, MIT) runs as a daemon child, pulls work from
 the Task Board, executes its own orchestration (fan-out / gather), and writes
 results back. The persona layer surfaces results; it never coordinates. This
-decision deleted the earlier AG2 (Phase 2.5) and CrewAI (Phase 9) plans and
-reshaped the LangGraph agentic layer (Phase 8) into Hermes integration. Carries
+decision deleted the earlier AG2 (Phase 2.5) and CrewAI (the former Phase 9; that
+slot now holds the node mesh after the 2026-06-14 renumber) plans and reshaped the
+LangGraph agentic layer (Phase 8) into Hermes integration. Carries
 a network-egress risk surface that must be contained by config plus
 kernel-level enforcement (see Pointers -> egress handoff).
 
@@ -200,7 +201,7 @@ replacement (Phase 2a).
 NATS-based IPC. The Phase 3 daemon supervises a local nats-server (JetStream R=1,
 loopback) as a child process and uses it as the control-plane bus; a stdlib
 loopback-TCP transport is the compatibility fallback, both behind one EventBus
-interface (see `docs/ipc_decision.md`). Chosen to lay groundwork for the Phase 10
+interface (see `docs/ipc_decision.md`). Chosen to lay groundwork for the Phase 9
 NATS+JetStream mesh. Dependency is strictly one-way (components -> daemon); the
 API never blocks on it. Current event: `ping`. Planned: `profile_switched`,
 `ingest_complete`, `tts_speaking`, `task_ready`.
@@ -402,7 +403,15 @@ Phase 8 -- Agentic layer (Hermes Agent): Hermes as daemon child pulling from the
 Task Board with Tenacity-style failure semantics, role-prefix template library,
 and cache_prompt amortization. Reshaped from the original LangGraph design.
 
-Phase 9 -- DELETED (CrewAI candidate superseded by Hermes).
+Phase 9 -- Decentralized cooperative node mesh (extended): system-agnostic nodes
+that run standalone and, when networked, pool throughput + specialized capability
+BOINC-style (NATS+JetStream). EVO-X2 migration to the canonical/anchor node is the
+precondition (Item 9.0). Reuses the slot of the deleted CrewAI Phase 9 (superseded
+by Hermes in Phase 8) after the 2026-06-14 renumber. Design: `docs/distributed_nodes.md`.
+
+Phase 10 -- Full-system / feature test: capstone end-to-end + regression validation
+over every completed Phase -- one-command regression suite, live system playbook,
+cross-host parity, failure injection, system-level egress check, performance baseline.
 
 ## License
 
@@ -420,7 +429,7 @@ deploying at scale comply with its branding terms independently.
 
 - Conventions spec: `D:\Projects\WORKFLOW.md`
 - Distributed cooperative node mesh design (NATS+JetStream, BOINC-style; status +
-  gates in `roadmap.md` Phase 10): `docs/distributed_nodes.md`
+  gates in `roadmap.md` Phase 9): `docs/distributed_nodes.md`
 - Cross-OS/arch portability audit + action plan (Win+Linux, x86-64+ARM64,
   CPU/CUDA/ROCm/Vulkan; Apple out; status in `roadmap.md` Phase 0.5):
   `docs/portability_audit.md`

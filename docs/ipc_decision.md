@@ -5,7 +5,7 @@ IPC / coordination backbone starting at the Phase 3 daemon, with a more-compatib
 fallback transport behind a shared interface for any node where NATS is a problem.
 Last updated: 2026-06-06 2105 PDT by Claude
 Origin: Phase 0.5 portability hardening (roadmap.md). Settles the transport for the
-Phase 3 daemon's local IPC and deliberately lays the groundwork for the Phase 10
+Phase 3 daemon's local IPC and deliberately lays the groundwork for the Phase 9
 mesh, which is already locked to NATS+JetStream (see docs/distributed_nodes.md).
 
 Keep ASCII (see `WORKFLOW.md`).
@@ -41,7 +41,7 @@ the single-entrypoint goal of Phase 0.5. Ruled out.
 Primary: NATS + JetStream. The Phase 3 daemon supervises a local `nats-server`
 (JetStream replica=1) as one of its child processes and speaks to it over loopback.
 The persona/API/ingest components publish events as NATS subjects. This is the same
-substrate the Phase 10 mesh is already locked to, so building on it now means the
+substrate the Phase 9 mesh is already locked to, so building on it now means the
 control/resource-share layer grows continuously instead of being migrated onto
 later.
 
@@ -70,7 +70,7 @@ Rationale:
 
 - `nats-server` becomes an entry in the Phase 3 daemon's child-process map, under
   the same three-strike supervision as llama-server and the API. JetStream R=1, data
-  dir under `run/`, bound to loopback (mesh listeners are added only at Phase 10).
+  dir under `run/`, bound to loopback (mesh listeners are added only at Phase 9).
 - Acquire it the portable way: a pinned `nats-server` binary placed alongside the
   other portable runtime bits (see `docs/llama_build_matrix.md` placement pattern),
   or the pip-installable `nats-server-bin` inside the portable-Python env. Pick one
@@ -109,7 +109,7 @@ class EventBus:
 ```
 
 - `NatsBus` -- default. Events map to subjects (`persona.profile_switched`,
-  `persona.task_ready`, ...). At Phase 10 the same object gains the cluster /
+  `persona.task_ready`, ...). At Phase 9 the same object gains the cluster /
   JetStream work-queue wiring; call sites do not change.
 - `LoopbackBus` -- fallback. `asyncio.start_server` on 127.0.0.1 + length-prefixed
   JSON, token-gated, pure stdlib. Single-host only; no mesh path.
@@ -135,8 +135,8 @@ default `nats`), with the daemon falling back to `loopback` and logging loudly i
   Resolve when the Phase 3 daemon is built.
 - Whether single-host runs JetStream at all, or starts on Core NATS pub/sub and adds
   JetStream only when the Task Board / mesh needs durability. (Leaning: Core NATS for
-  the Phase 3 notification bus; JetStream enters with the Task Board / Phase 10.)
-- Subject namespace + event schema (shared with the Phase 10 subject design).
+  the Phase 3 notification bus; JetStream enters with the Task Board / Phase 9.)
+- Subject namespace + event schema (shared with the Phase 9 subject design).
 
 ## Sources
 

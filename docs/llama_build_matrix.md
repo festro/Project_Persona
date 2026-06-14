@@ -5,7 +5,7 @@ Last updated: 2026-06-06 1234 PDT by Claude
 Driver: each node needs its own llama-server build matching its hardware
 (CPU / CUDA / ROCm / Vulkan) plus a compatible GGUF. There is no single artifact
 that runs everywhere; this doc makes that per-node onboarding step repeatable and
-feeds the mesh capability schema (Phase 10).
+feeds the mesh capability schema (Phase 9).
 
 Keep ASCII (see `WORKFLOW.md`). Status flips go in `changelog.md`; the action item
 lives in `roadmap.md` Phase 0.5.
@@ -234,7 +234,7 @@ persona `/health`. A clean result here is the per-node acceptance test for a bui
 
 ## Capability advertising hook (design)
 
-The mesh (Phase 10) routes work to nodes by capability, so each node must publish
+The mesh (Phase 9) routes work to nodes by capability, so each node must publish
 what it can run. Proposed: a single descriptor the launcher can emit, derived at
 runtime, written to `run/node_capabilities.json` and surfaced on the API `/health`
 (and later signed into the NATS KV roster).
@@ -306,8 +306,8 @@ Integration points (incremental, do not block Phase 0.5 exit on the full hook):
 1. Add `manage.py capabilities` that prints the descriptor and writes
    `run/node_capabilities.json`. Pure detection; no mesh dependency.
 2. Have the API `/health` include the descriptor (or a pointer to it).
-3. Phase 10 Stage 2: sign it with the per-node key and publish to the TTL'd KV
-   roster (`docs/distributed_nodes.md`).
+3. Phase 9 Item 9.3 (formerly Stage 2): sign it with the per-node key and publish
+   to the TTL'd KV roster (`docs/distributed_nodes.md`).
 
 Step 1 is the only near-term piece; steps 2-3 land with the mesh.
 

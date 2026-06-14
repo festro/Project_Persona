@@ -14,6 +14,71 @@ Conventions:
 
 ---
 
+## 2026-06-14 1535 PDT -- Mesh design: coordinated eviction + node_id (Brandon proposal captured) (Brandon + Claude)
+
+- docs/distributed_nodes.md gained section 5b "Coordinated eviction + key rotation"
+  (Brandon's design): (1) honest nodes gossip a bad-actor flag among themselves
+  (excluding the actor) and JOINTLY rotate the shared token, distributing the new one
+  only to known-good node ids; (2) nodes that missed the rotation are re-keyed OUT OF
+  BAND via NFC/Bluetooth (+ QR/manual fallback for headless nodes); (3) a stable
+  per-node id hashed from salted system specs at manage.py first boot, bound to the
+  signing keypair, embedded in the message layer (Meshtastic-style).
+- WHY IT MATTERS: turns section 4's "advisory" per-key deny-list into an ENFORCEABLE
+  eviction -- node_id survives a re-key, so deny-by-node-id bites; token rotation
+  becomes a concrete distributed action. Section 4 caveat + section 5 identity updated
+  accordingly.
+- OPENS flagged (section 9): re-key authorization quorum (avoid eviction-as-attack),
+  cutover window (don't lock out slow honest nodes), split-brain reconcile, node_id
+  spec/salt/re-enrollment, OOB transport choice. node_id = sybil DETERRENT not proof
+  (specs spoofable); token rotation stays the hard guarantee.
+- roadmap Phase 9 updated: node_id -> Item 9.3, coordinated eviction -> Item 9.4.
+- Docs only; local.
+
+## 2026-06-14 1520 PDT -- Phase 10 Item 10.0: one-command offline regression runner (Claude)
+
+- NEW tests/run_all_offline.py (stdlib): auto-discovers tests/test_*.py, runs each as
+  a subprocess with the current interpreter (cwd=repo), aggregates pass/fail, prints
+  full output only for failures, exits 0 only if all pass. Future suites auto-included.
+- First build of the new Phase 10 (full-system / feature test) capstone. roadmap Item
+  10.0 -> [~] (flips [x] once green on Windows x64 AND Linux x64).
+- OWED: run it Windows-side (portable 3.11.9) + on a Linux host. Local; no push yet.
+
+## 2026-06-14 1500 PDT -- roadmap.md simplified (one vocabulary) + status refresh + EVO-X2 migration (Brandon + Claude)
+
+- TERM CLEANUP (Brandon: "too many terms used interchangeably"): roadmap.md now uses
+  exactly four nouns -- Phase / Item / Exit Gate / Status -- defined in a new "Terms"
+  section. Retired the loose synonyms "track", "milestone", "stage", "leg" (old
+  changelog/handoff entries read them as Item or Exit Gate). Every Exit Gate is now a
+  checklist (each condition its own [x]/[~]/[ ]) instead of prose, so partial states
+  (e.g. the Linux x64 / ARM64 portability checks) are visible per-line.
+- IDs KEPT (Brandon: keep but standardize): T0-T4 / H1-H6 / M* kept verbatim so history
+  resolves; treated as Item IDs, not a separate hierarchy. Phase 10 mesh "Stage 0-4"
+  renamed to Items 10.1-10.5 (kills the collision with the orchestrator's -Stage flags;
+  mapping noted in the Phase 10 intro).
+- STATUS REFRESH (was stamped 2026-06-07, stale): Phase 1 flipped [~] -> [x] GREEN
+  (all Items closed, M6 last 2026-06-08; Exit Gate proven 2026-06-07). "Current
+  position" rewritten: Phases 0+1 GREEN; Phase 0.5 in progress (Win x64 proven, Linux
+  x64 mostly via EVO-X2, ARM64 deferred on hardware); active focus = Phase 8 H2, next
+  lock = Item H2d on EVO-X2. H2 sub-items folded under one [~] H2 with H2a/b/c [x],
+  H2d [ ].
+- EVO-X2 MIGRATION added as Item 9.0 [~] (Brandon): consolidate the full stack onto
+  EVO-X2 as the anchor node (endgame: everything on EVO-X2); 35B + Hermes already
+  there, native persona+API+Hermes + H2d still owed. Added to the mesh Exit Gate.
+- PHASE 9/10 SWAP (Brandon): the deleted CrewAI "Phase 9" tombstone is gone; the
+  decentralized node mesh moved from Phase 10 -> Phase 9 (Items renumbered 9.0-9.5,
+  EVO-X2 migration = 9.0). NEW Phase 10 = "Full-system / feature test" capstone
+  (one-command regression suite, live system playbook, cross-host parity, failure
+  injection, system-level egress check, perf baseline; all [ ]). Cross-refs updated
+  in-file.
+- REPO-WIDE NUMBERING SYNC (done, not owed): updated every LIVE doc that called the
+  mesh "Phase 10" -> knowledge.md (architecture roadmap entry rewritten: Phase 9 =
+  mesh, new Phase 10 = system test; 2 inline refs), docs/distributed_nodes.md (Phase 9
+  + a Stage<->Item map: Stage 0-4 = Items 9.1-9.5, 9.0 = EVO-X2 migration),
+  docs/ipc_decision.md, docs/portability_audit.md, docs/llama_build_matrix.md
+  (Stage 2 -> Item 9.3). FROZEN/left as-is: changelog history (append-only) + archive/
+  + dated audit notes keep their original numbering as point-in-time records.
+- Docs only; no code touched. Local (push at the next milestone).
+
 ## 2026-06-14 1407 PDT -- manage.py WSL stale-pidfile robustness fix (D closed) (Claude)
 
 - ROOT CAUSE: in WSL the recorded pid could read dead (pid_alive False) while the

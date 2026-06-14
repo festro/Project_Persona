@@ -2,7 +2,7 @@
 
 Status: AUDIT + action plan. Findings as of 2026-06-06.
 Last updated: 2026-06-06 1234 PDT by Claude
-Driver: the system-agnostic node goal (roadmap Phase 10 mesh). A node must run on
+Driver: the system-agnostic node goal (roadmap Phase 9 mesh). A node must run on
 any supported OS/arch, not just the Debian/Windows reference hosts.
 
 Keep ASCII (see `WORKFLOW.md`). Action items are tracked in `roadmap.md`
@@ -139,7 +139,7 @@ lifecycle.
 
 ## References
 
-- `roadmap.md` Phase 0.5 (status + gate), Phase 10 (mesh that depends on this).
+- `roadmap.md` Phase 0.5 (status + gate), Phase 9 (mesh that depends on this).
 - `knowledge.md` (architecture, egress posture, components).
 - `docs/py314_compatibility.md` (interpreter choice + ChromaDB 3.14 block).
 - `docs/distributed_nodes.md` (mesh design; capability advertising).
