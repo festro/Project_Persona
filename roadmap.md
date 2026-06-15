@@ -133,9 +133,10 @@ audit + support matrix: `docs/portability_audit.md`.
       Coral/Gaudi/Intel-NPU) + "select only what the binary supports". IMPLEMENTED
       2026-06-06 (changelog 2014): `manage.py capabilities` + detection layer +
       accel-aware `start_llama` (H3) + doctor accel section; Windows x64 VALIDATED
-      2026-06-07 (capabilities + doctor green; node_capabilities.json written). Minor:
-      capabilities reports llama_build=null while doctor detects build b9219 -- see
-      todo fix-its. Mesh wiring stays Phase 9.
+      2026-06-07 (capabilities + doctor green; node_capabilities.json written). The
+      earlier capabilities `llama_build=null` flake was FIXED + verified-live 2026-06-07
+      (`--version` probe bumped to 30s + one retry in llama_version_info; capabilities
+      now reports b9219 -- see changelog/todo). Mesh wiring stays Phase 9.
 - [~] H3 accel selection: `start_llama` backend-aware (no forced Vulkan on
       CUDA/ROCm/SYCL nodes); LLAMA_BACKEND override + capabilities detection.
       Done 2026-06-06; selection verified on the AMD/Vulkan host (selected=vulkan)
@@ -154,9 +155,24 @@ audit + support matrix: `docs/portability_audit.md`.
       into config.toml. Wide range: Raspberry-Pi-class / 8 GB CPU floor up to 96 GB
       unified / discrete-VRAM (Tier 4 primary = the committed Qwen3.6-35B-A3B).
       Vision capability is a PREFERRED (soft) requirement. DESIGN 2026-06-07:
-      `docs/model_provisioner_design_20260607_2158.md`. Needs profiler additions
-      (vram_mb, unified-vs-discrete, NPU classify -- Intel/OpenVINO usable,
-      Hailo/Coral detect-but-never-select). Phased P1-P4 in the design.
+      `docs/model_provisioner_design_20260607_2158.md`. Phased P1-P4. P1 (profiler:
+      vram_mb/memory_model/NPU classify) + P2 (playbook + matcher,
+      scripts/provision_match.py, 7/7) CODE DONE 2026-06-07. P3 (downloader + license
+      gate + disk preflight + config wiring) CODE DONE 2026-06-14:
+      scripts/provision_fetch.py + `manage.py provision [--dry-run/--yes/--model/
+      --text-only/--write-config/--hf-token]` + tests/test_provision_fetch.py (30/30
+      offline). Config wiring is OPT-IN (default prints the block; --write-config/--yes
+      to apply) and targets the active per-host config.<host>.toml when one exists.
+      LIVE-CONFIRMED 2026-06-14 on Daemonic-PC (RX 9060 XT): `provision --dry-run` ->
+      qwen3.6-35b Q5_K_XL pick, weights [present] (0 MiB), per-host target
+      config.daemonic-pc.toml [windows], vision off (no camera), nothing written.
+      ctx SAFEGUARD landed 2026-06-14: provision preserves an existing effective
+      PERSONA_CTX (host-validated) over the matcher's conservative guess (the
+      tight-budget step-down had proposed 8192 on a host that runs 16384), printing a
+      note; fresh hosts still take the safe conservative value. OWED: P4 (first-run hook
+      in cmd_up + --yes installer path); serving-side mmproj/VISION_ENABLED wiring;
+      `--tier` flag (needs a tier field in the playbook); the deeper KV-aware ctx
+      sizing (replace the 0.85*budget step-down with a real KV-headroom estimate).
 - [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables
       as a Linux-only bonus
 - [ ] Cross-OS installer/doctor parity (Windows + Debian + other Linux)

@@ -14,6 +14,56 @@ Conventions:
 
 ---
 
+## 2026-06-14 1758 PDT -- Provisioner P3 live-confirmed + ctx-preserve safeguard (Brandon + Claude)
+
+- LIVE-CONFIRMED on Daemonic-PC (RX 9060 XT) via `provision --dry-run` (captured to
+  logs/provision_dryrun.log; PowerShell Tee writes UTF-16): pick = qwen3.6-35b Q5_K_XL,
+  weights [present] -> 0 MiB to download, per-host target config.daemonic-pc.toml
+  [windows], vision off (no camera), nothing written. End-to-end pipeline good.
+- FINDING: the matcher's tight-budget ctx step-down proposed PERSONA_CTX=8192 on a host
+  that runs 16384 (the design's flagged P2 tunable). Root cause: ctx is penalized when
+  the MODEL FILE exceeds 0.85*budget, but KV headroom is a separate pool.
+- FIX (safeguard, not the full KV-aware rework): provision_fetch.resolve_ctx() + a
+  widened config_kv(pick, existing_ctx). cmd_provision now passes the EFFECTIVE merged
+  cfg PERSONA_CTX; when present it is preserved over the matcher's guess (host-validated
+  value wins) and a note is printed. Fresh hosts (no existing ctx) still take the
+  matcher's conservative value -- under-setting is the safe direction (won't OOM).
+  Verified: Daemonic-PC case now wires 16384, not 8192.
+- tests/test_provision_fetch.py: +6 checks (resolve_ctx + config_kv existing-ctx),
+  36/36 offline. The deeper KV-aware ctx sizing stays a flagged follow-up. All local.
+
+## 2026-06-14 1721 PDT -- Phase 0.5 provisioner P3: downloader + preflight + config wiring (Claude)
+
+- NEW scripts/provision_fetch.py: the P3 stage of the first-run model provisioner,
+  consuming a pick from scripts/provision_match.match(). disk preflight (free >=
+  size+20%); license_gate (Apache-2.0/MIT/BSD ungated = happy path, gated needs an
+  explicit HF_TOKEN, never auto-accept); build_plan (base GGUF + matching mmproj when
+  vision, skip-if-present, total download MiB); download via huggingface_hub
+  (resumable, network branch only) + verify_download light post-check; config_kv /
+  config_block / wire_config = NON-DESTRUCTIVE [<os>] TOML edit (changed PERSONA_MODEL
+  left as a `# was: ...` rollback breadcrumb, missing keys appended, missing section
+  appended, idempotent on rerun); target_config_path prefers the active per-host
+  config.<host>.toml when present, else config.toml.
+- manage.py: NEW `provision` subcommand + cmd_provision + _filter_playbook. Flow:
+  detect_host -> envelope -> match (honors --model / --text-only) -> print pick + plan
+  + config block -> license gate -> (--dry-run stops here) -> disk preflight -> confirm
+  (or --yes) -> download -> OPT-IN config wiring (--write-config or --yes; default just
+  prints the block to protect the live serving config). Flags: --yes --model
+  --text-only --dry-run --write-config --hf-token.
+- NEW tests/test_provision_fetch.py: 30/30 offline (stdlib-only, 3.8+; no tomllib/no
+  network) -- preflight math, license gate (open/gated/token), plan (vision mmproj,
+  skip-present), kv/block render, wiring (replace+comment / append-key / missing-section
+  / dry-run / idempotent / other-sections-preserved), per-host target selection,
+  download dry-run + verify. Auto-discovered by tests/run_all_offline.py.
+- DESIGN-vs-reality note: the provisioner design predates the per-host
+  config.<host>.toml convention; the write target now resolves to the per-host file
+  when one exists. OWED: Windows-side `manage.py provision --dry-run` live-confirm; P4
+  (cmd_up first-run hook + installer --yes path); serving-side mmproj/VISION_ENABLED
+  wiring (start_llama does not consume them yet); `--tier` (needs a playbook tier field).
+- DOCS: roadmap Phase 0.5 provisioner line + design doc P3/P4 updated; the stale
+  roadmap "capabilities llama_build=null" note corrected (that flake was fixed +
+  verified-live 2026-06-07). All local.
+
 ## 2026-06-14 1535 PDT -- Mesh design: coordinated eviction + node_id (Brandon proposal captured) (Brandon + Claude)
 
 - docs/distributed_nodes.md gained section 5b "Coordinated eviction + key rotation"

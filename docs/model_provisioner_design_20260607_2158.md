@@ -235,8 +235,30 @@ alongside the base GGUF regardless, so opt-in needs no extra download.
   smolvlm2 vision, 4GB -> none. TUNABLE: the tight-budget ctx step-down (size >
   0.85*budget -> min_ctx) drops the RX 9060 XT pick to ctx 8192 vs the working
   16384 -- refine the KV-aware ctx sizing in P3/P4.
-- P3: downloader + license/disk preflight + config wiring.
-- P4: first-run hook in `cmd_up` + `--yes` installer path.
+- P3: downloader + license/disk preflight + config wiring. CODE DONE 2026-06-14:
+  scripts/provision_fetch.py (disk preflight = free >= size+20%; license_gate =
+  Apache/MIT/BSD ungated happy path, gated needs HF_TOKEN; build_plan = base GGUF +
+  mmproj when vision, skip-if-present; download via huggingface_hub, resumable, network
+  branch only; verify_download light post-check on top of HF's own blob-hash verify;
+  config_kv/config_block/wire_config = non-destructive [<os>] TOML edit, changed
+  PERSONA_MODEL left as a `# was:` rollback breadcrumb; target_config_path prefers the
+  per-host config.<host>.toml) + `manage.py provision` subcommand (match -> plan ->
+  license gate -> dry-run stop / disk preflight -> confirm (or --yes) -> download ->
+  OPT-IN config wiring via --write-config/--yes) + tests/test_provision_fetch.py
+  (30/30 offline, stdlib-only). CONFIG-WRITE TARGET note: the design predates the
+  per-host config.<host>.toml convention; wiring now writes the per-host file when one
+  exists (it is that host's source of truth), else config.toml [<os>]. CONFIRMED by
+  Brandon 2026-06-14: per-host file is the intended target. LIVE-CONFIRMED 2026-06-14
+  on Daemonic-PC (`provision --dry-run`: qwen3.6-35b pick, weights present, per-host
+  [windows] target, nothing written). ctx SAFEGUARD added (resolve_ctx + config_kv
+  existing_ctx): provision preserves an existing effective PERSONA_CTX over the
+  matcher's conservative tight-budget guess (which had under-set ctx to 8192 on a host
+  that runs 16384); fresh hosts still take the safe conservative value. STILL OWED:
+  serving-side consumption of MMPROJ_PATH/VISION_ENABLED (not yet wired into
+  start_llama); `--tier` (needs a tier field added to the playbook); the deeper
+  KV-aware ctx sizing (replace the section-3 0.85*budget step-down with a real KV
+  headroom estimate).
+- P4: first-run hook in `cmd_up` + `--yes` installer path. NOT STARTED.
 
 Each phase lands behind the others without blocking the stack (the manual
 PERSONA_MODEL path stays the fallback throughout).

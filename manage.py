@@ -1266,6 +1266,113 @@ def cmd_capabilities(root, cfg, args):
     return 0
 
 
+def _filter_playbook(playbook, model_id=None, text_only=False):
+    models = playbook.get("model", [])
+    if model_id:
+        models = [m for m in models if m.get("id") == model_id]
+    if text_only:
+        models = [m for m in models if not m.get("vision")]
+    return {"meta": playbook.get("meta", {}), "model": models}
+
+
+def cmd_provision(root, cfg, args):
+    sp = str(root / "scripts")
+    if sp not in sys.path:
+        sys.path.insert(0, sp)
+    try:
+        import provision_match as pm
+        import provision_fetch as pf
+    except Exception as e:
+        err(f"provisioner modules unavailable: {e}")
+        return 1
+    playbook_path = root / "run" / "model_playbook.toml"
+    if not playbook_path.is_file():
+        err(f"missing model playbook: {playbook_path}")
+        return 1
+    try:
+        playbook = pm.load_playbook(playbook_path)
+    except Exception as e:
+        err(f"cannot read playbook ({e}); needs Python 3.11+ for tomllib")
+        return 1
+
+    caps = detect_host(root, cfg)
+    env = pm.envelope_from_caps(caps)
+    pick = pm.match(env, _filter_playbook(playbook, getattr(args, "model", None),
+                                          getattr(args, "text_only", False)))
+    if not pick:
+        suffix = f" for model '{args.model}'" if getattr(args, "model", None) else ""
+        err("no compatible model fits this host" + suffix)
+        info("envelope: ram=%s MiB vram=%s MiB mem=%s gpu=%s"
+             % (env.get("ram_mb"), env.get("vram_mb"), env.get("memory_model"),
+                env.get("has_gpu")))
+        return 1
+
+    info(pm.explain(pick))
+    models_dir = root / "models"
+    plan = pf.build_plan(pick, models_dir)
+    print("download plan:")
+    for f in plan["files"]:
+        size = ("present" if f["present"]
+                else (f"{f['size_mb']} MiB" if f["size_mb"] else "size?"))
+        print(f"  {f['role']:<7} {f['filename']}  [{size}]")
+    print(f"  total to download: {plan['download_mb']} MiB")
+
+    existing_ctx = cfg.get("PERSONA_CTX")
+    kv = pf.config_kv(pick, existing_ctx)
+    try:
+        if existing_ctx and int(existing_ctx) != int(pick["ctx"]):
+            info(f"preserving host-validated PERSONA_CTX={existing_ctx} "
+                 f"over the matcher's conservative {pick['ctx']}")
+    except (TypeError, ValueError):
+        pass
+    target = pf.target_config_path(root, host_tag(), os_tag())
+    print(f"config target: {target.name}  [{os_tag()}]")
+    print(pf.config_block(os_tag(), kv))
+
+    token = getattr(args, "hf_token", None) or os.environ.get("HF_TOKEN")
+    gate = pf.license_gate(pick, hf_token=token)
+    if not gate["allowed"]:
+        err(f"license gate: {gate['reason']}")
+        info("accept the model card, then re-run with --hf-token <token>")
+        return 2
+
+    if getattr(args, "dry_run", False):
+        info("dry run -- nothing downloaded, config unchanged")
+        return 0
+
+    pre = pf.preflight_disk(models_dir, plan["download_mb"])
+    if not pre["ok"]:
+        err("disk preflight: need ~%d MiB free (size+%.0f%%), have %d MiB"
+            % (pre["need_mb"], pre["margin"] * 100, pre["free_mb"]))
+        return 3
+    ok(f"disk preflight: {pre['free_mb']} MiB free >= {pre['need_mb']} MiB needed")
+
+    if not getattr(args, "yes", False):
+        try:
+            resp = input("proceed with download? [y/N] ").strip().lower()
+        except EOFError:
+            resp = "n"
+        if resp not in ("y", "yes"):
+            info("aborted")
+            return 0
+
+    res = pf.download(plan, hf_token=token, dry_run=False)
+    if not res.get("ok"):
+        err(f"download failed: {res.get('error') or res.get('results')}")
+        return 4
+    ok("download complete")
+
+    if getattr(args, "write_config", False) or getattr(args, "yes", False):
+        r = pf.wire_config(target, os_tag(), kv, dry_run=False)
+        ok(f"wired {target.name}: {', '.join(r['changes'])}")
+    else:
+        info(f"config NOT modified (use --write-config or --yes). "
+             f"Add under [{os_tag()}] of {target.name}:")
+        print(pf.config_block(os_tag(), kv))
+    info("next: python manage.py up")
+    return 0
+
+
 def _test_offline(root, cfg):
     pybin = find_api_python(root)
     suite = root / "tests" / "test_api_offline.py"
@@ -1582,6 +1689,14 @@ def build_parser():
 
     sub.add_parser("capabilities", help="Detect host accel/resources; write run/node_capabilities.json.")
 
+    prov = sub.add_parser("provision", help="Profile the host, pick + download a model, opt-in wire config.")
+    prov.add_argument("--yes", action="store_true", help="Non-interactive: skip the prompt AND write the config.")
+    prov.add_argument("--model", help="Force a specific model id from the playbook.")
+    prov.add_argument("--text-only", action="store_true", dest="text_only", help="Exclude vision models from selection.")
+    prov.add_argument("--dry-run", action="store_true", dest="dry_run", help="Show pick + plan + config block; download nothing.")
+    prov.add_argument("--write-config", action="store_true", dest="write_config", help="Wire the pick into config after download (implied by --yes).")
+    prov.add_argument("--hf-token", dest="hf_token", help="HF token for gated/opt-in models (or set HF_TOKEN).")
+
     tog = sub.add_parser("toggle", help="Start the stack if down, stop it if up.")
     tog.add_argument("--no-wait", action="store_true", help="When starting, do not wait for llama /health.")
 
@@ -1610,6 +1725,7 @@ def main(argv=None):
         "status": cmd_status,
         "doctor": cmd_doctor,
         "capabilities": cmd_capabilities,
+        "provision": cmd_provision,
         "toggle": cmd_toggle,
         "test": cmd_test,
         "panel": cmd_panel,

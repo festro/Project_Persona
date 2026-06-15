@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-14 1655 PDT by Claude (SESSION CLOSE: handoff_persona_20260614_1655.md; local 2eb8c94, origin aa145fa)
+Last updated: 2026-06-14 1758 PDT by Claude (provisioner P3 landed + live-confirmed + ctx safeguard; local commit pending, origin aa145fa)
 
 ## Rules of the road
 
@@ -17,15 +17,35 @@ Last updated: 2026-06-14 1655 PDT by Claude (SESSION CLOSE: handoff_persona_2026
 
 ## Next up (this session)
 
-- A-track (Windows-side): delete orphans (run\wsl_h2_sim.log if present,
-  tools\_mount_probe.txt), then commit + push D:\ -> origin. Milestone: Track C
-  WSL-GREEN + per-host config + bidirectional sync + the pidfile fix (D). Sync is
-  current (D:\ -> WSL done for the live confirm; D:\ is the code source of truth).
+- COMMIT local: provisioner P3 (scripts/provision_fetch.py, manage.py provision +
+  ctx safeguard, tests/test_provision_fetch.py) + the docs above. Local commit only
+  (mid-Phase-0.5); push rides the next milestone with P4 or the EVO-X2 work. NOTE:
+  invoke manage.py via .\portable\python\python.exe (bare `python` hits the MS Store
+  alias). To capture a run for Claude: `... *>&1 | Tee-Object -FilePath logs\<cmd>.log`
+  (Tee writes UTF-16; Claude reads it fine).
+- PHASE 0.5 next rungs (working up the phases): P4 (first-run hook in cmd_up + installer
+  --yes), serving-side mmproj/VISION_ENABLED wiring, then the open egress + installer/
+  doctor-parity items; the Exit Gate's deferred checks (Linux x64 live, ARM64,
+  non-Vulkan accel) all need hardware.
 - DEFERRED by Brandon: B (EVO-X2 Exit Gate) until everything else is finished; E
   (SSH-to-GitHub in WSL) skipped -- folder sync + D:\ git gateway is sufficient.
 
 ## Just finished (2026-06-14, Claude)
 
+- PROVISIONER P3 LIVE-CONFIRMED + ctx SAFEGUARD (changelog 1758): `provision --dry-run`
+  ran clean on Daemonic-PC (qwen3.6-35b pick, weights present, per-host [windows] target,
+  nothing written). Found the matcher under-set ctx to 8192 on a 16384 host; added
+  resolve_ctx + config_kv(existing_ctx) so provision preserves a host-validated
+  PERSONA_CTX (fresh hosts keep the safe conservative value). Tests 36/36. Deeper
+  KV-aware ctx sizing stays a follow-up. Local.
+- PROVISIONER P3 LANDED (changelog 1721): scripts/provision_fetch.py (disk preflight +
+  license gate + download plan + huggingface_hub download + non-destructive config
+  wiring with `# was:` rollback breadcrumb; target = per-host config.<host>.toml when
+  present) + `manage.py provision` subcommand (--dry-run/--yes/--model/--text-only/
+  --write-config/--hf-token; wiring is OPT-IN) + tests/test_provision_fetch.py (30/30
+  offline). Roadmap P3 -> CODE DONE; design doc P3 detailed, P4 still NOT STARTED.
+  Stale roadmap llama_build=null note corrected. OWED: Windows-side `provision
+  --dry-run` live-confirm. All local.
 - MESH DESIGN: coordinated eviction + node_id (changelog 1535). Captured Brandon's
   proposal in distributed_nodes.md sec 5b -- gossip-flag + joint token re-key excluding
   the actor, OOB (NFC/BT + QR) recovery, salted-system-spec node_id bound to the
