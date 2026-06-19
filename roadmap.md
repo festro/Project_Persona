@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-19 0052 PDT by Claude (Phase 0.5 GREEN; egress baseline design+scripts landed; installer .env decision resolved [keep-read/stop-write]; T1 gate restored; Item 10.0 green on Linux x64)
+Last updated: 2026-06-19 0410 PDT by Claude (Phase 0.5 GREEN; KV-aware ctx sizing landed [GGUF-metadata-driven] + provisioner --tier closed as not-needed; egress baseline scripted [Windows read-only verify done]; installer .env resolved; T1 restored; Item 10.0 Linux-green)
 
 ## Boundaries (do not duplicate)
 
@@ -205,10 +205,19 @@ matrix: `docs/portability_audit.md`.
       also DONE 2026-06-18: start_llama passes `--mmproj <models/MMPROJ_PATH>` when
       VISION_ENABLED is truthy + the projector is present (gated so headless nodes stay
       text-only); doctor reports vision status; _truthy/_mmproj_args unit-tested
-      (test_manage_pid.py). OWED: Windows-side live-confirm of the `up` first-run path +
-      a vision-model serving smoke; `--tier` flag (needs a tier field in the playbook);
-      the deeper KV-aware ctx sizing (replace the 0.85*budget step-down with a real
-      KV-headroom estimate).
+      (test_manage_pid.py). KV-AWARE CTX SIZING DONE 2026-06-19: replaced the crude
+      0.85*budget step-down with a real KV-headroom estimate -- a stdlib GGUF metadata
+      reader (provision_fetch.read_gguf_meta: arch/n_layers/n_head_kv/head_dim, header
+      only) + kv_bytes_per_token (real ggml --cache-type-k/-v byte sizes, not invented
+      constants) + max_ctx_for_budget (fits ctx to the free-for-KV pool: VRAM on full
+      offload else RAM; clamps [min_ctx, ctx_default], floors to 1024). Two-stage:
+      matcher keeps a pre-download guess; cmd_provision recomputes from the real GGUF
+      after download. resolve_ctx precedence = existing-host-validated (capped to the
+      GGUF fit) -> GGUF fit -> matcher guess. +23 offline checks (synthetic + real-GGUF
+      validated: qwen2-7B 30464 B/tok). `--tier` flag RESOLVED (Brandon 2026-06-19): NOT
+      needed -- selection is already hardware-driven (budget-fit + rank); the playbook's
+      "Tier" headers are documentation, no manual taxonomy gate. OWED: Windows-side
+      live-confirm of the `up` first-run path + a vision-model serving smoke.
 - [~] Per-OS egress story: host firewall default-deny baseline (Windows + Linux);
       WireGuard mesh deferred to Phase 9; kernel netns/iptables worker-jail is the
       tighter Phase 8 layer. DECISION 2026-06-19 (Brandon): host firewall NOW, SCRIPTED

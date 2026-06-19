@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 0331 PDT by Claude (egress batch COMMITTED to the canonical D:\ gateway D:\Projects\Git\Project_Persona; roadmap numbering self-note corrected; duplicate stale D: clone surfaced for Brandon; Phase 0.5 GREEN)
+Last updated: 2026-06-19 0410 PDT by Claude (KV-aware ctx sizing landed [GGUF-metadata-driven, hardware-spec recommender]; provisioner --tier closed as not-needed; both prior pending-decisions resolved; Phases 9-10 parked until 0-8 green; origin synced)
 
 ## Rules of the road
 
@@ -39,16 +39,31 @@ Last updated: 2026-06-19 0331 PDT by Claude (egress batch COMMITTED to the canon
     -Remove in an admin shell still owed.
   * (optional) iptables fallback for hosts without nftables.
   * broader Debian / other-Linux installer + doctor parity passes.
-- DECISIONS still pending Brandon (both MINOR, deferred to avoid guessing intent):
-  1. provisioner --tier: needs a tier taxonomy first (the playbook's "Tier 1 / 0" group is
-     combined; a 14B sits under "SBC/Pi"). Decide tier->model mapping and it's a quick add.
-  2. KV-aware ctx sizing: the 0.85*budget step-down is crude; a real KV estimate needs
-     per-model metadata or HW measurement -- do NOT invent constants (Brandon).
-- HARDWARE / Phase 9 (out of this scope): EVO-X2 H2d Exit Gate, EVO-X2-native + ARM64 +
-  non-Vulkan accel passes, the mesh. Deferred by Brandon until the 0-8 foundation is done.
+- SCOPE (Brandon 2026-06-19): Phases 9-10 PARKED until 0-8 are all ironed out + green.
+  Focus stays on the 0-8 ladder.
+- Both prior "pending decisions" RESOLVED 2026-06-19 (Brandon: provisioner + ctx are a
+  hardware-spec-driven recommender):
+  1. provisioner --tier -> NOT needed; selection is already hardware-driven (budget-fit +
+     rank). Playbook "Tier" headers are docs, not a manual taxonomy gate. Closed.
+  2. KV-aware ctx sizing -> DONE (GGUF-metadata-driven; see Just finished). Closed.
+- OWED on the provisioner (need hardware/Windows): Windows-side live-confirm of the `up`
+  first-run path + a vision-model serving smoke.
+- HARDWARE / Phase 9-10 (PARKED until 0-8 green): EVO-X2 H2d Exit Gate, EVO-X2-native +
+  ARM64 + non-Vulkan accel passes, the mesh, live cross-host validation.
 
 ## Just finished (2026-06-19, Claude)
 
+- KV-AWARE CTX SIZING (Phase 0.5 provisioner, hardware-driven per Brandon): replaced the
+  crude 0.85*budget step-down with a real KV-headroom estimate. NEW in provision_fetch.py:
+  read_gguf_meta (stdlib GGUF header reader -> arch/n_layers/n_head_kv/head_dim),
+  kv_dtype_bytes (real ggml --cache-type-k/-v block sizes), kv_bytes_per_token,
+  max_ctx_for_budget (clamp [min_ctx, ctx_default], floor 1024). Two-stage: matcher keeps
+  a pre-download guess (provision_match now also returns ctx_default/min_ctx/vram_budget_mb);
+  manage.cmd_provision recomputes from the real GGUF after download via _gguf_ctx_for (KV in
+  VRAM on full offload else RAM). resolve_ctx precedence: existing-host-validated (capped to
+  the GGUF fit) -> GGUF fit -> matcher guess. +23 offline checks; full suite 5/5; py_compile
+  clean. Validated on a REAL gguf (qwen2-7B: n_head_kv=4, head_dim=128, 30464 B/tok q8_0).
+  `--tier` closed as not-needed (selection already hardware-driven). Local (committed below).
 - COMMITTED the egress batch to the canonical D:\ gateway (D:\Projects\Git\Project_Persona):
   12 files (egress_baseline.{sh,ps1} + design doc NEW; manage.py egress bits;
   test_manage_pid +5; setup_native_stack.sh .env stop-write; profiles/default/config.yaml

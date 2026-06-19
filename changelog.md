@@ -14,6 +14,33 @@ Conventions:
 
 ---
 
+## 2026-06-19 0410 PDT -- KV-aware ctx sizing (GGUF-metadata-driven) + provisioner --tier closed (Brandon + Claude)
+
+- DECISION (Brandon): the model provisioner + ctx sizing are a HARDWARE-SPEC-DRIVEN
+  recommender (suggest/auto-download from the specs manage.py gathers); no manual tier
+  taxonomy. Resolves both prior "pending decisions".
+- KV-AWARE CTX SIZING: replaced provision_match's crude `quant > 0.85*budget -> min_ctx`
+  step-down with a real KV-headroom estimate.
+  * provision_fetch.py NEW: read_gguf_meta (stdlib GGUF header parser -> arch, n_layers,
+    n_head, n_head_kv, n_embd, head_dim; header only, None on non-GGUF/truncated/missing);
+    kv_dtype_bytes (real ggml block byte sizes for --cache-type-k/-v, f16 fallback);
+    kv_bytes_per_token (K+V across layers); max_ctx_for_budget (clamp [min_ctx, ctx_default],
+    floor 1024). resolve_ctx/config_kv gained a gguf_ctx arg.
+  * provision_match.match now also returns ctx_default, min_ctx, vram_budget_mb.
+  * manage.py NEW _gguf_ctx_for: free-for-KV pool = VRAM on full offload else RAM (budget -
+    weights); cmd_provision computes it pre-download (preview) and RECOMPUTES from the real
+    GGUF after download. --ctx-size is llama.cpp's TOTAL ctx (split across --parallel), so
+    KV scales with ctx alone (no per-slot multiply).
+  * resolve_ctx precedence: existing host-validated PERSONA_CTX (CAPPED to the GGUF fit) ->
+    GGUF-derived fit -> matcher guess. Under-set is always the safe direction.
+  * Constants are real ggml type sizes + read model metadata -- nothing invented (Brandon's
+    rule). +23 offline checks (synthetic GGUF + KV math + precedence); full suite 5/5;
+    py_compile clean. Live-validated reading a real gguf: qwen2-7B n_head_kv=4 head_dim=128
+    -> 30464 B/tok (q8_0 K+V).
+- provisioner `--tier` flag CLOSED as not-needed: selection is already hardware-driven
+  (budget-fit + curated rank); the playbook's "Tier N" headers are documentation only.
+- SCOPE: Phases 9-10 parked until 0-8 are all ironed out + green (Brandon).
+
 ## 2026-06-19 0345 PDT -- WSL GitHub SSH + origin push (backstop gap closed) (Brandon + Claude)
 
 - Generated an ed25519 SSH key in WSL (~/.ssh/id_ed25519, no passphrase, perms 600);

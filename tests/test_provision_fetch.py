@@ -8,6 +8,7 @@ helpers. Pure stdlib (no tomllib, no network) so it runs anywhere 3.8+.
     python tests/test_provision_fetch.py
 Exit 0 = all pass, 1 = a failure.
 """
+import struct
 import sys
 import tempfile
 from pathlib import Path
@@ -192,6 +193,74 @@ def test_resolve_ctx():
     kv2 = pf.config_kv(VISION_PICK)
     check("config_kv default uses pick ctx",
           kv2["PERSONA_CTX"] == 16384 and VISION_PICK["ctx"] == 16384)
+    # GGUF-derived ctx precedence (stage 2)
+    check("resolve_ctx uses gguf when no existing", pf.resolve_ctx(8192, None, 12288) == 12288)
+    check("resolve_ctx caps existing to gguf fit", pf.resolve_ctx(8192, 32768, 12288) == 12288)
+    check("resolve_ctx keeps existing within gguf fit", pf.resolve_ctx(8192, 8192, 16384) == 8192)
+    check("resolve_ctx gguf beats matcher pick", pf.resolve_ctx(8192, None, 10240) == 10240)
+    kv3 = pf.config_kv(TEXT_PICK, existing_ctx=None, gguf_ctx=10240)
+    check("config_kv honors gguf ctx", kv3["PERSONA_CTX"] == 10240)
+
+
+def _gguf_kv(key, vtype, packed):
+    return struct.pack("<Q", len(key)) + key.encode() + struct.pack("<I", vtype) + packed
+
+
+def _build_gguf(path, arch="llama", n_layers=32, n_head=32, n_head_kv=8, n_embd=4096,
+                key_length=None, bad_magic=False):
+    """Write a minimal valid GGUF header (metadata only, zero tensors)."""
+    def u32(k, v):
+        return _gguf_kv(k, 4, struct.pack("<I", v))
+    kvs = [_gguf_kv("general.architecture", 8, struct.pack("<Q", len(arch)) + arch.encode()),
+           u32("%s.block_count" % arch, n_layers),
+           u32("%s.attention.head_count" % arch, n_head),
+           u32("%s.attention.head_count_kv" % arch, n_head_kv),
+           u32("%s.embedding_length" % arch, n_embd)]
+    if key_length is not None:
+        kvs.append(u32("%s.attention.key_length" % arch, key_length))
+    hdr = (b"BADx" if bad_magic else b"GGUF") + struct.pack("<I", 3) \
+        + struct.pack("<Q", 0) + struct.pack("<Q", len(kvs))
+    Path(path).write_bytes(hdr + b"".join(kvs))
+
+
+def test_gguf_reader():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "m.gguf"
+        _build_gguf(p)
+        meta = pf.read_gguf_meta(p)
+        check("gguf arch parsed", bool(meta) and meta["arch"] == "llama")
+        check("gguf n_layers", meta["n_layers"] == 32)
+        check("gguf n_head_kv", meta["n_head_kv"] == 8)
+        check("gguf head_dim = embd/head", meta["head_dim"] == 128)
+        p2 = Path(d) / "m2.gguf"
+        _build_gguf(p2, key_length=192)
+        check("gguf explicit key_length wins", pf.read_gguf_meta(p2)["head_dim"] == 192)
+        bad = Path(d) / "bad.gguf"
+        _build_gguf(bad, bad_magic=True)
+        check("non-GGUF magic -> None", pf.read_gguf_meta(bad) is None)
+        check("missing file -> None", pf.read_gguf_meta(Path(d) / "nope.gguf") is None)
+        trunc = Path(d) / "t.gguf"
+        trunc.write_bytes(b"GGUF" + struct.pack("<I", 3))   # header cut off
+        check("truncated -> None", pf.read_gguf_meta(trunc) is None)
+
+
+def test_kv_sizing():
+    check("kv_dtype q8_0", abs(pf.kv_dtype_bytes("q8_0") - 34.0 / 32.0) < 1e-9)
+    check("kv_dtype f16", pf.kv_dtype_bytes("f16") == 2.0)
+    check("kv_dtype unknown -> f16", pf.kv_dtype_bytes("zzz") == 2.0)
+    meta = {"n_layers": 32, "n_head_kv": 8, "head_dim": 128}
+    per_tok = 32 * 8 * 128 * (34.0 / 32.0) * 2
+    check("kv_bytes_per_token K+V q8_0",
+          abs(pf.kv_bytes_per_token(meta, "q8_0", "q8_0") - per_tok) < 1e-6)
+    check("max_ctx caps at ctx_default",
+          pf.max_ctx_for_budget(100000, per_tok, 8192, 16384) == 16384)
+    check("max_ctx floors at min_ctx when tight",
+          pf.max_ctx_for_budget(1, per_tok, 8192, 16384) == 8192)
+    mid = pf.max_ctx_for_budget(1000, per_tok, 4096, 65536)
+    check("max_ctx mid floored to 1024 step, in band",
+          mid % 1024 == 0 and 4096 <= mid <= 65536)
+    check("max_ctx zero cost -> ctx_default",
+          pf.max_ctx_for_budget(1000, 0, 4096, 16384) == 16384)
 
 
 def test_model_resolvable():
@@ -211,7 +280,8 @@ def test_model_resolvable():
 for fn in [test_preflight, test_license, test_plan, test_kv_block,
            test_wire_replace_and_comment, test_wire_missing_section,
            test_wire_dry_run, test_target_path, test_download_dry_and_verify,
-           test_resolve_ctx, test_model_resolvable]:
+           test_resolve_ctx, test_gguf_reader, test_kv_sizing,
+           test_model_resolvable]:
     fn()
 
 print("\n%d checks, %d failures" % (checks, len(failures)))

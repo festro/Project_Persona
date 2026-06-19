@@ -1403,6 +1403,31 @@ def _filter_playbook(playbook, model_id=None, text_only=False):
     return {"meta": playbook.get("meta", {}), "model": models}
 
 
+def _gguf_ctx_for(root, pick, cfg, pf):
+    """KV-aware PERSONA_CTX from the on-disk GGUF + host budget, or None if the
+    weights file is absent / not GGUF / metadata missing (caller then falls back to
+    the matcher's pre-download guess). KV lives in VRAM on full GPU offload, else in
+    system RAM, so the free-for-KV pool is sized from whichever the weights load into.
+    --ctx-size is llama.cpp's TOTAL context (split across --parallel slots), so KV
+    memory scales with ctx alone -- no per-slot multiply."""
+    weights = root / "models" / (pick.get("file") or "")
+    if not weights.is_file():
+        return None
+    meta = pf.read_gguf_meta(weights)
+    if not meta:
+        return None
+    size_mb = pick.get("size_mb") or 0
+    if pick.get("full_gpu_offload"):
+        free_for_kv = max(0, (pick.get("vram_budget_mb") or 0) - size_mb)
+    else:
+        free_for_kv = max(0, (pick.get("budget_mb") or 0) - size_mb)
+    kv_per_tok = pf.kv_bytes_per_token(
+        meta, cfg.get("CACHE_TYPE_K", "q8_0"), cfg.get("CACHE_TYPE_V", "q8_0"))
+    return pf.max_ctx_for_budget(
+        free_for_kv, kv_per_tok,
+        pick.get("min_ctx", 4096), pick.get("ctx_default", pick.get("ctx", 8192)))
+
+
 def cmd_provision(root, cfg, args):
     sp = str(root / "scripts")
     if sp not in sys.path:
@@ -1446,13 +1471,17 @@ def cmd_provision(root, cfg, args):
     print(f"  total to download: {plan['download_mb']} MiB")
 
     existing_ctx = cfg.get("PERSONA_CTX")
-    kv = pf.config_kv(pick, existing_ctx)
-    try:
-        if existing_ctx and int(existing_ctx) != int(pick["ctx"]):
-            info(f"preserving host-validated PERSONA_CTX={existing_ctx} "
-                 f"over the matcher's conservative {pick['ctx']}")
-    except (TypeError, ValueError):
-        pass
+    gguf_ctx = _gguf_ctx_for(root, pick, cfg, pf)   # None until the GGUF is on disk
+    kv = pf.config_kv(pick, existing_ctx, gguf_ctx)
+    if gguf_ctx is not None:
+        info(f"ctx sized from GGUF KV footprint -> {gguf_ctx} "
+             f"(model max {pick.get('ctx_default')}, floor {pick.get('min_ctx')}); "
+             f"effective PERSONA_CTX={kv['PERSONA_CTX']}"
+             + (f" (capped from existing {existing_ctx})"
+                if existing_ctx and int(existing_ctx) > gguf_ctx else ""))
+    elif existing_ctx:
+        info(f"GGUF not yet on disk; provisional PERSONA_CTX={kv['PERSONA_CTX']} "
+             f"(recomputed from the real GGUF after download)")
     target = pf.target_config_path(root, host_tag(), os_tag())
     print(f"config target: {target.name}  [{os_tag()}]")
     print(pf.config_block(os_tag(), kv))
@@ -1489,6 +1518,14 @@ def cmd_provision(root, cfg, args):
         err(f"download failed: {res.get('error') or res.get('results')}")
         return 4
     ok("download complete")
+
+    # Weights are now on disk -> size ctx from the real GGUF metadata (authoritative).
+    post_ctx = _gguf_ctx_for(root, pick, cfg, pf)
+    if post_ctx is not None and post_ctx != gguf_ctx:
+        gguf_ctx = post_ctx
+        kv = pf.config_kv(pick, existing_ctx, gguf_ctx)
+        info(f"ctx sized from GGUF KV footprint -> {gguf_ctx}; "
+             f"effective PERSONA_CTX={kv['PERSONA_CTX']}")
 
     if getattr(args, "write_config", False) or getattr(args, "yes", False):
         r = pf.wire_config(target, os_tag(), kv, dry_run=False)

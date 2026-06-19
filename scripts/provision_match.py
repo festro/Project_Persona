@@ -117,8 +117,11 @@ def match(env, playbook):
         "vision": bool(model.get("vision")),
         "vision_enabled": vision_enabled,
         "ctx": ctx,
+        "ctx_default": model.get("ctx_default", 8192),
+        "min_ctx": model.get("min_ctx", model.get("ctx_default", 8192)),
         "full_gpu_offload": full_offload,
         "budget_mb": budget_mb,
+        "vram_budget_mb": vram_budget,
         "score": score,
     }
 

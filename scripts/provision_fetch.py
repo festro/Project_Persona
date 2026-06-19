@@ -16,9 +16,133 @@ docs/model_provisioner_design_20260607_2158.md (section 5/6, phase P3).
 from __future__ import annotations
 
 import shutil
+import struct
 from pathlib import Path
 
 OPEN_LICENSES = {"apache-2.0", "mit", "bsd-3-clause", "bsd-2-clause"}
+
+# ggml type sizes in BYTES PER ELEMENT (block byte size / block element count).
+# These are the real ggml block layouts, NOT tuning constants -- used to size the
+# KV cache for a given --cache-type-k/-v. Unknown types fall back to f16 (2.0), the
+# safe over-estimate (bigger per-token cost -> smaller ctx -> we never over-allocate).
+_GGML_BYTES_PER_ELEM = {
+    "f32": 4.0, "f16": 2.0, "bf16": 2.0,
+    "q8_0": 34.0 / 32.0, "q8_1": 36.0 / 32.0,
+    "q5_0": 22.0 / 32.0, "q5_1": 24.0 / 32.0,
+    "q4_0": 18.0 / 32.0, "q4_1": 20.0 / 32.0,
+    "iq4_nl": 18.0 / 32.0,
+}
+
+
+def kv_dtype_bytes(name):
+    """Bytes/element for a llama.cpp --cache-type-{k,v} value; f16 if unknown."""
+    return _GGML_BYTES_PER_ELEM.get((name or "").strip().lower(), 2.0)
+
+
+# --- minimal GGUF metadata reader (stdlib; header only) ---------------------
+_GGUF_MAGIC = b"GGUF"
+# GGUF metadata value-type enum -> (struct format, byte width) for scalars.
+_GGUF_SCALAR = {
+    0: ("B", 1), 1: ("b", 1), 2: ("H", 2), 3: ("h", 2),
+    4: ("I", 4), 5: ("i", 4), 6: ("f", 4), 7: ("?", 1),
+    10: ("Q", 8), 11: ("q", 8), 12: ("d", 8),
+}
+_GGUF_STRING = 8
+_GGUF_ARRAY = 9
+
+
+def _gguf_scalar(f, fmt, width):
+    data = f.read(width)
+    if len(data) != width:
+        raise ValueError("truncated GGUF header")
+    return struct.unpack("<" + fmt, data)[0]
+
+
+def _gguf_string(f):
+    n = _gguf_scalar(f, "Q", 8)
+    s = f.read(n)
+    if len(s) != n:
+        raise ValueError("truncated GGUF string")
+    return s.decode("utf-8", "replace")
+
+
+def _gguf_value(f, vtype):
+    if vtype in _GGUF_SCALAR:
+        fmt, width = _GGUF_SCALAR[vtype]
+        return _gguf_scalar(f, fmt, width)
+    if vtype == _GGUF_STRING:
+        return _gguf_string(f)
+    if vtype == _GGUF_ARRAY:
+        elem_t = _gguf_scalar(f, "I", 4)
+        count = _gguf_scalar(f, "Q", 8)
+        return [_gguf_value(f, elem_t) for _ in range(count)]
+    raise ValueError("unknown GGUF value type %r" % vtype)
+
+
+def read_gguf_meta(path):
+    """Parse the GGUF metadata header (stdlib, header only) and return the fields
+    needed to size the KV cache: arch, n_layers, n_head, n_head_kv, n_embd, head_dim.
+    Returns None if the file is not GGUF or the required fields are missing."""
+    try:
+        with open(path, "rb") as f:
+            if f.read(4) != _GGUF_MAGIC:
+                return None
+            _gguf_scalar(f, "I", 4)   # version
+            _gguf_scalar(f, "Q", 8)   # tensor count
+            n_kv = _gguf_scalar(f, "Q", 8)
+            md = {}
+            for _ in range(n_kv):
+                key = _gguf_string(f)
+                vtype = _gguf_scalar(f, "I", 4)
+                md[key] = _gguf_value(f, vtype)
+    except (OSError, ValueError, struct.error):
+        return None
+
+    arch = md.get("general.architecture")
+    if not arch:
+        return None
+
+    def a(suffix):
+        return md.get("%s.%s" % (arch, suffix))
+
+    n_layers = a("block_count")
+    n_head = a("attention.head_count")
+    n_head_kv = a("attention.head_count_kv")
+    n_embd = a("embedding_length")
+    if n_layers is None or n_head_kv is None:
+        return None
+    # head_dim: explicit attention.key_length when present, else n_embd / n_head.
+    head_dim = a("attention.key_length")
+    if head_dim is None and n_embd and n_head:
+        head_dim = n_embd // n_head
+    if not head_dim:
+        return None
+    return {
+        "arch": arch,
+        "n_layers": int(n_layers),
+        "n_head": int(n_head) if n_head else None,
+        "n_head_kv": int(n_head_kv),
+        "n_embd": int(n_embd) if n_embd else None,
+        "head_dim": int(head_dim),
+    }
+
+
+def kv_bytes_per_token(meta, ck="q8_0", cv="q8_0"):
+    """KV-cache bytes per token of context = K + V, each layer holding
+    n_head_kv * head_dim elements across n_layers. ck/cv = --cache-type-k/-v."""
+    per_layer = meta["n_layers"] * meta["n_head_kv"] * meta["head_dim"]
+    return per_layer * kv_dtype_bytes(ck) + per_layer * kv_dtype_bytes(cv)
+
+
+def max_ctx_for_budget(free_mb, kv_per_token_bytes, min_ctx, ctx_default, step=1024):
+    """Largest context that fits free_mb of KV headroom, clamped to
+    [min_ctx, ctx_default] and floored to `step`. Never exceeds ctx_default (the
+    model's designed max) nor drops below min_ctx (its floor)."""
+    if kv_per_token_bytes <= 0:
+        return int(ctx_default)
+    raw = int((free_mb * 1024 * 1024) / kv_per_token_bytes)
+    raw = (raw // step) * step
+    return max(int(min_ctx), min(int(ctx_default), raw))
 
 
 def disk_free_mb(path):
@@ -90,25 +214,32 @@ def _toml_value(v):
     return '"%s"' % v
 
 
-def resolve_ctx(pick_ctx, existing_ctx=None):
-    """Prefer a context the host already validated (an existing effective config
-    PERSONA_CTX) over the matcher's conservative tight-budget guess; fall back to
-    the matcher value on a fresh host (under-setting is the safe direction)."""
+def resolve_ctx(pick_ctx, existing_ctx=None, gguf_ctx=None):
+    """Choose PERSONA_CTX. Precedence (under-setting is the safe direction):
+      1. an existing host-validated PERSONA_CTX wins, but is CAPPED to the
+         GGUF-derived fit when that is known (never serve a ctx that won't fit);
+      2. else the GGUF-derived KV-aware fit -- the authoritative fresh-host value;
+      3. else the matcher's conservative pre-download guess (pick_ctx)."""
+    existing = None
     if existing_ctx is not None and str(existing_ctx).strip() != "":
         try:
-            return int(existing_ctx)
+            existing = int(existing_ctx)
         except (TypeError, ValueError):
-            pass
+            existing = None
+    if existing is not None:
+        return min(existing, int(gguf_ctx)) if gguf_ctx else existing
+    if gguf_ctx:
+        return int(gguf_ctx)
     return int(pick_ctx)
 
 
-def config_kv(pick, existing_ctx=None):
-    """The keys the pick wires into the [<os>] config table. PERSONA_CTX prefers an
-    existing host-validated value (see resolve_ctx). MMPROJ_PATH and VISION_ENABLED
-    are forward-looking (serving-side vision wiring still owed) -- the mmproj is
-    fetched regardless so vision can flip on without a re-download."""
+def config_kv(pick, existing_ctx=None, gguf_ctx=None):
+    """The keys the pick wires into the [<os>] config table. PERSONA_CTX is resolved
+    by resolve_ctx (existing host-validated value, else the GGUF-derived KV-aware fit,
+    else the matcher guess). MMPROJ_PATH and VISION_ENABLED are forward-looking -- the
+    mmproj is fetched regardless so vision can flip on without a re-download."""
     kv = {"PERSONA_MODEL": pick["file"],
-          "PERSONA_CTX": resolve_ctx(pick["ctx"], existing_ctx)}
+          "PERSONA_CTX": resolve_ctx(pick["ctx"], existing_ctx, gguf_ctx)}
     if pick.get("vision") and pick.get("mmproj"):
         kv["MMPROJ_PATH"] = pick["mmproj"]
         kv["VISION_ENABLED"] = 1 if pick.get("vision_enabled") else 0
