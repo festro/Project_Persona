@@ -31,7 +31,9 @@ Last updated: 2026-06-19 0331 PDT by Claude (egress batch COMMITTED to the canon
 - OWED verification on the egress baseline (needs a real box / Windows):
   * live-apply the SERVE lock on a real Linux box (apply --yes -> a curl should fail ->
     remove --yes); not done on the dev surface to avoid cutting its own connectivity.
-  * Windows PowerShell verify of egress_baseline.ps1 (process-scoped + -Strict).
+  * Windows PowerShell verify of egress_baseline.ps1: READ-ONLY paths DONE 2026-06-19
+    (PS 5.1.26100: -Plan/-Status/-Plan -Strict/-Plan -Provision all rc=0). Live -Apply/
+    -Remove in an admin shell still owed.
   * (optional) iptables fallback for hosts without nftables.
   * broader Debian / other-Linux installer + doctor parity passes.
 - DECISIONS still pending Brandon (both MINOR, deferred to avoid guessing intent):

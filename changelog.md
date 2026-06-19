@@ -14,6 +14,25 @@ Conventions:
 
 ---
 
+## 2026-06-19 0335 PDT -- Egress batch committed (3645431) + Windows read-only verify + doc-discrepancy fixes (Brandon + Claude)
+
+- COMMITTED the egress batch to the canonical D:\ gateway (D:\Projects\Git\Project_Persona),
+  commit 3645431: 12 files (egress_baseline.{sh,ps1} + design doc; manage.py egress bits;
+  test_manage_pid +5; setup_native_stack.sh .env stop-write; profiles/default/config.yaml
+  T1 pin; roadmap/changelog/todo; handoffs _2245 + _0052). Staged surgically (not git add
+  -A: the WSL clone carries untracked runtime artifacts + a diverged tracked llama_cpp/).
+  NOT pushed (origin/main behind by 5; push is milestones-only, pending Brandon).
+- egress_baseline.ps1 Windows READ-ONLY verify DONE (PowerShell 5.1.26100 via WSL interop):
+  -Plan / -Status / -Plan -Strict / -Plan -Provision all rc=0 with valid output (-Status
+  correctly reports "NOT loaded"). Live -Apply/-Remove (admin) + Linux root live-apply still
+  owed (would disrupt this dev surface).
+- DOC DISCREPANCY FIXES: (1) roadmap self-note claiming knowledge.md + distributed_nodes.md
+  "still call the mesh Phase 10 / keep a CrewAI Phase 9" was STALE -- both already use the
+  06-14 numbering; replaced with an "all three docs agree" note. (2) SURFACED: two diverged
+  Project_Persona git clones on D: -- D:\Projects\Git\Project_Persona (canonical, used by the
+  sync script) vs D:\Projects\Project_Persona (stale, HEAD at P3); recommend deleting the
+  stale one (pending Brandon -- did not delete a repo Claude did not create).
+
 ## 2026-06-19 0052 PDT -- Phase 0.5 egress baseline: design + per-OS scripts + doctor report (Brandon + Claude)
 
 - DECISION (Brandon): the per-OS egress story is a HOST FIREWALL default-deny-outbound

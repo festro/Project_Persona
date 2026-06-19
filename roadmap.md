@@ -217,8 +217,10 @@ matrix: `docs/portability_audit.md`.
       scripts/egress_baseline.sh (nftables: plan/status/apply[--provision]/remove,
       root-guarded, established-first) + scripts/egress_baseline.ps1 (Windows Firewall;
       process-scoped default, -Strict host-wide) + a doctor read-only "Egress baseline"
-      report (egress_posture, unit-tested). OWED: live-apply test of the SERVE lock on a
-      real box; Windows PowerShell verify; optional iptables (non-nft) fallback.
+      report (egress_posture, unit-tested). Windows PowerShell READ-ONLY paths VERIFIED
+      2026-06-19 (PS 5.1.26100: -Plan / -Status / -Plan -Strict / -Plan -Provision all
+      rc=0, valid output). OWED: live-apply test of the SERVE lock on a real box (Linux
+      root, and Windows admin -Apply/-Remove); optional iptables (non-nft) fallback.
 - [~] Cross-OS installer/doctor parity (Windows + Debian + other Linux). OPEN QUESTION
       RESOLVED 2026-06-19 (Brandon): KEEP manage.py's .env READ-fallback (portability
       hedge for a no-tomllib host) but STOP the installer writing it. DONE:
