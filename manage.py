@@ -1674,8 +1674,9 @@ button:hover{background:var(--sec)}button:disabled{opacity:.5;cursor:not-allowed
 <select id="test"><option>quick</option><option>offline</option><option>health</option><option>smoke</option><option>load</option><option>all</option></select>
 <button onclick="act('test',document.getElementById('test').value)">Run test</button>
 </div>
+<div class="caps"><div class="row" style="margin:0 0 10px 0"><span class="lbl">Task board</span><span class="meta" id="taskCount">-</span></div><div id="tasks" class="meta">loading...</div></div>
 <div class="console" id="log">...</div>
-<div class="foot">polling /api/status every 2s - manage.py panel</div>
+<div class="foot">polling /api/status + /api/tasks every 2s - manage.py panel</div>
 </div>
 <script>
 function dot(id,good){document.getElementById(id).style.background=good?'var(--ok)':'var(--bad)'}
@@ -1694,8 +1695,11 @@ document.getElementById('toggleBtn').textContent=s.busy?'Working...':(up?'Stop':
 document.getElementById('stackTxt').textContent='Stack: '+(s.busy?'working...':(up?'running':'stopped'));
 document.getElementById('log').textContent=(s.log||[]).join('\n')||'(no output yet)';
 document.querySelectorAll('button').forEach(b=>b.disabled=!!s.busy)}catch(e){document.getElementById('stackTxt').textContent='Stack: offline'}}
+async function pollTasks(){try{const t=await j('/api/tasks');const ts=t.tasks||[];
+document.getElementById('taskCount').textContent=(t.error?'(API offline)':((t.count||ts.length)+' total, showing '+ts.length));
+document.getElementById('tasks').innerHTML=ts.length?ts.map(x=>'<div>['+(x.status||'?')+'] '+String(x.title||x.job_id||'').replace(/[<>&]/g,'')+' <span style="opacity:.6">'+x.job_id+'</span></div>').join(''):'(no tasks on the board)'}catch(e){document.getElementById('tasks').textContent='(unavailable)'}}
 async function act(a,w){await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:a,which:w||'quick'})});setTimeout(poll,300)}
-loadCaps();poll();setInterval(poll,2000);
+loadCaps();poll();pollTasks();setInterval(poll,2000);setInterval(pollTasks,2000);
 </script></body></html>"""
 
 
@@ -1792,6 +1796,12 @@ def cmd_panel(root, cfg, args):
                 self._send(200, json.dumps(status()))
             elif self.path == "/api/capabilities":
                 self._send(200, json.dumps(caps))
+            elif self.path == "/api/tasks":
+                # Server-side proxy to the companion API /tasks (the API has no CORS, so the
+                # browser cannot fetch :8000 cross-origin from the panel port). Same data the
+                # in-chat persona and the OpenWebUI tool use.
+                d, _ = http_get_json("http://127.0.0.1:8000/tasks?limit=20", timeout=1.5)
+                self._send(200, json.dumps(d if d is not None else {"count": 0, "tasks": [], "error": "api_unreachable"}))
             else:
                 self._send(404, "{}")
 

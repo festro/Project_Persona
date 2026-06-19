@@ -36,7 +36,7 @@ logs/
 # ── Persistent application state ─────────────────────
 data/
 inbox/
-openwebui/
+/openwebui/   # OpenWebUI WEBUI_DATA_DIR (root only) -- anchored so tools/openwebui/ (the task Tool plugin) stays tracked
 .webui_secret_key
 
 # ── Vector store / memory artifacts ──────────────────

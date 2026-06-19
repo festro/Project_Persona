@@ -340,20 +340,39 @@ Exit Gate (PROVEN 2026-06-07, changelog 1222, via tests/exit_gate_live.py):
 - [x] live `stream=true` produces SSE chunks + [DONE] and non-zero `prompt_tokens`
 - [x] `/health` green with embedder_ok=true and chroma_ok=true
 
-## Phase 2 -- Frontend and UX  [~] STARTED (2026-06-19)
+## Phase 2 -- Frontend and UX  [~] CODE-COMPLETE (2026-06-19; only a manual browser click-test owed)
 
 Goal: a thin client over the API with durable conversation history.
 
-- [ ] OpenWebUI as thin client (currently dormant, port 3000)
-- [~] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
+- [~] OpenWebUI as thin client (port 3000). STOOD UP 2026-06-19: env_webui venv +
+      open-webui==0.8.8 (pip route -- no docker on this box); scripts/start_webui.sh
+      (AI_ROOT-relative) points OPENAI_API_BASE_URL at the API /v1. Serving on :3000
+      (/health status:true) and WIRED -- OpenWebUI's startup GET /v1/models hit the API
+      200. OWED: a human browser click-test (interactive admin signup) -- the only Phase 2
+      step not doable headless.
+- [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant
       turns on /chat (auto-creates + returns conversation_id), GET /conversations[/{id}] +
       DELETE reload/list, /health conversations block. tests/test_conversations.py 21 checks
-      + live API persist/reload round-trip (4 turns, continuation, list). OWED: /v1 + UI
-      conversation-id mapping (rides with OpenWebUI wiring).
-- [ ] Persona task surfacing in the UI -- ALL THREE surfaces (Brandon 2026-06-19): in-chat
-      via the persona, an OpenWebUI Tool/Function plugin, and a separate status panel.
+      + live API persist/reload round-trip (4 turns, continuation, list). /v1 + UI
+      conversation-id mapping DONE 2026-06-19: /v1/chat/completions now at parity with /chat
+      -- HYBRID keying (explicit conversation_id/`user` field, else owui-<sha256[:16]> of the
+      system+first-user prefix so stock OpenWebUI threads map deterministically), cold-thread
+      seeding from the client array, windowed history from the DB (not the client array),
+      user+assistant persist, conversation_id returned. tests/test_v1_history.py 25 checks +
+      LIVE 2-turn (Qwen2.5-7B CPU): turn 2 recalled "teal" purely from reloaded DB history;
+      4 ordered turns, no double-seed.
+- [x] Persona task surfacing -- ALL THREE surfaces DONE 2026-06-19. Shared data: GET /tasks
+      (tasks_summary: normalized board view) + server.py helpers (is_task_query gate,
+      render_tasks_block). (1) IN-CHAT: tasks_block_for injects a live task-board block into
+      the persona prompt when the message is task-related (threaded through build_persona_
+      prompt/messages/persona_generate on /chat + /v1; TASKS_INCHAT_* config; /chat debug.tasks)
+      -- LIVE: persona listed the 3 real board tasks. (2) OPENWEBUI TOOL: tools/openwebui/
+      persona_tasks_tool.py (Tools class list_tasks/get_task, base-URL valve). (3) STATUS PANEL:
+      manage.py panel gains a /api/tasks server-side proxy (API has no CORS) + a Task board
+      section polling every 2s -- LIVE (proxy returned 3 tasks). tests/test_tasks_surface.py
+      24 checks.
 - [x] Hybrid conversation windowing -- DONE 2026-06-19: services/api/windowing.py
       (window_turns keeps newest verbatim within HISTORY_TOKEN_BUDGET, folds older into a
       summary; render_history_messages/_text for the two prompt paths; distilled turns
@@ -370,14 +389,18 @@ Goal: a thin client over the API with durable conversation history.
       migrate_chroma_to_qdrant.py (reuses stored vectors, no re-embed). VALIDATED:
       tests/test_ragstore.py (22 checks incl. Chroma<->Qdrant parity); real-data migration
       (4 collections / 61 points, exact counts); live server.py qdrant smoke (rag_ok, fact
-      filter). OWED: flip RAG_BACKEND default + the live multi-turn parity (Exit Gate).
+      filter). DONE 2026-06-19: live parity proven (chroma vs qdrant top-3 identical across 5
+      queries on the migrated 66-point corpus) -> RAG_BACKEND default FLIPPED chroma->qdrant;
+      API restarts clean on qdrant (rag_ok, 4 collections). RAG_BACKEND=chroma still falls back.
 
 Exit Gate:
 
-- [ ] a user holds a multi-turn conversation through the UI
-- [ ] turns persist in `conversations.db` and reload correctly
-- [ ] windowing keeps context within budget
-- [ ] retrieval works against Qdrant with parity to the Chroma path
+- [~] a user holds a multi-turn conversation through the UI -- the /v1 path OpenWebUI
+      calls is proven live (2-turn recall via DB history); browser click-test still owed
+- [x] turns persist in `conversations.db` and reload correctly -- live on /chat and /v1
+- [x] windowing keeps context within budget -- live (turn 2 recalled from reloaded history)
+- [x] retrieval works against Qdrant with parity to the Chroma path -- live parity proven,
+      RAG_BACKEND default flipped to qdrant
 
 ## Phase 3 -- Always-on daemon (daemon.py)  [ ] NOT STARTED
 

@@ -14,6 +14,70 @@ Conventions:
 
 ---
 
+## 2026-06-19 1645 PDT -- Phase 2: task surfacing (all three surfaces) + RAG_BACKEND flip (Brandon + Claude)
+
+- Task surfacing -- ALL THREE surfaces (Brandon's spec). Shared data + helpers in
+  services/api/server.py: tasks_summary (normalized board view: title/status/assignee,
+  newest first), render_tasks_block (compact text), is_task_query (intent gate),
+  tasks_block_for (gated injection), GET /tasks endpoint, /health task_store.inchat_surfacing,
+  TASKS_INCHAT_ENABLED/TASKS_INCHAT_LIMIT config.
+- (1) IN-CHAT: tasks_block woven into build_persona_prompt + build_persona_messages +
+  persona_generate (visible "Live task board" block, persona MAY share it), injected on /chat
+  and /v1 when is_task_query(text). /chat debug.tasks {enabled,is_task_query,injected,chars}.
+  LIVE on Qwen2.5-7B: "what tasks are you working on?" -> persona listed the 3 real board
+  tasks (injected, 248 chars).
+- (2) OPENWEBUI TOOL: tools/openwebui/persona_tasks_tool.py -- self-contained Tools class
+  (list_tasks/get_task) calling the API /tasks + /jobs via an api_base_url valve (127.0.0.1
+  native / host.docker.internal from Docker), with install instructions in the header.
+- (3) STATUS PANEL: manage.py panel gains a /api/tasks handler that server-side-proxies the
+  API /tasks (the API has no CORS, so the browser cannot fetch :8000 cross-origin) + a
+  "Task board" section in PANEL_HTML polling every 2s. LIVE: panel /api/tasks returned 3 tasks.
+- tests/test_tasks_surface.py (NEW): 24 checks -- intent gate, summary/render formatting against
+  a temp tasks.db, gated injection (incl. disabled), GET /tasks shape, and /chat injection
+  (block reaches persona_generate + debug.tasks) via TestClient. Offline suite 10/10 (was 9/9).
+- RAG_BACKEND default FLIPPED chroma -> qdrant (Phase 2a / Exit Gate). Ran
+  scripts/migrate_chroma_to_qdrant.py on this clone (mem_default 8, mem_bob 1, global_memory 56,
+  mem_alice 1 -> qdrant, exact counts). Proved LIVE parity: chroma vs qdrant top-3 identical
+  across 5 queries on the migrated 66-point corpus. Flipped services/api/server.py default
+  (RAG_BACKEND env default chroma -> qdrant); API restarts clean (/health rag_backend=qdrant,
+  rag_ok, 4 collections). RAG_BACKEND=chroma still falls back. Closes the last Phase 2 Exit-Gate
+  box.
+- roadmap.md Phase 2 -> [~] CODE-COMPLETE (task surfacing [x], Item 2a [x], all Exit-Gate boxes
+  [x] except the manual browser UI click-test [~]). todo.md + stamp updated; a SYNC PENDING note
+  records that all Phase 2 work is local on the WSL clone, not yet pulled back to D:\ or pushed.
+
+## 2026-06-19 1505 PDT -- Phase 2: /v1 conversation wiring + OpenWebUI stood up (Brandon + Claude)
+
+- services/api/server.py: /v1/chat/completions brought to parity with /chat for Phase 2.
+  Added `import hashlib`. OA_ChatCompletionsReq gains optional `conversation_id` + `user`.
+- HYBRID conversation keying (_v1_conversation_id): explicit `conversation_id` wins, else the
+  OpenAI `user` field, else a stable `owui-<sha256[:16]>` hash of the system+first-user prefix
+  -- so stock OpenWebUI threads (which carry no conversation id) map deterministically with no
+  plugin, and a future plugin can override with an explicit id.
+- _v1_latest_user_text: the trailing user message is the new input; conversations.db (NOT the
+  client's resent message array) is the history source -> no double-counting. _v1_prior_turns +
+  _v1_prepare_conversation: on first sight of a thread, SEED the DB from the client's prior
+  user/assistant turns (system dropped) so server history converges with the client; then window
+  prior DB turns into history and persist the user turn. Assistant turn persisted after generate;
+  conversation_id returned in the response (extra key, OpenAI clients ignore it).
+- tests/test_v1_history.py (NEW): 25 checks -- hybrid id resolution (explicit/user/hash,
+  stability, distinctness, system participates), latest-user + prior-turns extraction, cold-thread
+  seeding, warm-thread no-double-seed, windowing handoff, and a TestClient run of the endpoint
+  (generation monkeypatched) confirming persistence + returned conversation_id. Offline suite 9/9
+  (was 8/8). py_compile clean.
+- LIVE validation on Qwen2.5-7B (Daemonic-PC WSL, CPU): manage.py up; /v1 turn 1 stated "favorite
+  color is teal" (19s), turn 2 "what is my favorite color?" answered "Teal." (9s) purely from
+  reloaded DB history -- the latest user message carried no color. Thread owui-412592b70b86d273
+  held 4 ordered turns, no duplication. Exit-Gate persist/reload/windowing boxes proven on /v1.
+- OpenWebUI stood up (no docker on this box -> pip route): created env_webui venv +
+  open-webui==0.8.8; scripts/start_webui.sh run AI_ROOT-relative with OPENAI_API_BASE_URL ->
+  http://127.0.0.1:8000/v1. Serving on :3000 (/health status:true) and wired -- OpenWebUI's
+  startup GET /v1/models hit the API 200. OWED: a human browser click-test (interactive admin
+  signup), not doable headless.
+- roadmap.md Phase 2: OpenWebUI item -> [~] (stood up + wired); conversations.db item -> [x]
+  (/v1 + UI mapping done); Exit Gate persist/reload/windowing -> [x], UI box -> [~], Qdrant
+  parity still open. todo.md + stamp updated. Local (not yet synced to D:\ / committed).
+
 ## 2026-06-19 0442 PDT -- Phase 2: hybrid conversation windowing (history -> prompt) (Brandon + Claude)
 
 - services/api/windowing.py: window_turns(turns, budget, min_recent, summarize?) keeps the

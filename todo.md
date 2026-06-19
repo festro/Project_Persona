@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 0442 PDT by Claude (PHASE 2 in progress; Qdrant + conversations.db + hybrid windowing all DONE -- multi-turn memory works end to end [offline 8/8]; next: OpenWebUI thin client wiring + task surfacing)
+Last updated: 2026-06-19 1645 PDT by Claude (PHASE 2 CODE-COMPLETE: /v1 wiring + OpenWebUI up + task surfacing ALL THREE surfaces [in-chat LIVE] + RAG_BACKEND flipped to qdrant w/ live parity [offline 10/10]. Only owed: manual browser click-test. NEXT: sync WSL -> D:\ + git push)
 
 ## Rules of the road
 
@@ -51,20 +51,57 @@ Last updated: 2026-06-19 0442 PDT by Claude (PHASE 2 in progress; Qdrant + conve
 - HARDWARE / Phase 9-10 (PARKED until 0-8 green): EVO-X2 H2d Exit Gate, EVO-X2-native +
   ARM64 + non-Vulkan accel passes, the mesh, live cross-host validation.
 
-## Next up (Phase 2 -- doing all of it; per-item commits)
+## Next up (Phase 2 -- CODE-COMPLETE; only the manual browser click-test owed)
 
-- [done] Item 2a Chroma->Qdrant RagStore + migration (see Just finished).
-- [done] conversations.db store + /chat persistence + reload endpoints (see Just finished).
+- [done] Item 2a Chroma->Qdrant RagStore + migration + RAG_BACKEND default FLIPPED to qdrant.
+- [done] conversations.db store + /chat persistence + reload endpoints.
 - [done] Hybrid windowing -- history fed into the prompt; multi-turn memory works end to end.
-- [next] OpenWebUI thin client wiring (port 3000) + map /v1 <-> conversation_id + history
-  reload from conversations.db.
-- [ ] OpenWebUI thin client wiring (port 3000) + history reload from conversations.db.
-- [ ] Task surfacing -- ALL THREE: in-chat via persona, OpenWebUI Tool/Function plugin,
-  separate status panel.
-- [ ] Exit Gate: live multi-turn run; flip RAG_BACKEND=qdrant default after live parity.
+- [done] /v1 <-> conversation_id mapping + history reload (hybrid keying).
+- [done] OpenWebUI stood up on :3000 + wired to API /v1 (pip route).
+- [done] Task surfacing -- ALL THREE surfaces (in-chat persona LIVE, OpenWebUI tool, status panel).
+- [done] Exit Gate: persist/reload/windowing + Qdrant-parity-live all green (see roadmap).
+- [OWED, manual] Human browser click-test of OpenWebUI at http://127.0.0.1:3000 (interactive
+  admin signup -- the one Phase 2 step Claude cannot do headless). Then Phase 2 -> [x].
+
+## SYNC PENDING (Brandon asked: do AFTER Phase 2)
+
+- All Phase 2 work below is LOCAL on the WSL primary clone, NOT yet pulled back to
+  D:\Projects\Git\Project_Persona or pushed to origin. Next action: pullback WSL -> D:\,
+  per-item commits on the D:\ gateway, then git push to origin (milestone).
 
 ## Just finished (2026-06-19, Claude)
 
+- TASK SURFACING -- ALL THREE SURFACES (Phase 2): shared data is GET /tasks (server.py
+  tasks_summary) + helpers (is_task_query gate, render_tasks_block). (1) IN-CHAT: tasks_block_for
+  injects a live board block into the persona prompt on task-related messages, threaded through
+  build_persona_prompt/messages/persona_generate (/chat + /v1); TASKS_INCHAT_* config; /chat
+  debug.tasks; /health task_store.inchat_surfacing. LIVE: asked "what tasks are you working on?"
+  -> persona listed the 3 real board tasks (injected:true, 248 chars). (2) OPENWEBUI TOOL:
+  tools/openwebui/persona_tasks_tool.py (Tools list_tasks/get_task, base-URL valve, install
+  notes). (3) STATUS PANEL: manage.py panel +/api/tasks server-side proxy (API has no CORS) +
+  a Task board section polling 2s; LIVE proxy returned 3 tasks. tests/test_tasks_surface.py 24
+  checks. Offline suite 10/10. Local.
+- RAG_BACKEND DEFAULT FLIPPED chroma->qdrant (Phase 2a / Exit Gate): ran the migration on this
+  clone (4 collections, 66 points, exact counts), proved LIVE parity (chroma vs qdrant top-3
+  identical across 5 queries on the real corpus), flipped server.py default to qdrant. API
+  restarts clean on qdrant (rag_ok, 4 collections); RAG_BACKEND=chroma still falls back. Closes
+  the last Exit-Gate box. Offline 10/10. Local.
+- /v1 CONVERSATION WIRING (Phase 2): brought /v1/chat/completions to parity with /chat.
+  server.py: +hashlib; OA_ChatCompletionsReq gains conversation_id + user; helpers
+  _v1_conversation_id (HYBRID -- explicit conversation_id/user wins, else owui-<sha256[:16]>
+  of system+first-user so stock OpenWebUI threads key deterministically), _v1_latest_user_text
+  (trailing user msg = the new input; DB, not the client array, is the history source),
+  _v1_prior_turns + _v1_prepare_conversation (cold-thread SEED from the client array on first
+  sight, window prior DB turns, persist the user turn; assistant persisted after generate;
+  conversation_id returned). tests/test_v1_history.py 25 checks (helpers + TestClient endpoint).
+  Offline suite now 9/9. LIVE on Qwen2.5-7B (CPU): turn 1 "favorite color is teal" -> turn 2
+  "what is my favorite color?" answered "Teal." purely from reloaded DB history; thread held 4
+  ordered turns, no double-seed. Local (not yet synced to D:\ / committed).
+- OPENWEBUI STOOD UP (Phase 2): no docker on this box -> pip route. Created env_webui venv +
+  open-webui==0.8.8; scripts/start_webui.sh run AI_ROOT-relative with OPENAI_API_BASE_URL ->
+  http://127.0.0.1:8000/v1. Serving on :3000 (/health status:true); WIRED -- OpenWebUI's
+  startup GET /v1/models hit the API 200. OWED: human browser click-test (interactive signup).
+  Local.
 - ITEM 2a (Phase 2) Chroma->Qdrant: RagStore abstraction (services/api/ragstore.py:
   ChromaStore + QdrantStore embedded local mode), server.py routed through RAG_BACKEND
   (default chroma), scripts/migrate_chroma_to_qdrant.py (no re-embed), qdrant-client pinned.

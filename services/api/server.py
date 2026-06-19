@@ -5,6 +5,7 @@ import uuid
 import asyncio
 import re
 import json
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Literal, AsyncGenerator, Tuple
 
@@ -90,9 +91,10 @@ RAG_PER_PROFILE = os.getenv("RAG_PER_PROFILE", "0").strip().lower() in ("1", "tr
 RAG_GLOBAL_COLLECTION = os.getenv("RAG_GLOBAL_COLLECTION", "global_memory")
 # Phase 2a vector backend: chroma (default) | qdrant (embedded local mode, no server).
 # Both go through the RagStore abstraction (services/api/ragstore.py); server.py keeps
-# computing embeddings and passes vectors in. Default stays chroma until Qdrant parity
-# is proven live, then flip. Migrate existing rows with scripts/migrate_chroma_to_qdrant.py.
-RAG_BACKEND = os.getenv("RAG_BACKEND", "chroma").strip().lower()
+# computing embeddings and passes vectors in. Default flipped to qdrant 2026-06-19 after
+# live parity (chroma vs qdrant top-3 identical across 5 queries on the migrated 66-point
+# corpus). Set RAG_BACKEND=chroma to fall back. Migrate rows with scripts/migrate_chroma_to_qdrant.py.
+RAG_BACKEND = os.getenv("RAG_BACKEND", "qdrant").strip().lower()
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 # Embedding backend selection (Phase 0.5 dependency tiers):
@@ -134,6 +136,10 @@ CHAT_LOG_WRITEBACK_ENABLED = os.getenv("CHAT_LOG_WRITEBACK_ENABLED", "1") == "1"
 
 # Task Board (SQLite) -- replaces the in-memory jobs dict + run/jobs.jsonl.
 TASKS_DB = os.getenv("TASKS_DB", os.path.join(AI_ROOT, "data", "tasks.db"))
+# Task surfacing (Phase 2): let the persona answer "what are you working on" in-chat by
+# injecting a live task-board block into the prompt when the user's message is task-related.
+TASKS_INCHAT_ENABLED = os.getenv("TASKS_INCHAT_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+TASKS_INCHAT_LIMIT = int(os.getenv("TASKS_INCHAT_LIMIT", "8"))
 # Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
@@ -503,6 +509,68 @@ def load_profile_wrappers(profile: str) -> Tuple[str, str]:
 # -----------------------
 taskboard.init_db(TASKS_DB, migrate_jsonl=JOBS_PERSIST_PATH)
 
+
+# Task surfacing (Phase 2): one normalized view + one text block shared by all three
+# surfaces -- the /tasks endpoint (OpenWebUI plugin + status panel consume it) and the
+# in-chat persona injection below.
+_TASK_QUERY_RE = re.compile(
+    r"\b(task|tasks|task board|taskboard|job|jobs|to-?do|todo|backlog|queue|"
+    r"working on|work on|in progress|what are you doing|what's running|whats running|"
+    r"delegat|pending|assignment)\b",
+    re.IGNORECASE,
+)
+
+
+def is_task_query(text: str) -> bool:
+    """Cheap intent gate: does the user appear to be asking about the task board?"""
+    return bool(_TASK_QUERY_RE.search(text or ""))
+
+
+def tasks_summary(limit: int = 50) -> Dict[str, Any]:
+    """Normalized, surface-friendly view of the Task Board (newest first). Each item
+    carries a human title (state.title -> kind -> job_id) alongside status/timestamps."""
+    items: List[Dict[str, Any]] = []
+    for row in taskboard.task_list(limit=limit):
+        st = taskboard.task_get(row["job_id"]) or {}
+        title = (st.get("title") or st.get("kind") or row["job_id"])
+        items.append({
+            "job_id": row["job_id"],
+            "status": row.get("status"),
+            "title": str(title),
+            "kind": st.get("kind"),
+            "assignee": st.get("assignee"),
+            "updated_at": row.get("updated_at"),
+            "created_at": row.get("created_at"),
+        })
+    return {"count": taskboard.count(), "tasks": items}
+
+
+def render_tasks_block(summary: Dict[str, Any], limit: int = 8) -> str:
+    """Compact text rendering of tasks_summary() for the in-chat persona prompt."""
+    tasks = (summary or {}).get("tasks") or []
+    if not tasks:
+        return "Live task board: (no tasks on the board right now)."
+    lines = ["Live task board (most recent first):"]
+    for t in tasks[:limit]:
+        st = t.get("status") or "?"
+        who = f", assignee {t['assignee']}" if t.get("assignee") else ""
+        lines.append(f"- [{st}] {t['title']} (id {t['job_id']}{who})")
+    extra = len(tasks) - limit
+    if extra > 0:
+        lines.append(f"- (+{extra} more)")
+    return "\n".join(lines)
+
+
+def tasks_block_for(text: str) -> str:
+    """In-chat surface: return a task-board block iff enabled and the message is a task
+    query, else ''. Best-effort -- a store hiccup never breaks a chat."""
+    if not (TASKS_INCHAT_ENABLED and is_task_query(text)):
+        return ""
+    try:
+        return render_tasks_block(tasks_summary(limit=TASKS_INCHAT_LIMIT), limit=TASKS_INCHAT_LIMIT)
+    except Exception:  # noqa: BLE001
+        return ""
+
 # Conversation history (SQLite) -- see services/api/conversations.py
 _convo_ok = False
 _convo_error: Optional[str] = None
@@ -855,6 +923,7 @@ def build_persona_prompt(
     reasoning_notes: str = "",
     thinking_mode: Optional[str] = None,
     history_text: str = "",
+    tasks_block: str = "",
 ) -> str:
     soul_md = hermes_md = ""
     if PROFILE_WRAPPERS_ENABLED:
@@ -887,6 +956,11 @@ def build_persona_prompt(
     if history_text:
         prompt += history_text + "\n\n"
     prompt += f"User:\n{user_text}\n\n"
+    if tasks_block:
+        prompt += (
+            "Live task board (current; you MAY share these with the user):\n"
+            f"{tasks_block}\n\n"
+        )
     if rag_block:
         prompt += (
             "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
@@ -906,6 +980,7 @@ def build_persona_messages(
     topic: str,
     reasoning_notes: str = "",
     history_messages: Optional[List[Dict[str, str]]] = None,
+    tasks_block: str = "",
 ) -> List[Dict[str, str]]:
     """T2.4 messages form of build_persona_prompt (system/user split).
 
@@ -938,6 +1013,11 @@ def build_persona_messages(
 
     rag_block = format_rag_context(rag_docs)
     user = f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    if tasks_block:
+        user += (
+            "Live task board (current; you MAY share these with the user):\n"
+            f"{tasks_block}\n\n"
+        )
     if rag_block:
         user += (
             "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
@@ -964,6 +1044,7 @@ async def persona_generate(
     max_tokens: int,
     sampling_extra: Dict[str, Any],
     history: Optional[Dict[str, Any]] = None,
+    tasks_block: str = "",
 ) -> Tuple[str, str, Dict[str, Any]]:
     """Generate a persona reply; returns (reasoning, answer, stats).
 
@@ -976,7 +1057,7 @@ async def persona_generate(
         history_messages = win.render_history_messages(history) if history else None
         messages = build_persona_messages(
             user_text, rag_docs, profile=profile, topic=topic, reasoning_notes=reasoning_notes,
-            history_messages=history_messages,
+            history_messages=history_messages, tasks_block=tasks_block,
         )
         enable_thinking = resolve_think(topic, thinking_mode, user_text) == "think"
         async with persona_sem:
@@ -993,6 +1074,7 @@ async def persona_generate(
         user_text, rag_docs, profile=profile, topic=topic,
         reasoning_notes=reasoning_notes, thinking_mode=thinking_mode,
         history_text=(win.render_history_text(history) if history else ""),
+        tasks_block=tasks_block,
     )
     async with persona_sem:
         raw_reply, stats = await query_llama(
@@ -1204,6 +1286,12 @@ class OA_ChatCompletionsReq(BaseModel):
     debug: Optional[bool] = False
     thinking_mode: Optional[str] = None
     preserve_thinking: Optional[bool] = None
+    # Phase 2: continue a stored thread. OpenAI's schema has no conversation id, so
+    # `/v1` uses a HYBRID key (see _v1_conversation_id): an explicit conversation_id
+    # (e.g. from an OpenWebUI plugin) wins, else the OpenAI `user` field, else a stable
+    # hash of the system+first-user prefix so stock OpenWebUI threads map deterministically.
+    conversation_id: Optional[str] = None
+    user: Optional[str] = None
 
 
 # -----------------------
@@ -1256,7 +1344,8 @@ async def health():
         "chat_log_writeback_enabled": CHAT_LOG_WRITEBACK_ENABLED,
         "rag_kinds_for_chat": sorted(list(RAG_KINDS_FOR_CHAT)),
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
-        "task_store": {"db": TASKS_DB, "count": taskboard.count()},
+        "task_store": {"db": TASKS_DB, "count": taskboard.count(),
+                       "inchat_surfacing": TASKS_INCHAT_ENABLED},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
                           "persist_enabled": CONVO_PERSIST_ENABLED,
                           "history_enabled": HISTORY_ENABLED,
@@ -1301,12 +1390,14 @@ async def chat(req: ChatRequest):
 
     preset_key, temperature, sampling_extra = sampling_for(topic, req.thinking_mode, req.text)
 
+    tasks_block = tasks_block_for(req.text)
+
     reasoning, answer, stats = await persona_generate(
         profile=profile, topic=topic, user_text=req.text,
         rag_docs=rag_docs, reasoning_notes=inband_notes,
         thinking_mode=req.thinking_mode, temperature=temperature,
         max_tokens=PERSONA_MAX_TOKENS, sampling_extra=sampling_extra,
-        history=history,
+        history=history, tasks_block=tasks_block,
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = finalize_persona_reply(answer, preserve)
@@ -1357,6 +1448,12 @@ async def chat(req: ChatRequest):
                 "older_turns": len(history["older"]) if history else 0,
                 "summarized": bool(history and history.get("summary")),
             },
+            "tasks": {
+                "enabled": TASKS_INCHAT_ENABLED,
+                "is_task_query": is_task_query(req.text),
+                "injected": bool(tasks_block),
+                "chars": len(tasks_block),
+            },
         }
 
     return {"text": reply, "persona": True, "conversation_id": conversation_id,
@@ -1392,6 +1489,13 @@ async def delete_conversation_route(conversation_id: str):
 @app.get("/jobs")
 async def list_jobs(limit: int = 50):
     return {"jobs": taskboard.task_list(limit=limit)}
+
+
+@app.get("/tasks")
+async def list_tasks(limit: int = 50):
+    """Surface-friendly Task Board view (titles + status). Shared by the OpenWebUI task
+    Tool plugin and the manage.py status panel; the in-chat persona uses the same data."""
+    return tasks_summary(limit=limit)
 
 
 @app.get("/jobs/{job_id}")
@@ -1446,12 +1550,76 @@ def _messages_to_text(messages: List[OA_Message]) -> str:
     return "\n\n".join(parts).strip()
 
 
+def _v1_latest_user_text(messages: List[OA_Message]) -> str:
+    """The new input on a `/v1` request = the LAST user-role message. OpenWebUI resends
+    the whole thread each turn; conversations.db (not the client array) is the source of
+    truth for prior turns, so only the trailing user message is the fresh input. Falls
+    back to the flattened blob if there is no user message."""
+    for m in reversed(messages):
+        if m.role == "user":
+            return m.content
+    return _messages_to_text(messages)
+
+
+def _v1_prior_turns(messages: List[OA_Message]) -> List[Tuple[str, str]]:
+    """The user/assistant turns BEFORE the trailing user message (system dropped -- the
+    persona owns its system prompt). Used to seed a cold thread from the client's array
+    the first time we see its conversation id, so server-side history converges with what
+    the client already holds."""
+    cut = len(messages)
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].role == "user":
+            cut = i
+            break
+    return [(m.role, m.content) for m in messages[:cut] if m.role in ("user", "assistant")]
+
+
+def _v1_conversation_id(req: OA_ChatCompletionsReq) -> str:
+    """Hybrid keying: explicit conversation_id wins, else the OpenAI `user` field, else a
+    stable `owui-<sha256[:16]>` hash of the system+first-user prefix (deterministic per
+    stock-OpenWebUI thread, no plugin required)."""
+    explicit = (req.conversation_id or req.user or "").strip()
+    if explicit:
+        return explicit
+    sys_txt = next((m.content for m in req.messages if m.role == "system"), "")
+    first_user = next((m.content for m in req.messages if m.role == "user"), "")
+    seed = (sys_txt + "\x00" + first_user).encode("utf-8", "replace")
+    return "owui-" + hashlib.sha256(seed).hexdigest()[:16]
+
+
+def _v1_prepare_conversation(req: OA_ChatCompletionsReq, profile: str, topic: str):
+    """Resolve the conversation id, seed a cold thread from the client array, window the
+    PRIOR turns into history (before recording this message), then persist the new user
+    turn. Mirrors the /chat ordering. Returns (conversation_id, history_or_None).
+    Best-effort: persistence failures never break a request."""
+    cid = _v1_conversation_id(req)
+    latest_user = _v1_latest_user_text(req.messages)
+    history = None
+    if _convo_ok and CONVO_PERSIST_ENABLED:
+        try:
+            convo.new_conversation(profile=profile, conversation_id=cid)  # idempotent ensure
+            prior = convo.get_turns(cid)
+            if not prior:
+                for role, content in _v1_prior_turns(req.messages):
+                    convo.add_turn(cid, role, content, profile=profile,
+                                   tokens=estimate_tokens(content))
+                prior = convo.get_turns(cid)
+            if HISTORY_ENABLED and prior:
+                history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT)
+        except Exception:  # noqa: BLE001
+            history = None
+    _persist_turn(cid, "user", latest_user, profile=profile, topic=topic)
+    return cid, history
+
+
 @app.post("/v1/chat/completions")
 async def v1_chat_completions(req: OA_ChatCompletionsReq):
-    user_text = _messages_to_text(req.messages)
+    user_text = _v1_latest_user_text(req.messages)
     topic = resolve_topic(req.topic, user_text)
     profile = (req.profile or DEFAULT_PROFILE).strip()
     ensure_profile_files(profile)
+
+    conversation_id, history = _v1_prepare_conversation(req, profile, topic)
 
     rag_docs: List[str] = []
     if RAG_ENABLED:
@@ -1466,9 +1634,12 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
         rag_docs=rag_docs, reasoning_notes="",
         thinking_mode=req.thinking_mode, temperature=temperature,
         max_tokens=max_tokens, sampling_extra=sampling_extra,
+        history=history, tasks_block=tasks_block_for(user_text),
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = finalize_persona_reply(answer, preserve)
+
+    _persist_turn(conversation_id, "assistant", reply, profile=profile, topic=topic)
 
     await distill_and_store_facts(user_text, reply, profile=profile, topic=topic)
 
@@ -1511,4 +1682,7 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_tokens + completion_tokens,
         },
+        # Non-standard but harmless extra (OpenAI clients ignore unknown keys): lets a
+        # caller learn the stored thread id it was mapped to.
+        "conversation_id": conversation_id,
     }
