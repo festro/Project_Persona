@@ -31,8 +31,10 @@ Two durability mechanisms, kept distinct:
 2. `git push` D:\ -> origin stays MILESTONES ONLY -- origin is the backstop if the
    D: drive itself dies, not routine redundancy. Don't push on every change.
 
-Deferred upgrade: make the WSL clone a real git checkout of origin (needs
-SSH-to-GitHub in WSL) so `git` could replace the folder sync.
+Deferred upgrade: make the WSL clone a real git checkout of origin so `git` could
+replace the folder sync. UNBLOCKED 2026-06-19: an ed25519 key now exists in WSL
+(~/.ssh/id_ed25519) and is registered with GitHub (ssh -T git@github.com authenticates),
+so the SSH-to-GitHub prerequisite is met -- this is now a decision, not an infra gap.
 
 ## Per-host config (committed, hostname-selected)
 

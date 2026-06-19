@@ -25,9 +25,12 @@ Last updated: 2026-06-19 0331 PDT by Claude (egress batch COMMITTED to the canon
     NOT wired into the sync script and risks a wrong-clone commit. RECOMMEND: delete it
     (or archive it) so there is exactly one D: gateway. Left in place pending Brandon's OK
     (did not delete a git repo I did not create).
-- PUSH decision (Brandon): the gateway is now ahead of origin/main (aa145fa) by the P3 +
-  roadmap-runner + P4 + egress commits. WORKFLOW = push is milestones-only. Say the word
-  to push origin, else it stays a local backstop gap by design.
+- PUSHED to origin 2026-06-19: origin/main fast-forwarded aa145fa -> 41cb82e (P3 +
+  roadmap-runner + P4 + egress + docs). origin synced (0/0). Generated an ed25519 key in
+  WSL (~/.ssh/id_ed25519, no passphrase) + added it to GitHub; ssh -T git@github.com now
+  greets "festro". UNBLOCKS the WORKFLOW "deferred upgrade" (WSL clone as a real git
+  checkout over SSH, retiring folder-sync) -- still a Brandon decision, no longer infra-
+  blocked. NOTE: origin also carries branch chore/chroma-to-qdrant (Phase 2 Item 2a).
 - OWED verification on the egress baseline (needs a real box / Windows):
   * live-apply the SERVE lock on a real Linux box (apply --yes -> a curl should fail ->
     remove --yes); not done on the dev surface to avoid cutting its own connectivity.

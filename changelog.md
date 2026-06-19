@@ -14,6 +14,20 @@ Conventions:
 
 ---
 
+## 2026-06-19 0345 PDT -- WSL GitHub SSH + origin push (backstop gap closed) (Brandon + Claude)
+
+- Generated an ed25519 SSH key in WSL (~/.ssh/id_ed25519, no passphrase, perms 600);
+  Brandon added the public half to GitHub. ssh -T git@github.com now authenticates
+  ("Hi festro!").
+- PUSHED main -> origin: fast-forward aa145fa..41cb82e (P3 + roadmap-runner + P4 + egress
+  + docs). origin/main == local (0/0). The 6-commit offsite-backstop gap is closed.
+- Decided AGAINST scp for the WSL<->D: hop: same physical machine, D: is a local /mnt/d
+  mount, so rsync/cp over the mount (the existing -Stage pullback) beats scp on
+  delta/excludes/--delete with no SSH hop. scp/rsync-over-SSH is the right tool only for
+  the WSL/D: <-> EVO-X2 hop (Phase 9).
+- WORKFLOW "deferred upgrade" (WSL clone as a real git checkout over SSH) is now UNBLOCKED
+  -- the SSH-to-GitHub prerequisite is met; remains a Brandon decision, not an infra gap.
+
 ## 2026-06-19 0335 PDT -- Egress batch committed (3645431) + Windows read-only verify + doc-discrepancy fixes (Brandon + Claude)
 
 - COMMITTED the egress batch to the canonical D:\ gateway (D:\Projects\Git\Project_Persona),
