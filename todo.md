@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 0430 PDT by Claude (PHASE 2 STARTED -- doing all of it; Item 2a Chroma->Qdrant RagStore + migration built+validated [parity 22 checks, real-data migration, offline 6/6]; embedded Qdrant; task surfacing = all 3 surfaces; next: conversations.db)
+Last updated: 2026-06-19 0435 PDT by Claude (PHASE 2 in progress; Item 2a Qdrant done; conversations.db store + /chat persistence + reload endpoints done [21 checks + live round-trip, offline 7/7]; next: hybrid windowing feeds history into the prompt)
 
 ## Rules of the road
 
@@ -54,9 +54,10 @@ Last updated: 2026-06-19 0430 PDT by Claude (PHASE 2 STARTED -- doing all of it;
 ## Next up (Phase 2 -- doing all of it; per-item commits)
 
 - [done] Item 2a Chroma->Qdrant RagStore + migration (see Just finished).
-- [next] conversations.db: SQLite history store (turns schema + CRUD, stdlib like
-  taskboard.py); persist on /chat + /v1; offline tests.
-- [ ] Hybrid windowing: recent verbatim + older distilled within a token budget.
+- [done] conversations.db store + /chat persistence + reload endpoints (see Just finished).
+- [next] Hybrid windowing: recent verbatim + older distilled within a token budget; feed
+  prior turns from conversations.db into the persona prompt (history is stored but not yet
+  used in the prompt).
 - [ ] OpenWebUI thin client wiring (port 3000) + history reload from conversations.db.
 - [ ] Task surfacing -- ALL THREE: in-chat via persona, OpenWebUI Tool/Function plugin,
   separate status panel.

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
 
 import taskboard
+import conversations as convo
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -132,6 +133,10 @@ CHAT_LOG_WRITEBACK_ENABLED = os.getenv("CHAT_LOG_WRITEBACK_ENABLED", "1") == "1"
 
 # Task Board (SQLite) -- replaces the in-memory jobs dict + run/jobs.jsonl.
 TASKS_DB = os.getenv("TASKS_DB", os.path.join(AI_ROOT, "data", "tasks.db"))
+# Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
+CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
+# Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
+CONVO_PERSIST_ENABLED = os.getenv("CONVO_PERSIST_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
 # Legacy event-log path, kept only as a one-time migration source for the board.
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
 
@@ -492,6 +497,32 @@ def load_profile_wrappers(profile: str) -> Tuple[str, str]:
 # Task Board (SQLite) -- see services/api/taskboard.py
 # -----------------------
 taskboard.init_db(TASKS_DB, migrate_jsonl=JOBS_PERSIST_PATH)
+
+# Conversation history (SQLite) -- see services/api/conversations.py
+_convo_ok = False
+_convo_error: Optional[str] = None
+try:
+    convo.init_db(CONVERSATIONS_DB)
+    _convo_ok = True
+except Exception as e:  # noqa: BLE001
+    _convo_error = f"conversations_init_failed: {repr(e)}"
+
+
+def estimate_tokens(text: str) -> int:
+    """Cheap, model-agnostic token estimate (~4 chars/token) for history windowing
+    and the stored `tokens` column. Good enough for budget arithmetic; not exact."""
+    return max(1, len((text or "").strip()) // 4)
+
+
+def _persist_turn(conversation_id, role, content, *, profile, topic=None):
+    """Best-effort: record a turn in conversations.db (never breaks a chat request)."""
+    if not (_convo_ok and CONVO_PERSIST_ENABLED and conversation_id):
+        return
+    try:
+        convo.add_turn(conversation_id, role, content, profile=profile, topic=topic,
+                       tokens=estimate_tokens(content))
+    except Exception:  # noqa: BLE001
+        return
 
 
 # -----------------------
@@ -1138,6 +1169,7 @@ class ChatRequest(BaseModel):
     debug: bool = False
     thinking_mode: Optional[str] = None
     preserve_thinking: Optional[bool] = None
+    conversation_id: Optional[str] = None  # Phase 2: continue a thread; new one if absent
 
 class OA_Message(BaseModel):
     role: Literal["system", "user", "assistant"] = "user"
@@ -1207,6 +1239,8 @@ async def health():
         "rag_kinds_for_chat": sorted(list(RAG_KINDS_FOR_CHAT)),
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
         "task_store": {"db": TASKS_DB, "count": taskboard.count()},
+        "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
+                          "persist_enabled": CONVO_PERSIST_ENABLED},
         "delegate": {
             "default_assignee": os.getenv("DELEGATE_DEFAULT_ASSIGNEE", "default"),
             "default_tenant": os.getenv("DELEGATE_DEFAULT_TENANT", "persona"),
@@ -1219,6 +1253,12 @@ async def chat(req: ChatRequest):
     profile = (req.profile or DEFAULT_PROFILE).strip()
     topic = resolve_topic(req.topic, req.text)
     ensure_profile_files(profile)
+
+    # Phase 2: resolve/auto-create the conversation and record the user turn.
+    conversation_id = req.conversation_id
+    if _convo_ok and CONVO_PERSIST_ENABLED and not conversation_id:
+        conversation_id = convo.new_conversation(profile=profile)
+    _persist_turn(conversation_id, "user", req.text, profile=profile, topic=topic)
 
     rag_docs: List[str] = []
     rag_used = False
@@ -1243,6 +1283,8 @@ async def chat(req: ChatRequest):
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = finalize_persona_reply(answer, preserve)
+
+    _persist_turn(conversation_id, "assistant", reply, profile=profile, topic=topic)
 
     distill_dbg = await distill_and_store_facts(req.text, reply, profile=profile, topic=topic)
 
@@ -1283,7 +1325,34 @@ async def chat(req: ChatRequest):
             "distill": distill_dbg,
         }
 
-    return {"text": reply, "persona": True, "reasoning": reasoning if preserve else "", "debug": debug}
+    return {"text": reply, "persona": True, "conversation_id": conversation_id,
+            "reasoning": reasoning if preserve else "", "debug": debug}
+
+
+# -----------------------
+# Conversation history (Phase 2) -- conversations.db is the source of truth
+# -----------------------
+@app.get("/conversations")
+async def list_conversations_route(profile: Optional[str] = None, limit: int = 50):
+    if not _convo_ok:
+        return {"conversations": [], "ok": False, "error": _convo_error}
+    return {"conversations": convo.list_conversations(profile=profile, limit=limit), "ok": True}
+
+
+@app.get("/conversations/{conversation_id}")
+async def get_conversation_route(conversation_id: str, limit: Optional[int] = None):
+    if not _convo_ok:
+        return {"conversation_id": conversation_id, "turns": [], "ok": False, "error": _convo_error}
+    turns = convo.get_turns(conversation_id, limit=limit)
+    return {"conversation_id": conversation_id, "turns": turns,
+            "count": convo.count_turns(conversation_id), "ok": True}
+
+
+@app.delete("/conversations/{conversation_id}")
+async def delete_conversation_route(conversation_id: str):
+    if not _convo_ok:
+        return {"ok": False, "error": _convo_error}
+    return {"ok": convo.delete_conversation(conversation_id)}
 
 
 @app.get("/jobs")

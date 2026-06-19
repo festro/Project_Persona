@@ -345,7 +345,13 @@ Exit Gate (PROVEN 2026-06-07, changelog 1222, via tests/exit_gate_live.py):
 Goal: a thin client over the API with durable conversation history.
 
 - [ ] OpenWebUI as thin client (currently dormant, port 3000)
-- [ ] SQLite `conversations.db` as source of truth for history
+- [~] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
+      services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
+      turns tables, distilled/summary cols for windowing); server.py persists user+assistant
+      turns on /chat (auto-creates + returns conversation_id), GET /conversations[/{id}] +
+      DELETE reload/list, /health conversations block. tests/test_conversations.py 21 checks
+      + live API persist/reload round-trip (4 turns, continuation, list). OWED: /v1 + UI
+      conversation-id mapping (rides with OpenWebUI wiring).
 - [ ] Persona task surfacing in the UI -- ALL THREE surfaces (Brandon 2026-06-19): in-chat
       via the persona, an OpenWebUI Tool/Function plugin, and a separate status panel.
 - [ ] Hybrid conversation windowing

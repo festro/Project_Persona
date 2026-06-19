@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-19 0435 PDT -- Phase 2: conversations.db history store + /chat persistence (Brandon + Claude)
+
+- services/api/conversations.py: stdlib-sqlite3 history store (taskboard.py posture --
+  fresh conn/call, WAL, file-backed). Tables: conversations (thread) + turns (messages,
+  chronological) with distilled/summary columns for hybrid windowing. CRUD: new_conversation,
+  add_turn (auto-creates + bumps updated_at), get_turns (chronological; recent-N via limit),
+  list_conversations (per-profile), count_turns, mark_distilled, delete_conversation.
+- server.py: CONVERSATIONS_DB config + CONVO_PERSIST_ENABLED (on); init at startup; /chat
+  resolves/auto-creates conversation_id, persists user+assistant turns, returns
+  conversation_id; GET /conversations + GET/DELETE /conversations/{id} for reload/list;
+  /health conversations block; estimate_tokens helper (~4 chars/token) for the tokens column.
+- VALIDATED: tests/test_conversations.py 21 checks; full offline suite 7/7; live API
+  round-trip via TestClient (auto-create -> continue same cid -> reload 4 turns in order ->
+  list). OWED: /v1 + UI conversation-id mapping (rides with OpenWebUI wiring); history is
+  STORED now but not yet fed into the prompt (that is the next item, hybrid windowing).
+
 ## 2026-06-19 0430 PDT -- Phase 2 STARTED: Item 2a Chroma->Qdrant (embedded) RagStore + migration (Brandon + Claude)
 
 - DECISIONS (Brandon): do ALL of Phase 2; Qdrant runs EMBEDDED/on-disk (no server,
