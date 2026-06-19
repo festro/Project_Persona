@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-19 0442 PDT -- Phase 2: hybrid conversation windowing (history -> prompt) (Brandon + Claude)
+
+- services/api/windowing.py: window_turns(turns, budget, min_recent, summarize?) keeps the
+  newest turns verbatim within HISTORY_TOKEN_BUDGET and folds older turns into one summary
+  block (distilled turns use their stored summary; else truncating heuristic; or an injected
+  summarize() callback for the LLM distiller). render_history_messages (OpenAI msgs path:
+  summary system note + recent role msgs) + render_history_text (raw /completion: "Summary
+  of earlier..." + "Conversation so far:" block).
+- server.py: build_persona_messages gained history_messages, build_persona_prompt gained
+  history_text, persona_generate gained history; /chat windows PRIOR turns (fetched before
+  the new user turn is recorded) and passes them in. HISTORY_ENABLED/HISTORY_TOKEN_BUDGET
+  (2048)/HISTORY_MIN_RECENT (4) config; /health + /chat debug.history.
+- VALIDATED: tests/test_windowing.py 16 checks; full offline suite 8/8; live 2-turn
+  integration (turn 2's persona prompt carries turn 1: "Conversation so far: User: my
+  favorite color is teal ..."). Multi-turn memory now works end to end (stored + recalled).
+
 ## 2026-06-19 0435 PDT -- Phase 2: conversations.db history store + /chat persistence (Brandon + Claude)
 
 - services/api/conversations.py: stdlib-sqlite3 history store (taskboard.py posture --

@@ -354,7 +354,14 @@ Goal: a thin client over the API with durable conversation history.
       conversation-id mapping (rides with OpenWebUI wiring).
 - [ ] Persona task surfacing in the UI -- ALL THREE surfaces (Brandon 2026-06-19): in-chat
       via the persona, an OpenWebUI Tool/Function plugin, and a separate status panel.
-- [ ] Hybrid conversation windowing
+- [x] Hybrid conversation windowing -- DONE 2026-06-19: services/api/windowing.py
+      (window_turns keeps newest verbatim within HISTORY_TOKEN_BUDGET, folds older into a
+      summary; render_history_messages/_text for the two prompt paths; distilled turns
+      contribute stored summaries, with a summarize() hook for the LLM distiller).
+      Threaded through build_persona_messages/build_persona_prompt/persona_generate +
+      /chat (windows PRIOR turns before recording the new one). tests/test_windowing.py
+      16 checks + live 2-turn integration (turn 2's prompt carries turn 1). HISTORY_*
+      config + /health + /chat debug.history.
 - [~] Item 2a: migrate vector store ChromaDB -> Qdrant (Qdrant + fastembed are
       also the 3.14-unblock path). BUILT 2026-06-19: RagStore abstraction
       (services/api/ragstore.py: ChromaStore + QdrantStore, EMBEDDED local mode per

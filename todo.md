@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 0435 PDT by Claude (PHASE 2 in progress; Item 2a Qdrant done; conversations.db store + /chat persistence + reload endpoints done [21 checks + live round-trip, offline 7/7]; next: hybrid windowing feeds history into the prompt)
+Last updated: 2026-06-19 0442 PDT by Claude (PHASE 2 in progress; Qdrant + conversations.db + hybrid windowing all DONE -- multi-turn memory works end to end [offline 8/8]; next: OpenWebUI thin client wiring + task surfacing)
 
 ## Rules of the road
 
@@ -55,9 +55,9 @@ Last updated: 2026-06-19 0435 PDT by Claude (PHASE 2 in progress; Item 2a Qdrant
 
 - [done] Item 2a Chroma->Qdrant RagStore + migration (see Just finished).
 - [done] conversations.db store + /chat persistence + reload endpoints (see Just finished).
-- [next] Hybrid windowing: recent verbatim + older distilled within a token budget; feed
-  prior turns from conversations.db into the persona prompt (history is stored but not yet
-  used in the prompt).
+- [done] Hybrid windowing -- history fed into the prompt; multi-turn memory works end to end.
+- [next] OpenWebUI thin client wiring (port 3000) + map /v1 <-> conversation_id + history
+  reload from conversations.db.
 - [ ] OpenWebUI thin client wiring (port 3000) + history reload from conversations.db.
 - [ ] Task surfacing -- ALL THREE: in-chat via persona, OpenWebUI Tool/Function plugin,
   separate status panel.

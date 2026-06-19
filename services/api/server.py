@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 import taskboard
 import conversations as convo
+import windowing as win
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -137,6 +138,10 @@ TASKS_DB = os.getenv("TASKS_DB", os.path.join(AI_ROOT, "data", "tasks.db"))
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
 CONVO_PERSIST_ENABLED = os.getenv("CONVO_PERSIST_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+# Hybrid windowing (Phase 2): feed prior turns into the prompt within a token budget.
+HISTORY_ENABLED = os.getenv("HISTORY_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+HISTORY_TOKEN_BUDGET = int(os.getenv("HISTORY_TOKEN_BUDGET", "2048"))
+HISTORY_MIN_RECENT = int(os.getenv("HISTORY_MIN_RECENT", "4"))
 # Legacy event-log path, kept only as a one-time migration source for the board.
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
 
@@ -849,6 +854,7 @@ def build_persona_prompt(
     topic: str,
     reasoning_notes: str = "",
     thinking_mode: Optional[str] = None,
+    history_text: str = "",
 ) -> str:
     soul_md = hermes_md = ""
     if PROFILE_WRAPPERS_ENABLED:
@@ -877,7 +883,10 @@ def build_persona_prompt(
     else:
         prefix = "You are a helpful assistant.\n\n"
 
-    prompt = thinking_prefix(topic, thinking_mode, user_text) + prefix + f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    prompt = thinking_prefix(topic, thinking_mode, user_text) + prefix + f"Topic: {topic}\n\n"
+    if history_text:
+        prompt += history_text + "\n\n"
+    prompt += f"User:\n{user_text}\n\n"
     if rag_block:
         prompt += (
             "Potentially relevant memory snippets (may be stale; may be irrelevant):\n"
@@ -896,6 +905,7 @@ def build_persona_messages(
     profile: str,
     topic: str,
     reasoning_notes: str = "",
+    history_messages: Optional[List[Dict[str, str]]] = None,
 ) -> List[Dict[str, str]]:
     """T2.4 messages form of build_persona_prompt (system/user split).
 
@@ -935,7 +945,11 @@ def build_persona_messages(
         )
     if reasoning_notes:
         user += f"(Internal expert notes: do not reveal)\n{reasoning_notes}\n\n"
-    return [{"role": "system", "content": system.strip()}, {"role": "user", "content": user.strip()}]
+    msgs = [{"role": "system", "content": system.strip()}]
+    if history_messages:
+        msgs.extend(history_messages)
+    msgs.append({"role": "user", "content": user.strip()})
+    return msgs
 
 
 async def persona_generate(
@@ -949,6 +963,7 @@ async def persona_generate(
     temperature: float,
     max_tokens: int,
     sampling_extra: Dict[str, Any],
+    history: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str, Dict[str, Any]]:
     """Generate a persona reply; returns (reasoning, answer, stats).
 
@@ -958,8 +973,10 @@ async def persona_generate(
     server's reasoning_content preferred and split_reasoning as the fallback.
     """
     if PERSONA_USE_MESSAGES:
+        history_messages = win.render_history_messages(history) if history else None
         messages = build_persona_messages(
-            user_text, rag_docs, profile=profile, topic=topic, reasoning_notes=reasoning_notes
+            user_text, rag_docs, profile=profile, topic=topic, reasoning_notes=reasoning_notes,
+            history_messages=history_messages,
         )
         enable_thinking = resolve_think(topic, thinking_mode, user_text) == "think"
         async with persona_sem:
@@ -975,6 +992,7 @@ async def persona_generate(
     prompt = build_persona_prompt(
         user_text, rag_docs, profile=profile, topic=topic,
         reasoning_notes=reasoning_notes, thinking_mode=thinking_mode,
+        history_text=(win.render_history_text(history) if history else ""),
     )
     async with persona_sem:
         raw_reply, stats = await query_llama(
@@ -1240,7 +1258,9 @@ async def health():
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
         "task_store": {"db": TASKS_DB, "count": taskboard.count()},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
-                          "persist_enabled": CONVO_PERSIST_ENABLED},
+                          "persist_enabled": CONVO_PERSIST_ENABLED,
+                          "history_enabled": HISTORY_ENABLED,
+                          "history_token_budget": HISTORY_TOKEN_BUDGET},
         "delegate": {
             "default_assignee": os.getenv("DELEGATE_DEFAULT_ASSIGNEE", "default"),
             "default_tenant": os.getenv("DELEGATE_DEFAULT_TENANT", "persona"),
@@ -1254,10 +1274,16 @@ async def chat(req: ChatRequest):
     topic = resolve_topic(req.topic, req.text)
     ensure_profile_files(profile)
 
-    # Phase 2: resolve/auto-create the conversation and record the user turn.
+    # Phase 2: resolve/auto-create the conversation, window PRIOR turns into history
+    # (before recording this message), then record the user turn.
     conversation_id = req.conversation_id
     if _convo_ok and CONVO_PERSIST_ENABLED and not conversation_id:
         conversation_id = convo.new_conversation(profile=profile)
+    history = None
+    if HISTORY_ENABLED and _convo_ok and conversation_id:
+        prior = convo.get_turns(conversation_id)
+        if prior:
+            history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT)
     _persist_turn(conversation_id, "user", req.text, profile=profile, topic=topic)
 
     rag_docs: List[str] = []
@@ -1280,6 +1306,7 @@ async def chat(req: ChatRequest):
         rag_docs=rag_docs, reasoning_notes=inband_notes,
         thinking_mode=req.thinking_mode, temperature=temperature,
         max_tokens=PERSONA_MAX_TOKENS, sampling_extra=sampling_extra,
+        history=history,
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = finalize_persona_reply(answer, preserve)
@@ -1323,6 +1350,13 @@ async def chat(req: ChatRequest):
                 "resolved": topic,
             },
             "distill": distill_dbg,
+            "history": {
+                "enabled": HISTORY_ENABLED,
+                "budget_tokens": HISTORY_TOKEN_BUDGET,
+                "recent_turns": len(history["recent"]) if history else 0,
+                "older_turns": len(history["older"]) if history else 0,
+                "summarized": bool(history and history.get("summary")),
+            },
         }
 
     return {"text": reply, "persona": True, "conversation_id": conversation_id,
