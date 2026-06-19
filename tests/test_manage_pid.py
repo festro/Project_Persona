@@ -117,6 +117,18 @@ check("mmproj: absolute MMPROJ_PATH honored",
       manage._mmproj_args(root, {"VISION_ENABLED": "true", "MMPROJ_PATH": str(mm)})
       == ["--mmproj", str(mm)])
 
+# --- egress baseline posture classifier (egress_posture) ---
+check("egress: cannot probe -> unknown",
+      manage.egress_posture(None, False).startswith("unknown"))
+check("egress: not loaded -> none",
+      manage.egress_posture(False, False).startswith("none"))
+check("egress: loaded + locked -> serve",
+      manage.egress_posture(True, False).startswith("serve"))
+check("egress: loaded + window open -> provision",
+      manage.egress_posture(True, True).startswith("provision"))
+check("egress: not-loaded wins over provision flag",
+      manage.egress_posture(False, True).startswith("none"))
+
 print()
 print(f"{checks_run - len(failures)}/{checks_run} passed")
 sys.exit(1 if failures else 0)

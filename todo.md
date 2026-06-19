@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-18 2133 PDT by Claude (SESSION HANDOFF: handoff_persona_20260618_2133.md -- full start-to-finish; P1-P4 + vision wiring + roadmap re-scope; local commit pending, origin aa145fa)
+Last updated: 2026-06-19 0331 PDT by Claude (egress batch COMMITTED to the canonical D:\ gateway D:\Projects\Git\Project_Persona; roadmap numbering self-note corrected; duplicate stale D: clone surfaced for Brandon; Phase 0.5 GREEN)
 
 ## Rules of the road
 
@@ -17,25 +17,79 @@ Last updated: 2026-06-18 2133 PDT by Claude (SESSION HANDOFF: handoff_persona_20
 
 ## Next up (this session)
 
-- COMMIT local: provisioner P4 (manage.py cmd_up first-run hook + up --yes/--hf-token,
-  scripts/provision_fetch.py model_resolvable, scripts/setup_native_stack.sh
-  AUTO_PROVISION, tests/test_provision_fetch.py) + the docs above. Local commit only
-  (mid-Phase-0.5); push rides the next milestone or EVO-X2 work. (P3 increment was
-  committed previously.) NOTE: invoke manage.py via .\portable\python\python.exe (bare
-  `python` hits the MS Store alias); capture runs with `... *>&1 | Tee-Object -FilePath
-  logs\<cmd>.log` (UTF-16; Claude reads it fine).
-- OPTIONAL live-confirm (Windows-side): the `up` first-run path -- temporarily clear
-  PERSONA_MODEL with models/ empty and run `manage.py up` to see the [Y/n] offer (or
-  `up --yes` to auto-provision). Not required to proceed; flips the last provisioner
-  OWED line.
-- PHASE 0.5 next rungs (working up the phases): P4 (first-run hook in cmd_up + installer
-  --yes), serving-side mmproj/VISION_ENABLED wiring, then the open egress + installer/
-  doctor-parity items; the Exit Gate's deferred checks (Linux x64 live, ARM64,
-  non-Vulkan accel) all need hardware.
-- DEFERRED by Brandon: B (EVO-X2 Exit Gate) until everything else is finished; E
-  (SSH-to-GitHub in WSL) skipped -- folder sync + D:\ git gateway is sufficient.
+- DISCREPANCY for Brandon -- TWO Project_Persona git clones live on D:, and they have
+  diverged:
+  * D:\Projects\Git\Project_Persona -- the CANONICAL gateway (matches wsl_h2_sim.ps1's
+    $RepoWin default; HEAD now = the egress batch). This is the one to use.
+  * D:\Projects\Project_Persona -- a STALE duplicate (HEAD stuck at P3, 70796f7). It is
+    NOT wired into the sync script and risks a wrong-clone commit. RECOMMEND: delete it
+    (or archive it) so there is exactly one D: gateway. Left in place pending Brandon's OK
+    (did not delete a git repo I did not create).
+- PUSH decision (Brandon): the gateway is now ahead of origin/main (aa145fa) by the P3 +
+  roadmap-runner + P4 + egress commits. WORKFLOW = push is milestones-only. Say the word
+  to push origin, else it stays a local backstop gap by design.
+- OWED verification on the egress baseline (needs a real box / Windows):
+  * live-apply the SERVE lock on a real Linux box (apply --yes -> a curl should fail ->
+    remove --yes); not done on the dev surface to avoid cutting its own connectivity.
+  * Windows PowerShell verify of egress_baseline.ps1 (process-scoped + -Strict).
+  * (optional) iptables fallback for hosts without nftables.
+  * broader Debian / other-Linux installer + doctor parity passes.
+- DECISIONS still pending Brandon (both MINOR, deferred to avoid guessing intent):
+  1. provisioner --tier: needs a tier taxonomy first (the playbook's "Tier 1 / 0" group is
+     combined; a 14B sits under "SBC/Pi"). Decide tier->model mapping and it's a quick add.
+  2. KV-aware ctx sizing: the 0.85*budget step-down is crude; a real KV estimate needs
+     per-model metadata or HW measurement -- do NOT invent constants (Brandon).
+- HARDWARE / Phase 9 (out of this scope): EVO-X2 H2d Exit Gate, EVO-X2-native + ARM64 +
+  non-Vulkan accel passes, the mesh. Deferred by Brandon until the 0-8 foundation is done.
+
+## Just finished (2026-06-19, Claude)
+
+- COMMITTED the egress batch to the canonical D:\ gateway (D:\Projects\Git\Project_Persona):
+  12 files (egress_baseline.{sh,ps1} + design doc NEW; manage.py egress bits;
+  test_manage_pid +5; setup_native_stack.sh .env stop-write; profiles/default/config.yaml
+  T1 pin; roadmap/changelog/todo; handoffs _2245 + _0052). Staged surgically (NOT git add
+  -A -- the WSL clone carries untracked runtime artifacts + a diverged tracked llama_cpp/).
+  Re-verified offline suite 5/5 + bash -n before commit. The prior P4/vision/roadmap-rescope
+  batch was ALREADY committed (ad7f92c) -- the earlier "still-uncommitted prior batch" note
+  was stale. NOT pushed to origin (milestones-only; see Next up).
+- ROADMAP self-note corrected: the line claiming knowledge.md + distributed_nodes.md "still
+  call the mesh Phase 10 / keep a CrewAI Phase 9" was stale -- both already use the 06-14
+  numbering (mesh=Phase 9, full-system=Phase 10). Replaced with an "all three docs agree" note.
+- EGRESS BASELINE LANDED (changelog 0052): Brandon's call = host firewall now (SCRIPTED,
+  not auto-enforced by manage.py), WireGuard -> Phase 9, allowlist = loopback + internet
+  only during provisioning. Wrote docs/egress_baseline_design_20260619.md +
+  scripts/egress_baseline.sh (nftables plan/status/apply[--provision]/remove, root-guarded,
+  established-first) + scripts/egress_baseline.ps1 (Windows Firewall; process-scoped default
+  + -Strict host-wide) + a doctor read-only "Egress baseline" report (egress_posture pure
+  classifier + _probe_egress, +5 offline tests). plan output + bash -n verified; offline
+  suite 5/5. OWED: live-apply SERVE lock on a real box; Windows verify; iptables fallback.
+  Local.
+- INSTALLER .env DECISION (changelog 0035): KEEP manage.py's .env READ-fallback (the
+  no-tomllib / Python<3.11 portability hedge), STOP setup_native_stack.sh WRITING
+  run/llama-servers.env (the only real drift source). FORCE_ENV=1 escape hatch retained;
+  an existing file is left untouched. The API reads os.environ filled from config.toml,
+  never .env, and the archived bash scripts were the only other .env consumers -> zero
+  behavior change on real hosts. bash -n clean. Local.
 
 ## Just finished (2026-06-18, Claude)
+
+- PHASE 0.5 LOCKED GREEN (changelog 2231): ran a clean standalone manage.py lifecycle in
+  THIS WSL clone (the AMD-Linux-via-WSL Exit-Gate check) -- status/doctor (all green) ->
+  up (Qwen2.5-7B CPU + API, both /health) -> test health -> /chat real reply (no_think) ->
+  down (clean, no orphans). Both Exit-Gate surface checks now [x] (Win x64 2026-06-07 +
+  AMD-Linux 2026-06-18) -> Phase 0.5 [x] GREEN. roadmap launcher Item -> [x]. Two
+  non-gating Items (egress; installer/doctor parity) remain design-gated. Local.
+- T1 SAFE-CONFIG GATE RESTORED (changelog 2225): doctor flagged the default profile's T1
+  gate FAILED -- 8 auxiliary tasks had provider=auto (added by Hermes' v28 migration),
+  but the gate requires provider=main. Pinned them main in profiles/default/config.yaml;
+  doctor T1 green again. The H1 `hermes config check` had passed; the project-side gate
+  was the one the migration silently regressed. Local. (FOLLOW-UP: a post-migration
+  re-pin normalizer.)
+- PHASE 10 ITEM 10.0 -> [x] (changelog 2215): tests/run_all_offline.py 5/5 PASS on this
+  Linux x64 (WSL, env venv 3.12.3); Windows x64 already green -> both primary surfaces
+  green. Offline portion only; live Items 10.1-10.5 still need Phase 9. Local.
+- RECONCILIATION (clean): no git here (D:\ gateway); py_compile manage.py OK; offline
+  suite 5/5; stale run/*.pid were dead (handled). Reported to Brandon.
 
 - SERVING-SIDE VISION WIRING DONE (changelog 1903): start_llama passes --mmproj when
   VISION_ENABLED + projector present (gated; headless stays text-only); doctor reports

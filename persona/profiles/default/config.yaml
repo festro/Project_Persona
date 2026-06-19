@@ -157,56 +157,56 @@ auxiliary:
     timeout: 120
     extra_body: {}
   skills_hub:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   approval:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   mcp:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   title_generation:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   triage_specifier:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 120
     extra_body: {}
   kanban_decomposer:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 180
     extra_body: {}
   profile_describer:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''
     timeout: 60
     extra_body: {}
   curator:
-    provider: auto
+    provider: main
     model: ''
     base_url: ''
     api_key: ''

@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-18 1725 PDT by Claude (Phase 0.5 re-scope to primary surfaces; provisioner P1-P4 + vision serving wiring)
+Last updated: 2026-06-19 0052 PDT by Claude (Phase 0.5 GREEN; egress baseline design+scripts landed; installer .env decision resolved [keep-read/stop-write]; T1 gate restored; Item 10.0 green on Linux x64)
 
 ## Boundaries (do not duplicate)
 
@@ -58,20 +58,22 @@ Phase 0 covers the runtime/dev-env foundation that precedes Phase 1; Phase 0.5 c
 the Windows<->AMD-Linux(WSL) cross-OS foundation; Phase 9 is an extended line beyond
 the core ladder for migration + the decentralized node mesh (see
 `docs/distributed_nodes.md`); Phase 10 is the full-system / feature-test + cross-platform
-capstone. NOTE: `knowledge.md` + `docs/distributed_nodes.md` still call the mesh
-"Phase 10" and keep a CrewAI "Phase 9" -- they need a sync to this numbering (swap done
-here 2026-06-14). The ladder is a FUNCTIONAL / dependency order, not work order --
-current execution focus lives in `todo.md` and can span Phases.
+capstone. The 2026-06-14 numbering swap (mesh -> Phase 9, full-system test -> Phase 10,
+CrewAI Phase 9 deleted) is now reflected in `knowledge.md` + `docs/distributed_nodes.md`
+as well -- all three docs agree. The ladder is a FUNCTIONAL / dependency order, not work
+order -- current execution focus lives in `todo.md` and can span Phases.
 
 ## Current position
 
-Phases 0 and 1 are GREEN. The single Qwen3.6-35B-A3B model serves LIVE on :8090
+Phases 0, 0.5, and 1 are GREEN. The single Qwen3.6-35B-A3B model serves LIVE on :8090
 behind the companion API on :8000 (thinking mode under --jinja), on Windows and on
 EVO-X2. Phase 0.5 -- NARROWED 2026-06-18 to the Windows x64 + AMD-Linux(WSL) cross-OS
-foundation -- is now close to lockable: Windows x64 is proven and the WSL Linux
-lifecycle is largely exercised; the former ARM64 / non-Vulkan / EVO-X2-native checks
-that blocked it are relocated to the Phase 9/10 capstone. Its model provisioner
-(P1-P4) is code-done this session.
+foundation -- LOCKED GREEN 2026-06-18: both Exit-Gate surface checks pass (Windows x64
+2026-06-07; AMD-Linux-via-WSL standalone manage.py lifecycle pass 2026-06-18). The
+former ARM64 / non-Vulkan / EVO-X2-native checks that blocked it are relocated to the
+Phase 9/10 capstone. Its model provisioner (P1-P4) is code-done; two non-gating Items
+(per-OS egress baseline; cross-OS installer/doctor parity) remain as design-gated
+follow-ups (need a Brandon decision).
 
 Execution focus is working UP the 0-8 ladder on the two primary surfaces (Windows +
 AMD Linux via WSL). Phase 8 (Hermes) foundation is started -- the taskboard<->kanban
@@ -104,7 +106,16 @@ Exit Gate (MET):
 - [x] the API process boots
 - [x] the offline API suite (`tests/test_api_offline.py`) is green
 
-## Phase 0.5 -- Cross-OS foundation (Windows x64 + AMD Linux via WSL)  [~] IN PROGRESS
+## Phase 0.5 -- Cross-OS foundation (Windows x64 + AMD Linux via WSL)  [x] GREEN
+
+GREEN 2026-06-18: both Exit-Gate surface checks are now green -- Windows x64
+(2026-06-07) and AMD Linux via WSL (CPU, 2026-06-18: a clean standalone manage.py
+status/doctor/up/test-health//chat/down pass in this WSL clone, Qwen2.5-7B on CPU).
+Per the lock rule at the end of this Phase, that closes it. Two non-gating Items have
+since progressed (2026-06-19): the per-OS egress baseline (design + Linux/Windows scripts
++ doctor report landed) and the installer .env decision (resolved + done); both are now
+[~] with live / cross-distro verification owed. Neither is part of the Exit Gate or
+blocks GREEN; tracked below and in `todo.md`.
 
 Goal (NARROWED 2026-06-18): the stack runs identically on the two PRIMARY dev
 surfaces -- Windows x64, and AMD Linux exercised via WSL (CPU) on Daemonic-PC --
@@ -116,7 +127,7 @@ lifecycle, other hardware) is OUT of 0-8 scope and RELOCATED to the Phase 9 migr
 matrix: `docs/portability_audit.md`.
 
 - [x] /agent/run uses sys.executable (was literal python3; broke Windows portable)
-- [~] Single cross-platform launcher `manage.py` (up/down/toggle/status/doctor/
+- [x] Single cross-platform launcher `manage.py` (up/down/toggle/status/doctor/
       capabilities/test/panel) replacing the bash/ps1 split (no bash for core
       lifecycle). LIVE-VALIDATED on Windows (RX 9060 XT) 2026-06-07: toggle brought
       the full stack up on :8090/:8000 and tore it down cleanly; test playbook green
@@ -127,8 +138,11 @@ matrix: `docs/portability_audit.md`.
       written, accel detect+select=vulkan; full live CLI lifecycle proven (up ->
       status -> doctor --deep -> test quick -> down -> clean). 2026-06-14: down/status
       hardened against the WSL stale-pidfile trap (resolve_live_pid + /health
-      corroboration; tests/test_manage_pid.py; live-confirmed in WSL). The Linux x64 +
-      ARM64 live passes remain owed (see the Exit Gate).
+      corroboration; tests/test_manage_pid.py; live-confirmed in WSL). 2026-06-18:
+      a clean standalone WSL/AMD-Linux pass (status/doctor/up/test-health//chat/down,
+      Qwen2.5-7B CPU) proved the full lifecycle on the second primary surface -- the
+      launcher is now validated on both (Windows x64 + AMD-Linux-via-WSL). The
+      EVO-X2-native / ARM64 / non-Vulkan live passes are relocated to Phase 9.
 - [x] Dependency tiers: lean node = fastembed/onnxruntime default; torch +
       sentence-transformers become an opt-in extra. DONE 2026-06-06:
       requirements.txt lean (no sentence-transformers); opt-in
@@ -195,18 +209,33 @@ matrix: `docs/portability_audit.md`.
       a vision-model serving smoke; `--tier` flag (needs a tier field in the playbook);
       the deeper KV-aware ctx sizing (replace the 0.85*budget step-down with a real
       KV-headroom estimate).
-- [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables
-      as a Linux-only bonus
-- [ ] Cross-OS installer/doctor parity (Windows + Debian + other Linux)
+- [~] Per-OS egress story: host firewall default-deny baseline (Windows + Linux);
+      WireGuard mesh deferred to Phase 9; kernel netns/iptables worker-jail is the
+      tighter Phase 8 layer. DECISION 2026-06-19 (Brandon): host firewall NOW, SCRIPTED
+      (not auto-enforced by manage.py), allowlist = loopback + internet only during
+      provisioning. LANDED 2026-06-19: docs/egress_baseline_design_20260619.md +
+      scripts/egress_baseline.sh (nftables: plan/status/apply[--provision]/remove,
+      root-guarded, established-first) + scripts/egress_baseline.ps1 (Windows Firewall;
+      process-scoped default, -Strict host-wide) + a doctor read-only "Egress baseline"
+      report (egress_posture, unit-tested). OWED: live-apply test of the SERVE lock on a
+      real box; Windows PowerShell verify; optional iptables (non-nft) fallback.
+- [~] Cross-OS installer/doctor parity (Windows + Debian + other Linux). OPEN QUESTION
+      RESOLVED 2026-06-19 (Brandon): KEEP manage.py's .env READ-fallback (portability
+      hedge for a no-tomllib host) but STOP the installer writing it. DONE:
+      setup_native_stack.sh no longer writes run/llama-servers.env by default (FORCE_ENV=1
+      escape hatch retained; an existing file is left untouched). OWED: broader Debian /
+      other-Linux installer + doctor parity passes (need those distros).
 
 Exit Gate (one node bootstraps, runs, self-checks via doctor, and serves /chat
 through one entrypoint with no bash for core lifecycle) -- on the two PRIMARY
 surfaces only:
 
 - [x] Windows x64 -- CPU + Vulkan (Daemonic-PC, 2026-06-07)
-- [~] AMD Linux via WSL (CPU) -- `manage.py` lifecycle parity (status/doctor/up/down/
-      test) green in the WSL clone; largely exercised by the H2 WSL sim, a clean
-      standalone pass is the remaining lock.
+- [x] AMD Linux via WSL (CPU) -- `manage.py` lifecycle parity (status/doctor/up/down/
+      test) green in the WSL clone. PROVEN 2026-06-18: a clean standalone pass --
+      status, doctor (T1 safe-config + all checks green), up (llama 7B CPU + API, both
+      /health responding), test health, /chat returned a real persona reply (no_think
+      preset), down (clean teardown, no orphans, ports free). No bash; one entrypoint.
 
 RELOCATED to the Phase 9/10 capstone (these no longer block 0.5):
 - EVO-X2-native Linux x64 + Vulkan GPU lifecycle parity -> Phase 9 Item 9.0.
@@ -214,7 +243,7 @@ RELOCATED to the Phase 9/10 capstone (these no longer block 0.5):
 - non-Vulkan accel-selection proof (a CUDA/ROCm/SYCL node) -> Phase 9.
 - cross-host behavioral parity across all surfaces -> Phase 10 Item 10.2.
 
-0.5 locks GREEN once the two primary-surface checks above are green.
+0.5 LOCKED GREEN 2026-06-18: both primary-surface checks above are green.
 
 ## Phase 1 -- Core serving and companion API  [x] GREEN
 
@@ -400,7 +429,15 @@ single-model migration M6.)
 
 - [x] T1: per-profile `config.yaml` safe-config (egress tools disabled, local
       model pinned, no cloud fallback) generated by `init_profiles.sh`; `doctor.sh`
-      validates the default profile as the T1 check (implemented 2026-06-04)
+      validates the default profile as the T1 check (implemented 2026-06-04).
+      REGRESSION FOUND + FIXED 2026-06-18: Hermes' schema 0->28 migration (H1,
+      2026-06-12) added 8 new auxiliary tasks (skills_hub/approval/mcp/title_generation/
+      triage_specifier/kanban_decomposer/profile_describer/curator) with provider=auto,
+      which the project-side safe-config gate (manage.py doctor) flags -- it requires
+      auxiliary.*.provider=main (route all auxiliary inference to the local main model).
+      Pinned them to main in persona/profiles/default/config.yaml; the doctor T1 gate is
+      green again. The Hermes-side H1 validation (hermes config check) had passed; this
+      is the separate project-side gate the migration silently regressed.
 - [x] T1 close-out on a live host -- DONE 2026-06-12: hermes-agent v0.16.0 installed
       on EVO-X2 in `env_hermes/` (isolated/portable: uv + CPython 3.11.15 + editable
       clone ~/src/hermes-agent pinned 9b1e0d6f; no global mutations). env_hermes/bin/
@@ -515,13 +552,17 @@ features land. Runs on the canonical node (EVO-X2 once Phase 9 Item 9.0 lands);
 the offline portions run on any host. Functionally last, but partial subsets can
 run against whatever Phases are already green.
 
-- [~] 10.0: One-command regression suite -- every offline suite
+- [x] 10.0: One-command regression suite -- every offline suite
       (test_api_offline, test_hermes_bridge, test_manage_pid, test_provision_match,
-      + future) runs green from a single entrypoint on Windows x64 AND Linux x64.
+      test_provision_fetch, + future) runs green from a single entrypoint on Windows
+      x64 AND Linux x64.
       RUNNER BUILT 2026-06-14: tests/run_all_offline.py auto-discovers tests/test_*.py,
       runs each in its own process with the current interpreter, aggregates pass/fail.
-      WINDOWS x64 GREEN 2026-06-14 1530 (portable 3.11.9): 4/4 suites PASS. Flips to
-      [x] once also green on Linux x64 (EVO-X2 or a WSL clone with the API deps).
+      WINDOWS x64 GREEN 2026-06-14 1530 (portable 3.11.9): 4/4 suites PASS. LINUX x64
+      GREEN 2026-06-18 (AMD-Linux via WSL, env venv 3.12.3): 5/5 suites PASS. Both
+      primary surfaces green -> [x]. NOTE: this is only the hardware-free offline
+      portion of Phase 10; the live / cross-host Items 10.1-10.5 remain and depend on
+      Phase 9 (out of this scope).
 - [ ] 10.1: Live system playbook -- a scripted end-to-end exercise on the canonical
       node: multi-turn conversation, topic routing + thinking mode, RAG recall +
       writeback, and an agent delegation round-trip (delegate -> Hermes runs ->

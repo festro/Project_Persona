@@ -14,6 +14,95 @@ Conventions:
 
 ---
 
+## 2026-06-19 0052 PDT -- Phase 0.5 egress baseline: design + per-OS scripts + doctor report (Brandon + Claude)
+
+- DECISION (Brandon): the per-OS egress story is a HOST FIREWALL default-deny-outbound
+  baseline NOW on the two primary surfaces; WireGuard mesh DEFERRED to Phase 9; delivery
+  is SCRIPTED + documented, NOT auto-enforced by manage.py (no silent firewalling).
+  Allowlist = loopback + internet only during provisioning/setup.
+- NEW docs/egress_baseline_design_20260619.md: threat model (network-level half of egress
+  containment; config-level half already exists), two postures (SERVE locked = loopback +
+  established only; PROVISION = + DNS/HTTPS for downloads), per-OS mechanism, doctor
+  read-only report, fit with the Phase 8 worker-jail + Phase 9 WireGuard, verify/rollback.
+- NEW scripts/egress_baseline.sh (Linux/nftables): isolated table inet persona_egress,
+  subcommands plan (default; pure text print) / status / apply [--provision] / remove;
+  root-guarded; --yes for mutating ops; established,related accepted FIRST so apply over
+  SSH does not cut the session; remove = clean total rollback. bash -n clean; plan output
+  verified (valid nftables ruleset for both postures).
+- NEW scripts/egress_baseline.ps1 (Windows Firewall): -Status/-Plan/-Apply/-Remove,
+  -Provision, -Strict. Default = process-scoped outbound BLOCK for llama-server.exe (group
+  PersonaEgress); -Strict = host-wide DefaultOutboundAction=Block + allow rules. Written +
+  reviewed; LIVE WINDOWS VERIFY OWED (no PowerShell on the Linux dev surface).
+- manage.py: NEW egress_posture(present, provision_open) pure classifier (serve/provision/
+  none/unknown) + _probe_egress(root) read-only probe (nft list / Get-NetFirewallRule;
+  never mutates); doctor gained a read-only "Egress baseline" section that REPORTS posture
+  and points at the scripts when none is loaded. tests/test_manage_pid.py +5 egress_posture
+  checks; offline suite 5/5. OWED: live-apply SERVE-lock test on a real box; iptables
+  fallback. Local.
+
+## 2026-06-19 0035 PDT -- Installer .env: keep read-fallback, stop writing (Brandon + Claude)
+
+- OPEN QUESTION RESOLVED (Brandon): setup_native_stack.sh wrote the legacy
+  run/llama-servers.env while run/config.toml is the committed source of truth -> KEEP
+  manage.py's .env READ-fallback (the portability hedge for a no-tomllib / Python<3.11
+  host, and for a missing/broken config.toml) but STOP the installer WRITING it (the only
+  real drift source: the launcher ignores the .env whenever config.toml parses).
+- Why this is safe: load_config (manage.py:165) reads the .env files ONLY as a fallback;
+  with config.toml present they are never read. The API (server.py) reads os.environ that
+  manage.py fills FROM config.toml, never the .env directly. All live bash lifecycle
+  scripts that used to source the .env are archived. So nothing on a real host loses
+  config; the stale written file just disappears.
+- DONE: setup_native_stack.sh no longer writes run/llama-servers.env by default; an
+  existing one is left untouched; FORCE_ENV=1 regenerates it for a no-tomllib host. Scope:
+  only llama-servers.env was auto-written (config.env is committed/fallback-read only;
+  start_api.sh is archived). bash -n clean. Local.
+
+## 2026-06-18 2231 PDT -- Phase 0.5 LOCKED GREEN: standalone WSL/AMD-Linux lifecycle pass (Claude)
+
+- Ran a clean standalone manage.py lifecycle in the WSL clone (the AMD-Linux-via-WSL
+  Exit-Gate check, previously [~]): status -> doctor (all checks green incl. the T1
+  safe-config gate) -> up (llama-server Qwen2.5-7B on CPU + FastAPI, both /health
+  responding) -> test health (persona + API OK) -> /chat (real persona reply, no_think
+  preset) -> down (clean teardown, no orphans, :8090/:8000 free). No bash; one entrypoint.
+- Effective host config: host_tag=daemonic-pc -> config.daemonic-pc.toml selects
+  Qwen2.5-7B-Instruct-Q4_K_M (CPU, GPU_LAYERS=0, PARALLEL=1, ctx 32768). llama-server
+  b9620 CPU build at llama_cpp/build/bin; API via env/bin/python (venv 3.12.3).
+- roadmap.md: Phase 0.5 -> [x] GREEN (both Exit-Gate surface checks now [x]: Windows x64
+  2026-06-07 + AMD-Linux-via-WSL 2026-06-18); launcher Item -> [x]; Current position +
+  lock line updated. Two NON-GATING Items remain as design-gated follow-ups (per-OS
+  egress baseline; cross-OS installer/doctor parity) -- pending Brandon decisions.
+- No git in this WSL clone (D:\ is the git gateway) -> edit/run/test only; the commit is
+  owed to Brandon. Local.
+
+## 2026-06-18 2225 PDT -- T1 safe-config gate restored: auxiliary providers auto->main (Claude)
+
+- FOUND via manage.py doctor on WSL: the default profile's safe-config T1 gate FAILED --
+  8 auxiliary tasks (skills_hub, approval, mcp, title_generation, triage_specifier,
+  kanban_decomposer, profile_describer, curator) had provider=auto, but the project-side
+  validator (manage.validate_safe_config) requires auxiliary.*.provider=main (route all
+  auxiliary inference to the local main model; egress containment).
+- ROOT CAUSE: Hermes' schema 0->28 migration (H1, 2026-06-12) added these new auxiliary
+  tasks with its default provider=auto. H1 was validated with Hermes' own
+  `hermes config check` (which passed); the project's doctor T1 gate was not re-run, so
+  the regression went unnoticed (T1 last ran green 2026-06-04, before the migration).
+- FIX: pinned the 8 auxiliary providers to main in persona/profiles/default/config.yaml
+  (a tightening -- with providers:{} + no API keys, auto resolves to main anyway). doctor
+  T1 gate green again (safe_config=pass); YAML re-parsed OK.
+- config.yaml is git-tracked (no secrets). roadmap Phase 8 T1 note added. Local.
+- FOLLOW-UP (note, not done): a normalizer (doctor --fix / init_profiles) could re-pin
+  auxiliary providers automatically after any future Hermes schema migration.
+
+## 2026-06-18 2215 PDT -- Phase 10 Item 10.0: offline regression suite green on Linux x64 (Claude)
+
+- Ran tests/run_all_offline.py in the WSL clone via env/bin/python (venv 3.12.3): 5/5
+  suites PASS (test_api_offline, test_hermes_bridge, test_manage_pid, test_provision_fetch,
+  test_provision_match). This is the AMD-Linux-via-WSL = Linux x64 surface.
+- With Windows x64 already green (2026-06-14, portable 3.11.9), both primary surfaces are
+  now green -> roadmap Item 10.0 [~] -> [x]. NOTE: only the hardware-free offline portion
+  of Phase 10; live / cross-host Items 10.1-10.5 still depend on Phase 9.
+- Reconciliation also confirmed: py_compile manage.py OK; stale run/*.pid (7372/14032)
+  were dead (handled by resolve_live_pid). No git in this clone. Local.
+
 ## 2026-06-18 1903 PDT -- Serving-side vision wiring: start_llama --mmproj (Claude)
 
 - manage.py: NEW _truthy + _mmproj_args helpers; start_llama now appends

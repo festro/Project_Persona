@@ -130,16 +130,21 @@ else
   echo "==> SKIP_HERMES=1 set; skipping env_hermes venv"
 fi
 
+# Config source of truth: run/config.toml ([base]/[runtime]/[<os>] + per-host
+# config.<host>.toml), read by manage.py via tomllib (Python 3.11+). As of 2026-06-18
+# this installer NO LONGER writes the legacy run/llama-servers.env by default -- it would
+# just sit stale beside config.toml and drift (config.toml is proven on both primary
+# surfaces). manage.py still READS the .env files as a FALLBACK when config.toml is
+# absent or no TOML parser is available (e.g. Python <3.11 without tomli), so an existing
+# one is left untouched. Set FORCE_ENV=1 to (re)generate the legacy env for such a
+# no-tomllib host.
 ENV_OUT="$AI_ROOT/run/llama-servers.env"
-if [ -f "$ENV_OUT" ] && [ "${FORCE_ENV:-0}" != "1" ]; then
-  echo "==> Existing $ENV_OUT found; leaving it untouched"
-  echo "    (set FORCE_ENV=1 to overwrite; a timestamped .bak is kept)"
-else
+if [ "${FORCE_ENV:-0}" = "1" ]; then
   if [ -f "$ENV_OUT" ]; then
     cp -a "$ENV_OUT" "$ENV_OUT.bak.$(date -u +%Y%m%d_%H%M%S)"
-    echo "==> Backed up existing env to $ENV_OUT.bak.*"
+    echo "==> FORCE_ENV=1: backed up existing env to $ENV_OUT.bak.*"
   fi
-  echo "==> Writing unified single-model llama server env config"
+  echo "==> FORCE_ENV=1: writing the legacy fallback env (config.toml stays the source of truth)"
   cat > "$ENV_OUT" <<EOF
 HOST=127.0.0.1
 THREADS=0
@@ -154,6 +159,13 @@ GPU_LAYERS_PERSONA=999
 PERSONA_PARALLEL=4
 LLAMA_LIB_DIR=$AI_ROOT/llama_cpp/build/bin
 EOF
+elif [ -f "$ENV_OUT" ]; then
+  echo "==> Leaving existing $ENV_OUT untouched (config.toml is the source of truth;"
+  echo "    manage.py reads the legacy .env only as a fallback)"
+else
+  echo "==> Config source of truth: run/config.toml"
+  echo "    (not writing a legacy run/llama-servers.env; set FORCE_ENV=1 to generate one"
+  echo "     for a no-tomllib host)"
 fi
 
 if [ "$AUTO_PROVISION" = "1" ]; then

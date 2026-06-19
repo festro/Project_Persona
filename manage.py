@@ -791,6 +791,48 @@ def validate_safe_config(cfg_path):
     return (len(errors) == 0), errors
 
 
+def egress_posture(present, provision_open):
+    """Classify the host egress-baseline posture from a probe result. PURE (testable):
+      present is None  -> cannot probe (e.g. nft absent)
+      present is False -> no baseline loaded
+      present is True  -> loaded; provision_open distinguishes the internet window.
+    See docs/egress_baseline_design_20260619.md + scripts/egress_baseline.{sh,ps1}."""
+    if present is None:
+        return "unknown (cannot probe)"
+    if not present:
+        return "none (no baseline; scripted, not auto-applied)"
+    return ("provision (internet window open: DNS+HTTPS)" if provision_open
+            else "serve (locked: loopback + established only)")
+
+
+def _probe_egress(root):
+    """Read-only probe for the egress baseline -> (present, provision_open). present is
+    None when it cannot be determined. NEVER changes firewall state (the baseline is
+    scripted/operator-applied; doctor only reports it)."""
+    try:
+        if IS_WINDOWS:
+            ps = ("if (Get-NetFirewallRule -Group 'PersonaEgress' "
+                  "-ErrorAction SilentlyContinue) { 'present' } else { 'absent' }")
+            try:
+                out = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                                     capture_output=True, text=True, timeout=15)
+            except FileNotFoundError:
+                return (None, False)
+            if out.returncode != 0:
+                return (None, False)
+            return (("present" in (out.stdout or "")), False)
+        try:
+            out = subprocess.run(["nft", "list", "table", "inet", "persona_egress"],
+                                 capture_output=True, text=True, timeout=10)
+        except FileNotFoundError:
+            return (None, False)  # nftables not installed -> cannot probe
+        if out.returncode != 0:
+            return (False, False)  # nft present, table not loaded
+        return (True, "dport 443" in (out.stdout or ""))
+    except Exception:
+        return (None, False)
+
+
 def cmd_doctor(root, cfg, args):
     info("Project_Persona doctor")
     print(f"AI_ROOT: {root}")
@@ -909,6 +951,19 @@ def cmd_doctor(root, cfg, args):
         else:
             warn("persona completion failed or timed out")
         print()
+
+    info("Egress baseline (host firewall; read-only report)")
+    _eg_present, _eg_prov = _probe_egress(root)
+    _eg_label = egress_posture(_eg_present, _eg_prov)
+    if _eg_present:
+        ok(f"egress posture: {_eg_label}")
+    elif _eg_present is None:
+        info(f"egress posture: {_eg_label}")
+    else:
+        warn(f"egress posture: {_eg_label}")
+        info("apply with scripts/egress_baseline.sh (Linux) / egress_baseline.ps1 "
+             "(Windows); see docs/egress_baseline_design_20260619.md")
+    print()
 
     info("Safe-config conformance (T1 gate)")
     cfg_path = pbase / "config.yaml"
