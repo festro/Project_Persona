@@ -406,8 +406,10 @@ and cache_prompt amortization. Reshaped from the original LangGraph design.
 Phase 9 -- Decentralized cooperative node mesh (extended): system-agnostic nodes
 that run standalone and, when networked, pool throughput + specialized capability
 BOINC-style (NATS+JetStream). EVO-X2 migration to the canonical/anchor node is the
-precondition (Item 9.0). Reuses the slot of the deleted CrewAI Phase 9 (superseded
-by Hermes in Phase 8) after the 2026-06-14 renumber. Design: `docs/distributed_nodes.md`.
+precondition (Item 9.0), and this migration line now OWNS the multiplatform hardening
+relocated from Phase 0.5 (EVO-X2-native GPU lifecycle, ARM64, non-Vulkan accel proof).
+Reuses the slot of the deleted CrewAI Phase 9 (superseded by Hermes in Phase 8) after
+the 2026-06-14 renumber. Design: `docs/distributed_nodes.md`.
 
 Phase 10 -- Full-system / feature test: capstone end-to-end + regression validation
 over every completed Phase -- one-command regression suite, live system playbook,
@@ -430,9 +432,11 @@ deploying at scale comply with its branding terms independently.
 - Conventions spec: `D:\Projects\WORKFLOW.md`
 - Distributed cooperative node mesh design (NATS+JetStream, BOINC-style; status +
   gates in `roadmap.md` Phase 9): `docs/distributed_nodes.md`
-- Cross-OS/arch portability audit + action plan (Win+Linux, x86-64+ARM64,
-  CPU/CUDA/ROCm/Vulkan; Apple out; status in `roadmap.md` Phase 0.5):
-  `docs/portability_audit.md`
+- Cross-OS/arch portability audit + action plan: `docs/portability_audit.md`.
+  SCOPE (narrowed 2026-06-18): Phases 0-8 target the two PRIMARY dev surfaces only --
+  Windows x64 + AMD Linux via WSL (CPU); that is Phase 0.5. Cross-arch (ARM64),
+  cross-accel (non-Vulkan) and EVO-X2-native GPU hardening are relocated to the
+  Phase 9 migration + Phase 10 cross-host capstone. Apple out.
 - Python 3.14 stack compatibility + recommended interpreter version (DECIDED:
   Python 3.11.9 embeddable runs the full RAG stack; 3.14 is API-only, ChromaDB
   blocked): `docs/py314_compatibility.md`.

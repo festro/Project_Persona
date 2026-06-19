@@ -133,6 +133,18 @@ def target_config_path(root, host_tag, os_tag=None):
     return root / "run" / "config.toml"
 
 
+def model_resolvable(models_dir, configured):
+    """True if the stack can serve a model WITHOUT provisioning -- a configured
+    PERSONA_MODEL that exists on disk, or exactly one GGUF present (the unambiguous
+    fallback). Mirrors manage.resolve_model()'s usable cases (quiet; no logging) so
+    cmd_up can decide whether to trigger first-run provisioning."""
+    models_dir = Path(models_dir)
+    if configured and (models_dir / configured).is_file():
+        return True
+    present = sorted(models_dir.glob("*.gguf")) if models_dir.is_dir() else []
+    return len(present) == 1
+
+
 def wire_config(path, os_tag, kv, dry_run=True):
     """Non-destructively set kv inside the [<os>] table of a TOML file. Existing
     keys are replaced in place (a changed PERSONA_MODEL leaves the old line as a

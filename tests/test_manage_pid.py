@@ -93,6 +93,30 @@ manage.stop_named(root, "persona", "URL", ["llama-server"])
 check("stop: normal alive -> kills recorded pid", killed == [100])
 check("stop: normal removes pidfile", not pidfile_exists(root, "persona"))
 
+# --- vision serving wiring (_truthy / _mmproj_args) ---
+check("truthy: 1/true/yes/on", manage._truthy("1") and manage._truthy("True")
+      and manage._truthy("yes") and manage._truthy("ON"))
+check("truthy: 0/false/empty", not manage._truthy("0") and not manage._truthy("False")
+      and not manage._truthy(""))
+
+root = make_root()
+(root / "models").mkdir(parents=True, exist_ok=True)
+mm = root / "models" / "mmproj-x.gguf"
+mm.write_text("x", encoding="utf-8")
+
+check("mmproj: vision off -> no args",
+      manage._mmproj_args(root, {"VISION_ENABLED": "0", "MMPROJ_PATH": "mmproj-x.gguf"}) == [])
+check("mmproj: vision on + present -> --mmproj <abs>",
+      manage._mmproj_args(root, {"VISION_ENABLED": "1", "MMPROJ_PATH": "mmproj-x.gguf"})
+      == ["--mmproj", str(mm)])
+check("mmproj: vision on, no MMPROJ_PATH -> []",
+      manage._mmproj_args(root, {"VISION_ENABLED": "1"}) == [])
+check("mmproj: vision on, missing file -> [] (text-only)",
+      manage._mmproj_args(root, {"VISION_ENABLED": "1", "MMPROJ_PATH": "nope.gguf"}) == [])
+check("mmproj: absolute MMPROJ_PATH honored",
+      manage._mmproj_args(root, {"VISION_ENABLED": "true", "MMPROJ_PATH": str(mm)})
+      == ["--mmproj", str(mm)])
+
 print()
 print(f"{checks_run - len(failures)}/{checks_run} passed")
 sys.exit(1 if failures else 0)

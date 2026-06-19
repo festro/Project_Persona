@@ -2,8 +2,8 @@
 
 Status: DESIGN -- not started. Extended line beyond the core ladder (see
 `roadmap.md` Phase 9).
-Last updated: 2026-06-14 1535 PDT by Claude (+section 5b coordinated eviction +
-node_id, Brandon's proposal; renumbered to Phase 9 earlier)
+Last updated: 2026-06-18 1841 PDT by Claude (+section 5c federation prior art /
+Matrix, Brandon's framing; +5b coordinated eviction + node_id earlier)
 Origin: design discussion 2026-06-05/06 (Brandon + Claude). Decisions below are
 Brandon's calls captured for the record; this note is handoff-quality on its own.
 
@@ -153,6 +153,67 @@ Must be nailed down before this is safe (tracked in section 9):
   rotate to DIFFERENT tokens, then refuse to re-merge. The OOB proximity re-key
   (step 3) is the manual bridge; an automatic reconcile rule is still owed.
 
+## 5c. Prior art: federation models (Matrix et al.) (Brandon 2026-06-18)
+
+Brandon's framing: Phase 9 is "a federation of interconnectable yet independent
+systems" -- the Matrix protocol's exact model (sovereign homeservers, each owning
+its own data, federating by choice, no central owner). Matrix is the battle-tested
+reference for several of the OPEN problems in sections 5/5b, and -- because this is
+a hardware/OS-agnostic PERSONAL ASSISTANT -- its chat/room shape is plausibly a
+FEATURE down the line, not just borrowed plumbing.
+
+Direct mappings (Matrix mechanism -> our open problem):
+- Signed event DAG + per-server keys -> node_id + signing keypair (sec 5). Every
+  event is signed by its origin server and verified by receivers; identity = the
+  server key. Production proof that signed-event federation works without PKI.
+- `m.room.server_acl` -> the advisory->enforceable deny-list / coordinated eviction
+  (sec 5b). Matrix bans/denies servers BY IDENTITY, and the ACL lives in replicated
+  room state enforced by every participant = deny-by-node already solved.
+- State resolution (v2) -> the split-brain reconcile rule (sec 5b/9, currently
+  owed). On a partition Matrix deterministically re-converges divergent state via an
+  auth-chain + power-level-aware algorithm. A concrete answer to our hardest open.
+- Power levels + auth rules -> the re-key AUTHORIZATION QUORUM (sec 5b). State
+  changes (incl. ACL edits) are gated by power levels validated against the auth
+  chain -- a model for "who may evict, without eviction-as-attack."
+- Backfill + partition tolerance -> the cutover window + rejoin (sec 5b). Rooms
+  survive servers going dark and backfill on return = "don't lock out slow honest
+  nodes."
+
+Chatroom-as-feature (Brandon 2026-06-18): a Matrix room is a synced, optionally
+end-to-end-encrypted conversation timeline across all of a user's devices/nodes,
+with the persona as a federated member and reachability + cross-device history "for
+free." For a system meant to be the SAME assistant on any box the user owns, that is
+a natural UX substrate, not dead weight -- which elevates Matrix from "prior art to
+mimic" toward "candidate substrate to run."
+
+Two paths (a real fork, not yet decided):
+(a) REIMPLEMENT only the mechanisms we need (signed DAG, server-ACL-style deny,
+    state-resolution-style reconcile) on the existing NATS + shared-token substrate.
+    Lighter; keeps the "from scratch, minimal deps" ethos; no chat baggage.
+(b) RUN a lightweight homeserver as the federation/identity/conversation plane and
+    keep NATS as the intra-cluster work bus (sec 3). More capability for free
+    (federation, E2EE rooms, multi-device sync), heavier and chat-shaped -- now
+    partly justified by the chatroom-as-feature point.
+Hybrid is plausible: NATS work plane + a Matrix-style identity/conversation plane.
+Matrix is NOT a NATS replacement -- it is a different layer (persistent signed shared
+state across sovereign servers vs a low-latency intra-trust-domain bus).
+
+Caveats / fit gaps:
+- Reachability assumption. Homeservers want DNS / `.well-known` / federation port /
+  TLS reachability; this rubs against the OOB (NFC/BT) re-key (sec 5b) and any
+  intermittent / air-gapped aspiration (sec 6). Matrix tolerates downtime + backfill
+  but is not built for sneakernet.
+- Weight. Synapse (the reference homeserver) is heavy; lighter Go/Rust homeservers
+  exist (Dendrite, Conduit + forks) -- VERIFY current project status before betting
+  on one; this landscape churns and needs a fresh web survey.
+- Offline/intermittent lean widens the prior art beyond Matrix to gossip /
+  store-and-forward (Briar, Secure Scuttlebutt) and P2P stacks (libp2p gossipsub,
+  Iroh, Veilid). Our 5b "gossip a bad-actor flag among honest nodes" is itself a
+  gossip primitive -- connects to the PARKED SWIM/libp2p bullet (sec 9).
+
+PARKED sub-decision (sec 9): reimplement (a) vs run-a-homeserver (b) vs hybrid; plus
+the offline/P2P survey, which needs current-status web research.
+
 ## 6. Standalone autonomy (non-negotiable)
 
 Every node runs the identical full portable stack and works with zero peers
@@ -206,6 +267,11 @@ source of truth; the "Stage" labels here are this design note's own narrative.
 - Pure-gossip alternative (SWIM / libp2p, no broker at all) if the peer-cluster
   ever feels too privileged -- PARKED. NATS peer-cluster was chosen for Python
   client maturity and one-binary portability; py-libp2p is immature.
+- FEDERATION SUBSTRATE (sec 5c): reimplement Matrix-style mechanisms on NATS+token
+  (a) vs run a lightweight homeserver as the federation/identity/conversation plane
+  (b) vs hybrid -- informed by the "chatroom-as-feature" point. Plus a current-status
+  web survey of light homeservers (Dendrite/Conduit + forks) and offline/P2P stacks
+  (Briar, SSB, libp2p, Iroh, Veilid). PARKED until Phase 9 is actually worked.
 - Section 5b coordinated eviction: the re-key authorization quorum, the cutover
   window, and the split-brain reconcile rule (above).
 - node_id derivation: which system specs are stable AND readable cross-OS

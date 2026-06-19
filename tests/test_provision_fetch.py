@@ -194,10 +194,24 @@ def test_resolve_ctx():
           kv2["PERSONA_CTX"] == 16384 and VISION_PICK["ctx"] == 16384)
 
 
+def test_model_resolvable():
+    with tempfile.TemporaryDirectory() as d:
+        models = Path(d) / "models"
+        models.mkdir()
+        check("no gguf -> not resolvable", not pf.model_resolvable(models, ""))
+        (models / "a.gguf").write_text("x")
+        check("exactly one gguf -> resolvable (fallback)", pf.model_resolvable(models, ""))
+        (models / "b.gguf").write_text("x")
+        check("two gguf + no configured -> not resolvable", not pf.model_resolvable(models, ""))
+        check("configured present -> resolvable", pf.model_resolvable(models, "b.gguf"))
+        check("configured missing -> not resolvable", not pf.model_resolvable(models, "z.gguf"))
+        check("missing dir -> not resolvable", not pf.model_resolvable(Path(d) / "nope", ""))
+
+
 for fn in [test_preflight, test_license, test_plan, test_kv_block,
            test_wire_replace_and_comment, test_wire_missing_section,
            test_wire_dry_run, test_target_path, test_download_dry_and_verify,
-           test_resolve_ctx]:
+           test_resolve_ctx, test_model_resolvable]:
     fn()
 
 print("\n%d checks, %d failures" % (checks, len(failures)))

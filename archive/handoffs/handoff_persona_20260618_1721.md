@@ -1,10 +1,10 @@
 # Handoff -- Project_Persona
 
-Date/time: 2026-06-14 1721 PDT
+Date/time: 2026-06-18 1721 PDT
 Author: Claude (with Brandon)
 Convention: dated handoff (handoff_persona_YYYYMMDD_HHMM). ASCII only.
 Continues from handoff_persona_20260614_1655.md.
-To resume: "continue from handoff_persona_20260614_1721.md".
+To resume: "continue from handoff_persona_20260618_1721.md".
 
 UPDATE 1758: P3 was LIVE-CONFIRMED on Daemonic-PC (`provision --dry-run`: qwen3.6-35b
 pick, weights present, per-host [windows] target, nothing written) and a ctx-preserve

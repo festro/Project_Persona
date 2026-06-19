@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-14 1500 PDT by Claude
+Last updated: 2026-06-18 1725 PDT by Claude (Phase 0.5 re-scope to primary surfaces; provisioner P1-P4 + vision serving wiring)
 
 ## Boundaries (do not duplicate)
 
@@ -43,30 +43,41 @@ older `changelog.md` / handoff entries, read them as "Item" or "Exit Gate".
   - `[ ]` planned, not started
   - `[-]` deferred / optional (has a documented trigger; not on the critical path)
 
-Phase numbers 1-8 match `knowledge.md` "Architecture roadmap". Phase 0 covers the
-runtime/dev-env foundation that precedes Phase 1; Phase 0.5 covers cross-OS/arch
-portability hardening; Phase 9 is an extended line beyond the core ladder for the
-decentralized node mesh (see `docs/distributed_nodes.md`); Phase 10 is the
-full-system / feature-test capstone that validates everything end to end. NOTE:
-`knowledge.md` + `docs/distributed_nodes.md` still call the mesh "Phase 10" and
-keep a CrewAI "Phase 9" -- they need a sync to this numbering (swap done here
-2026-06-14). The ladder is a FUNCTIONAL / dependency order, not work order --
-current execution focus lives in `todo.md` and can span Phases (e.g. the Hermes
-Items in Phase 8 are near-term but functionally late).
+Phase numbers 1-8 match `knowledge.md` "Architecture roadmap".
+
+PLATFORM SCOPE (Brandon, 2026-06-18). Phases 0-8 build a solid working foundation
+on the two PRIMARY dev surfaces ONLY: Windows x64, and AMD Linux exercised via WSL
+(CPU) on Daemonic-PC. Broader portability -- cross-arch (ARM64), cross-accel
+(non-Vulkan), and other-hardware / EVO-X2-native GPU bring-up -- is deliberately
+OUT of 0-8 scope. It is the multiplatform / troubleshooting CAPSTONE, folded into
+Phase 9 (migration to EVO-X2 and other systems + the mesh) and Phase 10 (full-system
++ cross-host validation). Phase 0.5 is narrowed accordingly to the Windows<->AMD-Linux
+(WSL) cross-OS foundation; this UNBLOCKS it from the former hardware-gated checks.
+
+Phase 0 covers the runtime/dev-env foundation that precedes Phase 1; Phase 0.5 covers
+the Windows<->AMD-Linux(WSL) cross-OS foundation; Phase 9 is an extended line beyond
+the core ladder for migration + the decentralized node mesh (see
+`docs/distributed_nodes.md`); Phase 10 is the full-system / feature-test + cross-platform
+capstone. NOTE: `knowledge.md` + `docs/distributed_nodes.md` still call the mesh
+"Phase 10" and keep a CrewAI "Phase 9" -- they need a sync to this numbering (swap done
+here 2026-06-14). The ladder is a FUNCTIONAL / dependency order, not work order --
+current execution focus lives in `todo.md` and can span Phases.
 
 ## Current position
 
 Phases 0 and 1 are GREEN. The single Qwen3.6-35B-A3B model serves LIVE on :8090
 behind the companion API on :8000 (thinking mode under --jinja), on Windows and on
-EVO-X2. Phase 0.5 (portability) is in progress: the Windows x64 target is proven
-and Linux x64 is largely exercised on EVO-X2, but the Linux ARM64 check is deferred
-pending hardware, so 0.5 cannot lock yet.
+EVO-X2. Phase 0.5 -- NARROWED 2026-06-18 to the Windows x64 + AMD-Linux(WSL) cross-OS
+foundation -- is now close to lockable: Windows x64 is proven and the WSL Linux
+lifecycle is largely exercised; the former ARM64 / non-Vulkan / EVO-X2-native checks
+that blocked it are relocated to the Phase 9/10 capstone. Its model provisioner
+(P1-P4) is code-done this session.
 
-Active execution focus is Phase 8 (Hermes). The taskboard<->kanban bridge (H2) is
-validated end to end in WSL on a capable model (delegate -> run -> mirror reaches
-status=ok + summary). The one remaining step is the H2 Exit Gate check on EVO-X2
-with the real 35B + GPU + egress-off (Item H2d) -- the next true lock. See
-`todo.md`.
+Execution focus is working UP the 0-8 ladder on the two primary surfaces (Windows +
+AMD Linux via WSL). Phase 8 (Hermes) foundation is started -- the taskboard<->kanban
+bridge (H2) is validated end to end in WSL on a capable model (delegate -> run ->
+mirror reaches status=ok + summary); the EVO-X2 H2d Exit Gate is hardware/migration
+work, now aligned with the Phase 9 migration. See `todo.md`.
 
 ---
 
@@ -93,13 +104,16 @@ Exit Gate (MET):
 - [x] the API process boots
 - [x] the offline API suite (`tests/test_api_offline.py`) is green
 
-## Phase 0.5 -- Cross-OS / cross-arch portability hardening  [~] IN PROGRESS
+## Phase 0.5 -- Cross-OS foundation (Windows x64 + AMD Linux via WSL)  [~] IN PROGRESS
 
-Goal: any node runs the same way on Windows and Linux, x86-64 and ARM64, on
-CPU/CUDA/ROCm/Vulkan. Apple (macOS / Apple Silicon / Metal) is not a
-consideration -- no effort spent, not tested; incidental compatibility is fine,
-but it is never weighed. Underpins everything, especially the Phase 9 mesh. Full
-audit + support matrix: `docs/portability_audit.md`.
+Goal (NARROWED 2026-06-18): the stack runs identically on the two PRIMARY dev
+surfaces -- Windows x64, and AMD Linux exercised via WSL (CPU) on Daemonic-PC --
+through one launcher (`manage.py`), one config model, and one dependency posture.
+Broader portability (ARM64, non-Vulkan accel, EVO-X2-native Linux+Vulkan GPU
+lifecycle, other hardware) is OUT of 0-8 scope and RELOCATED to the Phase 9 migration
++ Phase 10 cross-host capstone (see the Exit Gate below and those Phases). Apple
+(macOS / Apple Silicon / Metal) remains out of scope entirely. Full audit + support
+matrix: `docs/portability_audit.md`.
 
 - [x] /agent/run uses sys.executable (was literal python3; broke Windows portable)
 - [~] Single cross-platform launcher `manage.py` (up/down/toggle/status/doctor/
@@ -158,35 +172,49 @@ audit + support matrix: `docs/portability_audit.md`.
       `docs/model_provisioner_design_20260607_2158.md`. Phased P1-P4. P1 (profiler:
       vram_mb/memory_model/NPU classify) + P2 (playbook + matcher,
       scripts/provision_match.py, 7/7) CODE DONE 2026-06-07. P3 (downloader + license
-      gate + disk preflight + config wiring) CODE DONE 2026-06-14:
+      gate + disk preflight + config wiring) CODE DONE 2026-06-18:
       scripts/provision_fetch.py + `manage.py provision [--dry-run/--yes/--model/
       --text-only/--write-config/--hf-token]` + tests/test_provision_fetch.py (30/30
       offline). Config wiring is OPT-IN (default prints the block; --write-config/--yes
       to apply) and targets the active per-host config.<host>.toml when one exists.
-      LIVE-CONFIRMED 2026-06-14 on Daemonic-PC (RX 9060 XT): `provision --dry-run` ->
+      LIVE-CONFIRMED 2026-06-18 on Daemonic-PC (RX 9060 XT): `provision --dry-run` ->
       qwen3.6-35b Q5_K_XL pick, weights [present] (0 MiB), per-host target
       config.daemonic-pc.toml [windows], vision off (no camera), nothing written.
-      ctx SAFEGUARD landed 2026-06-14: provision preserves an existing effective
+      ctx SAFEGUARD landed 2026-06-18: provision preserves an existing effective
       PERSONA_CTX (host-validated) over the matcher's conservative guess (the
       tight-budget step-down had proposed 8192 on a host that runs 16384), printing a
-      note; fresh hosts still take the safe conservative value. OWED: P4 (first-run hook
-      in cmd_up + --yes installer path); serving-side mmproj/VISION_ENABLED wiring;
-      `--tier` flag (needs a tier field in the playbook); the deeper KV-aware ctx
-      sizing (replace the 0.85*budget step-down with a real KV-headroom estimate).
+      note; fresh hosts still take the safe conservative value. P4 CODE DONE 2026-06-18:
+      cmd_up first-run hook (_maybe_first_run -> offer provisioning, or auto under
+      `up --yes`; reload cfg after wiring; clean abort on decline/fail) + `up`
+      --yes/--hf-token + setup_native_stack.sh AUTO_PROVISION=1 gate; tests 42/42.
+      ALL FOUR PHASES P1-P4 now CODE DONE. Serving-side mmproj/VISION_ENABLED wiring
+      also DONE 2026-06-18: start_llama passes `--mmproj <models/MMPROJ_PATH>` when
+      VISION_ENABLED is truthy + the projector is present (gated so headless nodes stay
+      text-only); doctor reports vision status; _truthy/_mmproj_args unit-tested
+      (test_manage_pid.py). OWED: Windows-side live-confirm of the `up` first-run path +
+      a vision-model serving smoke; `--tier` flag (needs a tier field in the playbook);
+      the deeper KV-aware ctx sizing (replace the 0.85*budget step-down with a real
+      KV-headroom estimate).
 - [ ] Per-OS egress story: WireGuard mesh + host firewall baseline; netns/iptables
       as a Linux-only bonus
 - [ ] Cross-OS installer/doctor parity (Windows + Debian + other Linux)
 
 Exit Gate (one node bootstraps, runs, self-checks via doctor, and serves /chat
-through one entrypoint with no bash for core lifecycle):
+through one entrypoint with no bash for core lifecycle) -- on the two PRIMARY
+surfaces only:
 
 - [x] Windows x64 -- CPU + Vulkan (Daemonic-PC, 2026-06-07)
-- [~] Linux x64 -- CPU + Vulkan (EVO-X2 serves /chat; doctor/lifecycle parity
-      confirm via manage.py still owed)
-- [ ] Linux ARM64 -- DEFERRED, no hardware on hand (trigger: hardware available)
-- [ ] non-Vulkan accel selection proof (a CUDA/ROCm/SYCL node)
+- [~] AMD Linux via WSL (CPU) -- `manage.py` lifecycle parity (status/doctor/up/down/
+      test) green in the WSL clone; largely exercised by the H2 WSL sim, a clean
+      standalone pass is the remaining lock.
 
-The Phase cannot lock GREEN until the deferred checks above are met.
+RELOCATED to the Phase 9/10 capstone (these no longer block 0.5):
+- EVO-X2-native Linux x64 + Vulkan GPU lifecycle parity -> Phase 9 Item 9.0.
+- Linux ARM64 bring-up -> Phase 9 (trigger: hardware available).
+- non-Vulkan accel-selection proof (a CUDA/ROCm/SYCL node) -> Phase 9.
+- cross-host behavioral parity across all surfaces -> Phase 10 Item 10.2.
+
+0.5 locks GREEN once the two primary-surface checks above are green.
 
 ## Phase 1 -- Core serving and companion API  [x] GREEN
 
@@ -431,6 +459,13 @@ Phase 2 Qdrant (Item 2a), Phase 3 daemon. Full design + rationale:
 "Stage 0-4" in `docs/distributed_nodes.md` (renamed here so "stage" no longer
 collides with the orchestrator's `-Stage` flags).
 
+MULTIPLATFORM HARDENING relocated from Phase 0.5 (2026-06-18): bringing the 0-8
+foundation to EVO-X2 and other systems is exactly where cross-arch / cross-accel
+portability is proven, so this migration line OWNS the formerly-0.5 checks --
+EVO-X2-native Linux + Vulkan GPU lifecycle parity (Item 9.0), Linux ARM64 bring-up
+(trigger: hardware), and a non-Vulkan (CUDA/ROCm/SYCL) accel-selection proof. The
+cross-host BEHAVIORAL parity over these surfaces is validated in Phase 10 Item 10.2.
+
 Decisions locked: distribute tasks not single inferences; NATS+JetStream with a
 per-node server clustered as equals (3/5-node JetStream core for durable state,
 ephemeral nodes as clients/leaf); shared-token admission with token-rotation as
@@ -445,7 +480,10 @@ deny-list for bad actors; WireGuard mesh for transport + egress containment.
       as the canonical node (not via the WSL proxy), make it the source-of-truth
       dev/run surface, and prove the H2d Exit Gate there. Today the WSL clone is the
       primary dev surface as the closest EVO-X2 proxy and the D:\ repo is the redundant
-      copy + Windows testbed + git gateway (see `WORKFLOW.md`).
+      copy + Windows testbed + git gateway (see `WORKFLOW.md`). Also folds in the
+      multiplatform hardening relocated from Phase 0.5: prove `manage.py` lifecycle
+      parity on EVO-X2-native (Linux + Vulkan GPU), then Linux ARM64 (when hardware
+      lands) and a non-Vulkan (CUDA/ROCm/SYCL) accel-selection proof.
 - [ ] 9.1: `LLAMA_HOST` cross-node inference offload (no new infra)
 - [ ] 9.2: 2-node NATS + JetStream work queue; claim -> execute -> result;
       clean reclaim on worker failure
@@ -489,7 +527,8 @@ run against whatever Phases are already green.
       writeback, and an agent delegation round-trip (delegate -> Hermes runs ->
       /jobs ok + summary). Repeatable, pass/fail.
 - [ ] 10.2: Cross-host parity -- the same playbook yields consistent behavior on
-      Windows, EVO-X2, and a mesh node; any difference is config, not code.
+      Windows, EVO-X2, and a mesh node (incl. the cross-arch / non-Vulkan surfaces
+      relocated from Phase 0.5); any difference is config, not code.
 - [ ] 10.3: Resilience / failure injection -- daemon three-strike restart (Phase 3),
       mesh node-loss reclaim (Phase 9), and stale-pidfile recovery (manage.py) each
       recover within policy under deliberate faults.

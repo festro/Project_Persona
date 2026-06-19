@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-14 1758 PDT by Claude (provisioner P3 landed + live-confirmed + ctx safeguard; local commit pending, origin aa145fa)
+Last updated: 2026-06-18 2133 PDT by Claude (SESSION HANDOFF: handoff_persona_20260618_2133.md -- full start-to-finish; P1-P4 + vision wiring + roadmap re-scope; local commit pending, origin aa145fa)
 
 ## Rules of the road
 
@@ -17,12 +17,17 @@ Last updated: 2026-06-14 1758 PDT by Claude (provisioner P3 landed + live-confir
 
 ## Next up (this session)
 
-- COMMIT local: provisioner P3 (scripts/provision_fetch.py, manage.py provision +
-  ctx safeguard, tests/test_provision_fetch.py) + the docs above. Local commit only
-  (mid-Phase-0.5); push rides the next milestone with P4 or the EVO-X2 work. NOTE:
-  invoke manage.py via .\portable\python\python.exe (bare `python` hits the MS Store
-  alias). To capture a run for Claude: `... *>&1 | Tee-Object -FilePath logs\<cmd>.log`
-  (Tee writes UTF-16; Claude reads it fine).
+- COMMIT local: provisioner P4 (manage.py cmd_up first-run hook + up --yes/--hf-token,
+  scripts/provision_fetch.py model_resolvable, scripts/setup_native_stack.sh
+  AUTO_PROVISION, tests/test_provision_fetch.py) + the docs above. Local commit only
+  (mid-Phase-0.5); push rides the next milestone or EVO-X2 work. (P3 increment was
+  committed previously.) NOTE: invoke manage.py via .\portable\python\python.exe (bare
+  `python` hits the MS Store alias); capture runs with `... *>&1 | Tee-Object -FilePath
+  logs\<cmd>.log` (UTF-16; Claude reads it fine).
+- OPTIONAL live-confirm (Windows-side): the `up` first-run path -- temporarily clear
+  PERSONA_MODEL with models/ empty and run `manage.py up` to see the [Y/n] offer (or
+  `up --yes` to auto-provision). Not required to proceed; flips the last provisioner
+  OWED line.
 - PHASE 0.5 next rungs (working up the phases): P4 (first-run hook in cmd_up + installer
   --yes), serving-side mmproj/VISION_ENABLED wiring, then the open egress + installer/
   doctor-parity items; the Exit Gate's deferred checks (Linux x64 live, ARM64,
@@ -30,8 +35,30 @@ Last updated: 2026-06-14 1758 PDT by Claude (provisioner P3 landed + live-confir
 - DEFERRED by Brandon: B (EVO-X2 Exit Gate) until everything else is finished; E
   (SSH-to-GitHub in WSL) skipped -- folder sync + D:\ git gateway is sufficient.
 
-## Just finished (2026-06-14, Claude)
+## Just finished (2026-06-18, Claude)
 
+- SERVING-SIDE VISION WIRING DONE (changelog 1903): start_llama passes --mmproj when
+  VISION_ENABLED + projector present (gated; headless stays text-only); doctor reports
+  vision status; _truthy/_mmproj_args + 7 tests in test_manage_pid.py. Closes the
+  provisioner vision loop (provision writes MMPROJ_PATH/VISION_ENABLED -> start_llama
+  consumes). OWED: live serving smoke with a real vision model + image. Local.
+- ROADMAP RE-SCOPED (changelog 1858): Phases 0-8 = primary dev surfaces only (Windows
+  x64 + AMD Linux via WSL); cross-arch/cross-accel/EVO-X2-native hardening relocated to
+  the Phase 9 migration + Phase 10 capstone. Phase 0.5 narrowed + UNBLOCKED -- now locks
+  on Win x64 + AMD-Linux(WSL), no longer waits on ARM64/EVO-X2 hardware. roadmap.md +
+  knowledge.md synced. WHAT THIS CHANGES FOR EXECUTION: going up the 0-8 ladder, target
+  Windows + WSL; the EVO-X2/ARM64/non-Vulkan work is now Phase 9. Docs only, local.
+- RESEARCH/DESIGN (changelog 1841): docs/mcp_gateway_eval_20260618_1831.md (MCPJungle
+  MCP-gateway eval -- MPL-2.0 clears the bar; adopt at Phase 8/9, not now) +
+  distributed_nodes.md sec 5c (Matrix/federation prior art for Phase 9; chatroom-as-
+  feature; reimplement-vs-homeserver fork parked in sec 9). OWED if pursued: offline/P2P
+  survey needs current-status web research. Docs only, local.
+- PROVISIONER P4 LANDED -> P1-P4 CODE DONE (changelog 1816): manage._maybe_first_run
+  at the top of cmd_up (no servable model -> [Y/n] offer, or auto under `up --yes`;
+  reload cfg after wiring; clean abort on decline/fail), `up` --yes/--hf-token,
+  provision_fetch.model_resolvable, setup_native_stack.sh AUTO_PROVISION=1 gate. Tests
+  42/42; cmd_up hook paths smoke-verified. OWED: Windows-side `up` first-run live-confirm.
+  Local.
 - PROVISIONER P3 LIVE-CONFIRMED + ctx SAFEGUARD (changelog 1758): `provision --dry-run`
   ran clean on Daemonic-PC (qwen3.6-35b pick, weights present, per-host [windows] target,
   nothing written). Found the matcher under-set ctx to 8192 on a 16384 host; added

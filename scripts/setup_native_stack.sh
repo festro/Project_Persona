@@ -5,6 +5,7 @@ AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 CPU_ONLY="${CPU_ONLY:-0}"   # set CPU_ONLY=1 to force CPU
 SKIP_DEPS="${SKIP_DEPS:-0}" # set SKIP_DEPS=1 to skip apt installs
 SKIP_HERMES="${SKIP_HERMES:-0}" # set SKIP_HERMES=1 to skip the env_hermes venv
+AUTO_PROVISION="${AUTO_PROVISION:-0}" # set AUTO_PROVISION=1 to auto-download a fitted model at the end
 
 echo "==> Creating AI root structure at $AI_ROOT"
 mkdir -p "$AI_ROOT"/{bin,models,persona,logs,run,services/{api},scripts,llama_cpp}
@@ -155,13 +156,19 @@ LLAMA_LIB_DIR=$AI_ROOT/llama_cpp/build/bin
 EOF
 fi
 
+if [ "$AUTO_PROVISION" = "1" ]; then
+  echo "==> AUTO_PROVISION=1: profiling host and downloading a fitted model"
+  python3 "$AI_ROOT/manage.py" provision --yes
+fi
+
 echo "==> Done."
 echo ""
 echo "Next steps (lifecycle is now manage.py; the old bash scripts are archived):"
-echo "  1) Put the unified GGUF model in: $AI_ROOT/models/"
-echo "     - Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf"
-echo "       (or edit [linux] PERSONA_MODEL in run/config.toml)"
+echo "  1) Get a model (pick one):"
+echo "     - auto:   python3 $AI_ROOT/manage.py provision        (host-fitted, Apache-2.0)"
+echo "     - manual: drop a GGUF in $AI_ROOT/models/ and set PERSONA_MODEL in run/config.toml"
+echo "       (or re-run this installer with AUTO_PROVISION=1)"
 echo "  2) Init persona profiles:  $AI_ROOT/scripts/init_profiles.sh"
-echo "  3) Start the stack:        python3 $AI_ROOT/manage.py up"
+echo "  3) Start the stack:        python3 $AI_ROOT/manage.py up   (first run auto-offers provisioning; --yes to auto-accept)"
 echo "  4) Status / health gate:   python3 $AI_ROOT/manage.py status   (deep: manage.py doctor)"
 echo "  5) Run tests:              python3 $AI_ROOT/manage.py test"

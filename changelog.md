@@ -14,7 +14,87 @@ Conventions:
 
 ---
 
-## 2026-06-14 1758 PDT -- Provisioner P3 live-confirmed + ctx-preserve safeguard (Brandon + Claude)
+## 2026-06-18 1903 PDT -- Serving-side vision wiring: start_llama --mmproj (Claude)
+
+- manage.py: NEW _truthy + _mmproj_args helpers; start_llama now appends
+  `--mmproj <models/MMPROJ_PATH>` (verified flag `-mm/--mmproj` in llama_cpp/common/
+  arg.cpp) when VISION_ENABLED is truthy AND the projector file is present. GATED:
+  the provisioner fetches the mmproj regardless, but a headless node stays text-only
+  until VISION_ENABLED is opted in (design sec 6). MMPROJ_PATH resolves under models/
+  if not absolute; a missing projector warns and falls back to text-only.
+- doctor: reports vision status (mmproj present + ON / unset+missing / OFF) in the
+  Model file section.
+- tests/test_manage_pid.py: +7 checks for _truthy + _mmproj_args (off/on/present/
+  missing/no-path/absolute). Logic also verified sandbox-native (7/7) before publish.
+- Closes the provisioner vision loop: provision writes MMPROJ_PATH/VISION_ENABLED ->
+  start_llama now consumes them. OWED: a live serving smoke with an actual vision
+  model + image (the deferred "Vision input" feature itself stays parked). Local.
+
+## 2026-06-18 1858 PDT -- Roadmap re-scope: 0-8 = primary surfaces; multiplatform hardening -> 9/10 capstone (Brandon + Claude)
+
+- DECISION (Brandon): Phases 0-8 build a solid working foundation on the two PRIMARY
+  dev surfaces ONLY -- Windows x64 + AMD Linux via WSL (CPU) on Daemonic-PC. Broader
+  portability (ARM64, non-Vulkan accel, EVO-X2-native GPU) is the multiplatform /
+  troubleshooting CAPSTONE, folded into Phase 9 (migration to EVO-X2 + other systems +
+  mesh) and Phase 10 (full-system + cross-host validation). Rationale: maximize WSL/
+  Windows compatibility now so Phase 9 migration to EVO-X2 and other systems is clean.
+- roadmap.md: added a PLATFORM SCOPE framing block; rewrote Current position; NARROWED
+  Phase 0.5 to "Cross-OS foundation (Windows x64 + AMD Linux via WSL)" with its Exit
+  Gate reduced to the two primary surfaces (Windows x64 [x] + AMD-Linux-via-WSL [~]).
+  RELOCATED the former 0.5 hardware-gated checks -- EVO-X2-native Linux+Vulkan GPU
+  lifecycle parity, Linux ARM64, non-Vulkan accel-selection proof -- to Phase 9
+  (migration, Item 9.0 scope) + cross-host behavioral parity to Phase 10 Item 10.2.
+  Net: 0.5 is UNBLOCKED from GREEN (no longer waits on EVO-X2/ARM64 hardware).
+- knowledge.md: synced the portability pointer + Phase 9 entry to the new scope.
+- The done 0.5 foundation (manage.py launcher, dep tiers, provisioner, IPC) stays the
+  baseline phases 1-8 rely on -- only the cross-arch/cross-accel/other-hardware work
+  moved. Docs only, local.
+
+## 2026-06-18 1841 PDT -- Research/design: MCP gateway eval + Phase 9 federation prior art (Brandon + Claude)
+
+- NEW docs/mcp_gateway_eval_20260618_1831.md: evaluation of MCPJungle (self-hosted MCP
+  gateway) for the Phase 8/9 TOOL PLANE. License = MPL-2.0 (OSI-open, AGPL-compatible,
+  file-level copyleft; standalone-process use imposes nothing on our code -> clears the
+  bar). Fits as a per-node aggregation hub in front of Hermes' built-in MCP client; tool
+  groups == the local-only tool whitelist; loopback + enterprise ACLs = egress chokepoint.
+  Maturity snapshot (Tools/Prompts/groups stable; Resources/OAuth/GUI beta; audit logs
+  limited; CLI stable; SQLite-direct so manage.py can supervise it). Verdict: adopt at
+  Phase 8/9 when local-MCP-server or node count grows, NOT now. Docs only, local.
+- docs/distributed_nodes.md +section 5c "Prior art: federation models (Matrix et al.)"
+  (Brandon's framing): Phase 9 = "a federation of interconnectable yet independent
+  systems" == Matrix's model. Maps Matrix mechanisms onto the sec 5/5b opens (signed
+  event DAG -> node_id+keypair; m.room.server_acl -> deny-list/eviction; state resolution
+  -> split-brain reconcile; power levels/auth rules -> re-key quorum; backfill -> cutover/
+  rejoin). Brandon's "chatroom-as-feature" point: for a hardware/OS-agnostic personal
+  assistant a synced (E2EE) cross-device conversation timeline is a FEATURE, elevating
+  Matrix from prior-art toward candidate substrate. Fork parked in sec 9: reimplement on
+  NATS+token (a) vs run a light homeserver (b) vs hybrid; + an offline/P2P survey (Briar/
+  SSB/libp2p/Iroh/Veilid) needing current-status web research. Stamp -> 1841. Docs only, local.
+
+## 2026-06-18 1816 PDT -- Phase 0.5 provisioner P4: first-run hook in cmd_up + installer --yes (Claude)
+
+- scripts/provision_fetch.py: NEW model_resolvable(models_dir, configured) -- quiet
+  mirror of manage.resolve_model()'s usable cases (configured PERSONA_MODEL present, or
+  exactly one GGUF), so cmd_up can decide whether to trigger first-run provisioning.
+- manage.py: NEW _maybe_first_run(root, cfg, args) called at the top of cmd_up. When no
+  model is servable it offers provisioning interactively ([Y/n]) or, under `up --yes`,
+  auto-provisions (cmd_provision with yes/write_config); on success it reloads cfg so
+  start_llama sees the wired PERSONA_MODEL, and aborts cleanly (return 1) if the user
+  declines or provisioning fails. `up` gained --yes + --hf-token. cmd_provision unchanged.
+- scripts/setup_native_stack.sh: NEW AUTO_PROVISION=1 env gate -> runs `manage.py
+  provision --yes` at the end (headless install path); next-steps text now points at
+  `manage.py provision` (auto, host-fitted, Apache-2.0) alongside the manual model drop,
+  and notes `up` auto-offers provisioning. Script keeps its +x bit (content-only edit);
+  `bash -n` clean.
+- tests/test_provision_fetch.py: +6 checks (model_resolvable: none / exactly-one /
+  multiple / configured-present / configured-missing / missing-dir), 42/42 offline.
+  cmd_up hook paths (present -> pass-through; decline -> abort; --yes -> auto-provision
+  + cfg reload; provision-fail -> abort) smoke-verified with fakes.
+- Provisioner P1-P4 now CODE DONE. OWED: Windows-side live-confirm of `up` first-run
+  (e.g. temporarily unset PERSONA_MODEL with models/ empty); serving-side
+  mmproj/VISION_ENABLED wiring; deeper KV-aware ctx sizing; `--tier`. All local.
+
+## 2026-06-18 1758 PDT -- Provisioner P3 live-confirmed + ctx-preserve safeguard (Brandon + Claude)
 
 - LIVE-CONFIRMED on Daemonic-PC (RX 9060 XT) via `provision --dry-run` (captured to
   logs/provision_dryrun.log; PowerShell Tee writes UTF-16): pick = qwen3.6-35b Q5_K_XL,
@@ -32,7 +112,7 @@ Conventions:
 - tests/test_provision_fetch.py: +6 checks (resolve_ctx + config_kv existing-ctx),
   36/36 offline. The deeper KV-aware ctx sizing stays a flagged follow-up. All local.
 
-## 2026-06-14 1721 PDT -- Phase 0.5 provisioner P3: downloader + preflight + config wiring (Claude)
+## 2026-06-18 1721 PDT -- Phase 0.5 provisioner P3: downloader + preflight + config wiring (Claude)
 
 - NEW scripts/provision_fetch.py: the P3 stage of the first-run model provisioner,
   consuming a pick from scripts/provision_match.match(). disk preflight (free >=

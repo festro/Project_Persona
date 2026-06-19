@@ -235,7 +235,7 @@ alongside the base GGUF regardless, so opt-in needs no extra download.
   smolvlm2 vision, 4GB -> none. TUNABLE: the tight-budget ctx step-down (size >
   0.85*budget -> min_ctx) drops the RX 9060 XT pick to ctx 8192 vs the working
   16384 -- refine the KV-aware ctx sizing in P3/P4.
-- P3: downloader + license/disk preflight + config wiring. CODE DONE 2026-06-14:
+- P3: downloader + license/disk preflight + config wiring. CODE DONE 2026-06-18:
   scripts/provision_fetch.py (disk preflight = free >= size+20%; license_gate =
   Apache/MIT/BSD ungated happy path, gated needs HF_TOKEN; build_plan = base GGUF +
   mmproj when vision, skip-if-present; download via huggingface_hub, resumable, network
@@ -248,7 +248,7 @@ alongside the base GGUF regardless, so opt-in needs no extra download.
   (30/30 offline, stdlib-only). CONFIG-WRITE TARGET note: the design predates the
   per-host config.<host>.toml convention; wiring now writes the per-host file when one
   exists (it is that host's source of truth), else config.toml [<os>]. CONFIRMED by
-  Brandon 2026-06-14: per-host file is the intended target. LIVE-CONFIRMED 2026-06-14
+  Brandon 2026-06-18: per-host file is the intended target. LIVE-CONFIRMED 2026-06-18
   on Daemonic-PC (`provision --dry-run`: qwen3.6-35b pick, weights present, per-host
   [windows] target, nothing written). ctx SAFEGUARD added (resolve_ctx + config_kv
   existing_ctx): provision preserves an existing effective PERSONA_CTX over the
@@ -258,7 +258,15 @@ alongside the base GGUF regardless, so opt-in needs no extra download.
   start_llama); `--tier` (needs a tier field added to the playbook); the deeper
   KV-aware ctx sizing (replace the section-3 0.85*budget step-down with a real KV
   headroom estimate).
-- P4: first-run hook in `cmd_up` + `--yes` installer path. NOT STARTED.
+- P4: first-run hook in `cmd_up` + `--yes` installer path. CODE DONE 2026-06-18:
+  provision_fetch.model_resolvable() + manage._maybe_first_run() at the top of cmd_up
+  (no servable model -> interactive [Y/n] offer, or auto-provision under `up --yes`;
+  reloads cfg after wiring; aborts cleanly on decline/failure). `up` gained
+  --yes/--hf-token. setup_native_stack.sh gained an AUTO_PROVISION=1 gate that runs
+  `manage.py provision --yes` for headless installs + updated next-steps text.
+  tests/test_provision_fetch.py 42/42; cmd_up hook paths smoke-verified. STILL OWED:
+  a Windows-side live-confirm of the `up` first-run path (unset PERSONA_MODEL + empty
+  models/); serving-side mmproj/VISION_ENABLED; deeper KV-aware ctx; `--tier`.
 
 Each phase lands behind the others without blocking the stack (the manual
 PERSONA_MODEL path stays the fallback throughout).

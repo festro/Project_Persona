@@ -424,6 +424,29 @@ def resolve_model(root, cfg):
     return None
 
 
+def _truthy(v):
+    return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _mmproj_args(root, cfg):
+    """['--mmproj', <path>] when vision serving is enabled and the projector file is
+    present, else []. VISION_ENABLED gates it: the mmproj may be on disk (the
+    provisioner fetches it regardless) but a headless node stays text-only until
+    vision is opted in. MMPROJ_PATH resolves under models/ if not absolute."""
+    if not _truthy(cfg.get("VISION_ENABLED")):
+        return []
+    mm = (cfg.get("MMPROJ_PATH") or "").strip()
+    if not mm:
+        return []
+    p = Path(mm)
+    if not p.is_absolute():
+        p = root / "models" / mm
+    if not p.is_file():
+        warn(f"VISION_ENABLED but mmproj not found: {p} (serving text-only)")
+        return []
+    return ["--mmproj", str(p)]
+
+
 def start_llama(root, cfg, wait):
     pidfile = root / "run" / "persona.pid"
     existing = read_pid(pidfile)
@@ -471,6 +494,10 @@ def start_llama(root, cfg, wait):
         argv += ["--n-gpu-layers", ngl]
     else:
         info("GPU layers: auto (letting llama-server fit the offload to VRAM)")
+    mmproj = _mmproj_args(root, cfg)
+    if mmproj:
+        argv += mmproj
+        info(f"vision ON: loading mmproj {Path(mmproj[1]).name}")
     backend = (cfg.get("LLAMA_BACKEND") or ("vulkan" if IS_WINDOWS else "")).strip().lower()
     extra_env = {}
     if backend == "vulkan":
@@ -552,8 +579,46 @@ def ensure_dirs(root):
         (root / d).mkdir(parents=True, exist_ok=True)
 
 
+def _maybe_first_run(root, cfg, args):
+    """First-run hook (provisioner P4): if no model is servable, offer to provision
+    one (interactive) or auto-provision under `up --yes`. Returns the (possibly
+    reloaded) cfg to continue with, or None to abort the start."""
+    sp = str(root / "scripts")
+    if sp not in sys.path:
+        sys.path.insert(0, sp)
+    try:
+        import provision_fetch as pf
+    except Exception:
+        return cfg  # no provisioner available; let start_llama report the missing model
+    if pf.model_resolvable(root / "models", cfg.get("PERSONA_MODEL", "")):
+        return cfg
+
+    warn("no servable model (PERSONA_MODEL unset/missing and not exactly one GGUF present)")
+    auto = getattr(args, "yes", False)
+    if not auto:
+        try:
+            resp = input("run first-run model provisioning now? [Y/n] ").strip().lower()
+        except EOFError:
+            resp = "n"
+        if resp in ("n", "no"):
+            err("no model to serve; run `manage.py provision` or set PERSONA_MODEL")
+            return None
+
+    prov_args = argparse.Namespace(yes=True, write_config=True, dry_run=False,
+                                   model=None, text_only=False,
+                                   hf_token=getattr(args, "hf_token", None))
+    rc = cmd_provision(root, cfg, prov_args)
+    if rc != 0:
+        err(f"first-run provisioning failed (rc {rc}); not starting")
+        return None
+    return load_config(root)  # reload so start_llama sees the wired PERSONA_MODEL
+
+
 def cmd_up(root, cfg, args):
     ensure_dirs(root)
+    cfg = _maybe_first_run(root, cfg, args)
+    if cfg is None:
+        return 1
     llama_ok = start_llama(root, cfg, wait=not args.no_wait)
     if not llama_ok and not args.api_only:
         err("Aborting: llama-server did not start. Use --api-only to start the API anyway.")
@@ -785,6 +850,14 @@ def cmd_doctor(root, cfg, args):
         ok(f"model present: models/{model} ({size_mb:.0f} MB)")
     else:
         warn(f"model missing: models/{model}")
+    if _truthy(cfg.get("VISION_ENABLED")):
+        mm = _mmproj_args(root, cfg)
+        if mm:
+            ok(f"vision ON: mmproj {Path(mm[1]).name} present")
+        else:
+            warn("VISION_ENABLED but mmproj missing/unset -> llama-server will serve text-only")
+    else:
+        info("vision OFF (VISION_ENABLED unset/0; mmproj loads only when enabled)")
     print()
 
     info("Profile files (default profile)")
@@ -1679,6 +1752,8 @@ def build_parser():
     up.add_argument("--no-wait", action="store_true", help="Do not poll llama-server /health before starting the API.")
     up.add_argument("--llama-only", action="store_true", help="Start only llama-server.")
     up.add_argument("--api-only", action="store_true", help="Start the API even if llama-server is down.")
+    up.add_argument("--yes", action="store_true", help="Non-interactive: auto-provision a model on first run if none is servable.")
+    up.add_argument("--hf-token", dest="hf_token", help="HF token passed to first-run provisioning (or set HF_TOKEN).")
 
     sub.add_parser("down", help="Stop the API then llama-server.")
     sub.add_parser("status", help="Show pidfile/process/config state.")
