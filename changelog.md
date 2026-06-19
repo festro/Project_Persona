@@ -14,6 +14,25 @@ Conventions:
 
 ---
 
+## 2026-06-19 0430 PDT -- Phase 2 STARTED: Item 2a Chroma->Qdrant (embedded) RagStore + migration (Brandon + Claude)
+
+- DECISIONS (Brandon): do ALL of Phase 2; Qdrant runs EMBEDDED/on-disk (no server,
+  mirrors Chroma's posture); task surfacing = ALL THREE surfaces (in-chat, OpenWebUI
+  Tool/Function plugin, separate status panel). The stale chore/chroma-to-qdrant branch
+  (50 behind main, dep-swap only) was abandoned -- starting fresh on main.
+- ITEM 2a BUILT: services/api/ragstore.py -- backend-agnostic RagStore (server.py keeps
+  computing fastembed vectors and passes them in). ChromaStore (mirrors prior behavior) +
+  QdrantStore (qdrant-client local mode, lazy collection create at the embed dim, cosine,
+  'kind' in payload). server.py routes memory_add/memory_query through make_store(RAG_BACKEND)
+  -- default chroma until live parity is proven, then flip; /health gained rag_backend/
+  rag_ok/rag_error (chroma_ok kept back-compat = ok && backend==chroma). qdrant-client added
+  to requirements.txt. scripts/migrate_chroma_to_qdrant.py reuses stored vectors (no
+  re-embed), idempotent.
+- VALIDATED: tests/test_ragstore.py 22 checks incl. Chroma<->Qdrant parity; full offline
+  suite 6/6; real-data migration (mem_default=8, mem_bob=1, global_memory=51, mem_alice=1 ->
+  exact qdrant counts); live server.py qdrant smoke (rag_ok=True, dim=384, fact filter
+  excludes 'note'). py_compile clean. OWED: flip RAG_BACKEND default + live multi-turn gate.
+
 ## 2026-06-19 0410 PDT -- KV-aware ctx sizing (GGUF-metadata-driven) + provisioner --tier closed (Brandon + Claude)
 
 - DECISION (Brandon): the model provisioner + ctx sizing are a HARDWARE-SPEC-DRIVEN

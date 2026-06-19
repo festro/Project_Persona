@@ -86,6 +86,11 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
 # and is not seen under per-profile scoping until migrated.
 RAG_PER_PROFILE = os.getenv("RAG_PER_PROFILE", "0").strip().lower() in ("1", "true", "yes", "on")
 RAG_GLOBAL_COLLECTION = os.getenv("RAG_GLOBAL_COLLECTION", "global_memory")
+# Phase 2a vector backend: chroma (default) | qdrant (embedded local mode, no server).
+# Both go through the RagStore abstraction (services/api/ragstore.py); server.py keeps
+# computing embeddings and passes vectors in. Default stays chroma until Qdrant parity
+# is proven live, then flip. Migrate existing rows with scripts/migrate_chroma_to_qdrant.py.
+RAG_BACKEND = os.getenv("RAG_BACKEND", "chroma").strip().lower()
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 # Embedding backend selection (Phase 0.5 dependency tiers):
@@ -266,6 +271,7 @@ TOPIC_KEYWORDS: Dict[str, set] = {
 TOPIC_PRIORITY = ["coding", "math", "biology", "science", "research"]
 
 GLOBAL_CHROMA_DIR = os.path.join(GLOBAL_MEMORY_DIR, "chroma")
+GLOBAL_QDRANT_DIR = os.path.join(GLOBAL_MEMORY_DIR, "qdrant")
 os.makedirs(GLOBAL_CHROMA_DIR, exist_ok=True)
 os.makedirs(PROFILES_DIR, exist_ok=True)
 os.makedirs(os.path.join(AI_ROOT, "run"), exist_ok=True)
@@ -319,26 +325,6 @@ if _embedder is None and EMBED_BACKEND in ("auto", "sentence-transformers", "sen
 if _embedder is None:
     _embedder_error = "; ".join(_init_errors) or f"no_embedder_for_backend:{EMBED_BACKEND}"
 
-_chroma_ok = False
-_chroma_error: Optional[str] = None
-_client_chroma = None
-_collections: Dict[str, Any] = {}
-
-if chromadb is None:
-    _chroma_error = "chromadb_not_available"
-else:
-    try:
-        _client_chroma = chromadb.PersistentClient(
-            path=GLOBAL_CHROMA_DIR
-        )
-        # Ensure the shared collection exists; per-profile ones are created lazily.
-        _collections[RAG_GLOBAL_COLLECTION] = _client_chroma.get_or_create_collection(RAG_GLOBAL_COLLECTION)
-        _chroma_ok = True
-    except Exception as e:
-        _chroma_ok = False
-        _chroma_error = f"chroma_init_failed: {repr(e)}"
-
-
 def _collection_name(profile: Optional[str]) -> str:
     """Resolve the Chroma collection name for a profile.
 
@@ -351,21 +337,6 @@ def _collection_name(profile: Optional[str]) -> str:
     return f"mem_{safe}"
 
 
-def _get_collection(profile: Optional[str] = None):
-    """Lazily get-or-create and cache the collection for `profile`."""
-    if not _chroma_ok or _client_chroma is None:
-        return None
-    name = _collection_name(profile)
-    coll = _collections.get(name)
-    if coll is None:
-        try:
-            coll = _client_chroma.get_or_create_collection(name)
-            _collections[name] = coll
-        except Exception:
-            return None
-    return coll
-
-
 def _embed(text: str) -> List[float]:
     if _embedder is None:
         raise RuntimeError(_embedder_error or "embedder_unavailable")
@@ -374,11 +345,35 @@ def _embed(text: str) -> List[float]:
     return list(_embedder.embed([text]))[0].tolist()
 
 
+# Vector store (Phase 2a): RagStore over chroma|qdrant, selected by RAG_BACKEND.
+# Qdrant needs the embedding dimension up front -> probe the live embedder (fallback
+# to bge-small-en-v1.5's 384). server.py owns embeddings; the store owns persistence.
+_embed_dim = 384
+if _embedder is not None:
+    try:
+        _embed_dim = len(_embed("dimension probe"))
+    except Exception:
+        pass
+
+try:
+    import ragstore
+except Exception:  # noqa: BLE001 -- allow running from an odd cwd
+    from services.api import ragstore  # type: ignore
+
+_store = ragstore.make_store(
+    RAG_BACKEND,
+    chroma_path=GLOBAL_CHROMA_DIR,
+    default_collection=RAG_GLOBAL_COLLECTION,
+    qdrant_path=GLOBAL_QDRANT_DIR,
+    dim=_embed_dim,
+)
+_rag_ok = bool(getattr(_store, "ok", False))
+_rag_error = getattr(_store, "error", None)
+_rag_backend = getattr(_store, "backend", RAG_BACKEND)
+
+
 def memory_add(text: str, meta: Dict[str, Any], *, profile: Optional[str] = None) -> None:
-    coll = _get_collection(profile)
-    if not _chroma_ok or coll is None:
-        return
-    if _embedder is None:
+    if not _rag_ok or _embedder is None:
         return
     try:
         vec = _embed(text)
@@ -388,12 +383,7 @@ def memory_add(text: str, meta: Dict[str, Any], *, profile: Optional[str] = None
                 safe_meta[k] = v
             else:
                 safe_meta[k] = str(v)
-        coll.add(
-            ids=[str(uuid.uuid4())],
-            documents=[text],
-            embeddings=[vec],
-            metadatas=[safe_meta],
-        )
+        _store.add(_collection_name(profile), str(uuid.uuid4()), text, vec, safe_meta)
     except Exception:
         return
 
@@ -439,31 +429,12 @@ def filter_bad_memories(docs: List[str]) -> List[str]:
     return out
 
 def memory_query(text: str, k: int, kind_filter: Optional[set[str]] = None, *, profile: Optional[str] = None) -> List[str]:
-    coll = _get_collection(profile)
-    if not _chroma_ok or coll is None:
-        return []
-    if _embedder is None:
-        return []
-    if k <= 0:
+    if not _rag_ok or _embedder is None or k <= 0:
         return []
     try:
         vec = _embed(text)
-        where = None
-        if kind_filter:
-            kinds = sorted({x.strip().lower() for x in kind_filter if x.strip()})
-            if len(kinds) == 1:
-                where = {"kind": kinds[0]}
-            elif len(kinds) > 1:
-                where = {"$or": [{"kind": kk} for kk in kinds]}
-        res = coll.query(
-            query_embeddings=[vec],
-            n_results=k,
-            include=["documents"],
-            where=where,
-        )
-        docs = (res.get("documents") or [[]])[0]
-        docs = filter_bad_memories(docs)
-        return docs[:k]
+        docs = _store.query(_collection_name(profile), vec, k, kind_filter=kind_filter)
+        return filter_bad_memories(docs)[:k]
     except Exception:
         return []
 
@@ -1220,10 +1191,14 @@ async def health():
         "embedder_ok": _embedder is not None,
         "embedder_backend": _embedder_backend,
         "embedder_error": _embedder_error,
-        "chroma_ok": _chroma_ok,
-        "chroma_error": _chroma_error,
+        "rag_backend": _rag_backend,
+        "rag_ok": _rag_ok,
+        "rag_error": _rag_error,
+        # chroma_ok kept for back-compat (Phase 1 live gate): true only on the chroma backend.
+        "chroma_ok": _rag_ok and _rag_backend == "chroma",
+        "chroma_error": _rag_error if _rag_backend == "chroma" else None,
         "rag_per_profile": RAG_PER_PROFILE,
-        "rag_collections": sorted(_collections.keys()),
+        "rag_collections": sorted(_store.list_collections()),
         "persona_concurrency": PERSONA_CONCURRENCY,
         "profile_wrappers_enabled": PROFILE_WRAPPERS_ENABLED,
         "persona_writeback_enabled": PERSONA_WRITEBACK_ENABLED,

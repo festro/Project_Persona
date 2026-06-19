@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 0410 PDT by Claude (KV-aware ctx sizing landed [GGUF-metadata-driven, hardware-spec recommender]; provisioner --tier closed as not-needed; both prior pending-decisions resolved; Phases 9-10 parked until 0-8 green; origin synced)
+Last updated: 2026-06-19 0430 PDT by Claude (PHASE 2 STARTED -- doing all of it; Item 2a Chroma->Qdrant RagStore + migration built+validated [parity 22 checks, real-data migration, offline 6/6]; embedded Qdrant; task surfacing = all 3 surfaces; next: conversations.db)
 
 ## Rules of the road
 
@@ -51,8 +51,24 @@ Last updated: 2026-06-19 0410 PDT by Claude (KV-aware ctx sizing landed [GGUF-me
 - HARDWARE / Phase 9-10 (PARKED until 0-8 green): EVO-X2 H2d Exit Gate, EVO-X2-native +
   ARM64 + non-Vulkan accel passes, the mesh, live cross-host validation.
 
+## Next up (Phase 2 -- doing all of it; per-item commits)
+
+- [done] Item 2a Chroma->Qdrant RagStore + migration (see Just finished).
+- [next] conversations.db: SQLite history store (turns schema + CRUD, stdlib like
+  taskboard.py); persist on /chat + /v1; offline tests.
+- [ ] Hybrid windowing: recent verbatim + older distilled within a token budget.
+- [ ] OpenWebUI thin client wiring (port 3000) + history reload from conversations.db.
+- [ ] Task surfacing -- ALL THREE: in-chat via persona, OpenWebUI Tool/Function plugin,
+  separate status panel.
+- [ ] Exit Gate: live multi-turn run; flip RAG_BACKEND=qdrant default after live parity.
+
 ## Just finished (2026-06-19, Claude)
 
+- ITEM 2a (Phase 2) Chroma->Qdrant: RagStore abstraction (services/api/ragstore.py:
+  ChromaStore + QdrantStore embedded local mode), server.py routed through RAG_BACKEND
+  (default chroma), scripts/migrate_chroma_to_qdrant.py (no re-embed), qdrant-client pinned.
+  tests/test_ragstore.py 22 checks incl. parity; offline 6/6; real-data migration (61 pts,
+  exact counts); live qdrant smoke via server.py. Committed below.
 - KV-AWARE CTX SIZING (Phase 0.5 provisioner, hardware-driven per Brandon): replaced the
   crude 0.85*budget step-down with a real KV-headroom estimate. NEW in provision_fetch.py:
   read_gguf_meta (stdlib GGUF header reader -> arch/n_layers/n_head_kv/head_dim),

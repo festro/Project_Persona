@@ -8,6 +8,10 @@ chromadb>=0.5.0,<1.0.0
 # Pin posthog: chromadb 0.5/0.6 calls the old capture() signature; posthog 3+ breaks it.
 posthog>=2.4.0,<3.0.0
 numpy>=1.26.0,<3.0.0
+# Phase 2a vector backend (RAG_BACKEND=qdrant). Embedded local mode (on-disk path,
+# no server) -- mirrors Chroma's posture. Chroma stays the default until parity is
+# proven live; both go through services/api/ragstore.py.
+qdrant-client>=1.7.0,<2.0.0
 
 # Embeddings for RAG (lean tier): fastembed uses onnxruntime, no torch.
 # This is the default node embedding backend (EMBED_BACKEND=auto|fastembed).

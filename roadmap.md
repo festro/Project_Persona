@@ -340,16 +340,24 @@ Exit Gate (PROVEN 2026-06-07, changelog 1222, via tests/exit_gate_live.py):
 - [x] live `stream=true` produces SSE chunks + [DONE] and non-zero `prompt_tokens`
 - [x] `/health` green with embedder_ok=true and chroma_ok=true
 
-## Phase 2 -- Frontend and UX  [ ] NOT STARTED
+## Phase 2 -- Frontend and UX  [~] STARTED (2026-06-19)
 
 Goal: a thin client over the API with durable conversation history.
 
 - [ ] OpenWebUI as thin client (currently dormant, port 3000)
 - [ ] SQLite `conversations.db` as source of truth for history
-- [ ] Persona task surfacing in the UI
+- [ ] Persona task surfacing in the UI -- ALL THREE surfaces (Brandon 2026-06-19): in-chat
+      via the persona, an OpenWebUI Tool/Function plugin, and a separate status panel.
 - [ ] Hybrid conversation windowing
-- [ ] Item 2a: migrate vector store ChromaDB -> Qdrant (Qdrant + fastembed are
-      also the 3.14-unblock path)
+- [~] Item 2a: migrate vector store ChromaDB -> Qdrant (Qdrant + fastembed are
+      also the 3.14-unblock path). BUILT 2026-06-19: RagStore abstraction
+      (services/api/ragstore.py: ChromaStore + QdrantStore, EMBEDDED local mode per
+      Brandon -- on-disk, no server); server.py routes memory_add/query through it behind
+      RAG_BACKEND (default chroma until live parity proven, then flip); scripts/
+      migrate_chroma_to_qdrant.py (reuses stored vectors, no re-embed). VALIDATED:
+      tests/test_ragstore.py (22 checks incl. Chroma<->Qdrant parity); real-data migration
+      (4 collections / 61 points, exact counts); live server.py qdrant smoke (rag_ok, fact
+      filter). OWED: flip RAG_BACKEND default + the live multi-turn parity (Exit Gate).
 
 Exit Gate:
 
