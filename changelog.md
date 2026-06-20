@@ -14,6 +14,38 @@ Conventions:
 
 ---
 
+## 2026-06-20 1510 PDT -- Windows verification pass: thinking-model fixes + messages-path default (Brandon + Claude)
+
+- Verified the WSL-built stack LIVE on Windows (Daemonic-PC, 35B/Vulkan): Phases 1, 2, 3,
+  6, 7 Exit Gates pass on the second primary surface; offline 18/18. Pushed a70fe90 +
+  cf79270 to origin/main.
+- THINKING-MODEL HANDLING (the through-line): the stack was built/validated in WSL on the
+  non-thinking Qwen2.5-7B; the production 35B is a thinking model and several paths
+  mishandled <think> output. All fixed + verified live:
+  * Sanitizer (server.py sanitize_persona_reply): when the model emits no head before
+    "Next actions:", promote its real content instead of the canned "I can help with
+    local..." fallback (was discarding real answers ~1/3 of the time on the 35B). a70fe90.
+  * Distiller (memory_distiller + _sleep_distill): append /no_think, strip residual <think>
+    in parse_facts, raise MEMORY_DISTILL_MAX_TOKENS 96->256. Phase 7 sleep cycle distilled
+    ZERO facts on the 35B before this; now distills (facts + links + insight journal). a70fe90.
+  * MESSAGES PATH NOW DEFAULT (PERSONA_USE_MESSAGES=1, cf79270): reliable thinking control --
+    enable_thinking off on casual topics (0/5 canned vs 2/5 raw), on for THINKING_MODE topics
+    with a per-OS PERSONA_MAX_TOKENS budget (linux 4096 = 8192/slot, windows 2048 = 4096/slot)
+    so the chain of thought completes. Verified: no_think recall 5/5 clean; a science question
+    returned full reasoning + a complete answer. manage.api_env now forwards
+    PERSONA_USE_MESSAGES + PERSONA_MAX_TOKENS from config.toml.
+- WINDOWS-BLOCKING BUGS (a70fe90):
+  * daemon.py imported `manage` without the repo root on sys.path -> ModuleNotFoundError on
+    the Windows embeddable Python; Phase 3 could not start on Windows at all (only ever ran
+    on WSL). Fixed (sys.path.insert repo root) -> supervise/restart/IPC all verified live.
+  * qdrant-client missing from the Windows portable env (predates the Phase 2a requirement)
+    -> RAG fully down (rag_ok=false); installed it. requirements.txt was already correct; the
+    env had not been re-bootstrapped since Phase 2a.
+  * exit_gate_live.py asserted stale chroma_ok -> now backend-agnostic rag_ok.
+- FINDING (not in repo): Daemonic-PC is RAM-tight (31 GB, ~21 in use) for sustained 35B live
+  testing -- the OS silently killed the stack under a long inference run (clean logs, no
+  crash). EVO-X2 is the node for sustained/deep work.
+
 ## 2026-06-20 0300 PDT -- README: status reconciled with reality (Brandon + Claude)
 
 - Updated the README to match the current build (it lagged the session's phase work):

@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-20 0235 PDT by Claude (big session: Phase 2 finished [task surfacing + RAG->qdrant], Phase 3 COMPLETE [daemon + EventBus on LoopbackBus; NatsBus->Phase 9], Phase 6 COMPLETE [sorting line], Phase 7 COMPLETE [sleep cycle], Phase 8 WSL scaffold [Hermes daemon child + env hygiene], optional Phases 4-5 scaffolded [avatar STATE + voice daemon wiring]. Then a Phase 1-8 audit: 1 /v1 bug + polish all fixed, + /memory inspection endpoints. Offline 18/18. All pushed through origin a2a8e6f. Remaining is host-gated [EVO-X2 Phase 8 H2d + kernel egress] + manual [OpenWebUI click-test]; see docs/host_onboarding.md)
+Last updated: 2026-06-20 1510 PDT by Claude (WINDOWS VERIFICATION PASS: Phases 1,2,3,6,7 verified LIVE on the second primary surface [Windows x64, 35B/Vulkan]. Fixed thinking-model handling -- the stack had been validated in WSL on the non-thinking 7B but the 35B thinks: the sanitizer no longer discards real replies, the distiller gets /no_think+strip+budget [Phase 7 distilled 0 facts before], and the MESSAGES PATH is now the DEFAULT [PERSONA_USE_MESSAGES=1] + per-OS PERSONA_MAX_TOKENS. Also fixed the daemon.py Windows-start bug [Phase 3 had never run on Windows] + the qdrant-client env gap. Pushed a70fe90+cf79270; offline 18/18. Remaining host-gated [EVO-X2 Phase 8 H2d + kernel egress] + manual [OpenWebUI click-test]; see docs/host_onboarding.md)
 
 ## Boundaries (do not duplicate)
 
@@ -67,7 +67,13 @@ order -- current execution focus lives in `todo.md` and can span Phases.
 
 Phases 0, 0.5, and 1 are GREEN. The single Qwen3.6-35B-A3B model serves LIVE on :8090
 behind the companion API on :8000 (thinking mode under --jinja), on Windows and on
-EVO-X2. Phase 0.5 -- NARROWED 2026-06-18 to the Windows x64 + AMD-Linux(WSL) cross-OS
+EVO-X2. WINDOWS VERIFICATION PASS 2026-06-20: Phases 2, 3, 6, and 7 were also verified
+LIVE on Windows (35B/Vulkan) -- both primary surfaces now exercise the full 0-8 stack.
+Thinking-model handling was hardened (the stack had been validated in WSL on the
+non-thinking 7B): the persona reply path now defaults to the messages path
+(PERSONA_USE_MESSAGES=1) for reliable thinking control on the 35B, the distiller suppresses
+thinking, and the daemon's Windows-start bug was fixed. See Phase 1 T2.4 + changelog
+2026-06-20 1510. Phase 0.5 -- NARROWED 2026-06-18 to the Windows x64 + AMD-Linux(WSL) cross-OS
 foundation -- LOCKED GREEN 2026-06-18: both Exit-Gate surface checks pass (Windows x64
 2026-06-07; AMD-Linux-via-WSL standalone manage.py lifecycle pass 2026-06-18). The
 former ARM64 / non-Vulkan / EVO-X2-native checks that blocked it are relocated to the
@@ -300,7 +306,13 @@ Exit Gate was PROVEN 2026-06-07 (changelog 1222).
       came from the server reasoning_content and text was <think>-free. FOLLOW-UP DONE
       2026-06-08 0846: post-hoc sanitizer RETIRED on the messages path
       (PERSONA_SANITIZE_MESSAGES OFF-by-default escape hatch). Off-mount 72/72; raw
-      /completion path unchanged.
+      /completion path unchanged. DEFAULT FLIPPED 2026-06-20 (cf79270): PERSONA_USE_MESSAGES=1
+      is now the default (config.toml [runtime]; manage.api_env forwards it). On the thinking
+      35B the raw /completion path errantly thinks even with /no_think and starves short
+      replies (empty -> canned fallback ~1/3 of the time, measured live on Windows), while the
+      messages path's enable_thinking reliably controls it: no_think 0/5 canned, think topics
+      complete within the per-OS PERSONA_MAX_TOKENS budget (linux 4096 = 8192/slot, windows
+      2048 = 4096/slot). Verified live on Windows 2026-06-20.
 - [x] M6 single-model migration confirmed (M2b passed, M5 done) -- DONE 2026-06-08:
       EVO-X2 converged to Qwen3.6-35B-A3B-UD-Q5_K_XL on a fresh llama.cpp b9219 Vulkan
       build (old b8157 could not load qwen3_5_moe). Live-validated (/health green,
@@ -438,7 +450,9 @@ NATS stays the eventual default; LoopbackBus is the working single-host transpor
 
 Exit Gate:
 
-- [x] daemon brings up and supervises all children -- live (llama + api, both /health 200)
+- [x] daemon brings up and supervises all children -- live (llama + api, both /health 200);
+      re-verified on Windows 2026-06-20 after fixing daemon.py's import-manage/sys.path bug that
+      had blocked the daemon on the Windows embeddable Python (Phase 3 had only ever run on WSL)
 - [x] killing a child triggers restart within policy; a fourth failure stays down -- live
       restart (API) + offline crash-loop give-up after 4 starts
 - [x] IPC events deliver one-way (components -> daemon) without the API ever blocking on it --
@@ -532,7 +546,9 @@ Exit Gate:
 
 - [x] an idle period triggers a consolidation pass that distills recent conversations -- LIVE:
       after 5s idle, both undistilled conversations distilled (teal -> "favorite color is teal";
-      the other -> the OpenWebUI/Qdrant tasks), undistilled count 2 -> 0
+      the other -> the OpenWebUI/Qdrant tasks), undistilled count 2 -> 0; re-verified on Windows
+      2026-06-20 after fixing the distiller (the 35B's <think> ate the token budget -> 0 facts;
+      fixed with /no_think + <think>-strip + budget 96->256)
 - [x] it links related memories and writes an insight journal entry -- LIVE: 2 journal entries
       (file + RAG collection, count=2, retrievable) with relationship-link counts
 - [x] foreground responsiveness is not disrupted -- LIVE: a request during the window returned

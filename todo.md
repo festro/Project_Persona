@@ -3,12 +3,13 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 0235 PDT by Claude (Phases 2-8 + optional 4-5 ALL landed + PUSHED through origin a2a8e6f; full Phase 1-8 audit done [1 /v1 bug + all polish fixed], offline 18/18; docs/host_onboarding.md added. Everything buildable on this CPU-WSL box is DONE -- remaining is host-gated [EVO-X2] + manual.)
+Last updated: 2026-06-20 1510 PDT by Claude (WINDOWS VERIFICATION PASS: Phases 1,2,3,6,7 verified LIVE on Windows 35B/Vulkan; fixed thinking-model handling [sanitizer + distiller], the daemon.py Windows-start bug, and the qdrant-client env gap; messages path now DEFAULT [PERSONA_USE_MESSAGES=1] + per-OS PERSONA_MAX_TOKENS. Pushed a70fe90+cf79270. Offline 18/18. Remaining: host-gated [EVO-X2] + manual.)
 
 ## Next up
 
-Everything buildable on this CPU-WSL box is DONE and on origin (a2a8e6f). Completion status lives
-in `roadmap.md`; full history in `changelog.md`. New-host bring-up: `docs/host_onboarding.md`.
+Both primary surfaces (WSL-Linux + Windows) are now verified for Phases 0-8; origin is at cf79270.
+Completion status lives in `roadmap.md`; full history in `changelog.md`. New-host bring-up:
+`docs/host_onboarding.md`.
 What remains is host-gated or a Brandon decision:
 
 Host-gated (EVO-X2 / a real box -- not doable from CPU-WSL):
@@ -40,6 +41,24 @@ Housekeeping / decisions:
   its phase/track IDs; do not restate them.
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
+
+## Just finished (2026-06-20 PM -- Windows verification pass, Claude)
+
+- WINDOWS VERIFICATION PASS of the WSL-built Phases 1-8 (Daemonic-PC, 35B/Vulkan). Verified LIVE:
+  Phase 1 (exit_gate_live all pass), Phase 2 (/v1 DB recall, persistence, windowing, Qdrant
+  retrieval), Phase 3 (daemon supervise + restart + task_ready IPC), Phase 6 (sorting line
+  classify/route/retrieve), Phase 7 (sleep cycle distill + links + journal). Offline 18/18.
+- THINKING-MODEL FIXES (a70fe90 + cf79270, pushed): the stack was validated in WSL on the
+  non-thinking 7B; the 35B is a thinking model and several paths mishandled <think>. Fixed +
+  verified live: sanitizer no longer discards real answers on an empty head; distiller gets
+  /no_think + <think>-strip + budget 96->256 (Phase 7 distilled 0 facts before); MESSAGES PATH
+  now DEFAULT (PERSONA_USE_MESSAGES=1) + per-OS PERSONA_MAX_TOKENS (linux 4096, windows 2048) --
+  no_think 0/5 canned, think topics complete. See changelog 1510.
+- WINDOWS-BLOCKING BUGS fixed: daemon.py couldn't start on Windows (import manage / embeddable
+  sys.path) -> Phase 3 had never run here; qdrant-client missing from the portable env -> RAG
+  was down; exit_gate_live chroma_ok -> rag_ok.
+- FINDING: Daemonic-PC is RAM-tight (31 GB) for sustained 35B testing -- the stack got OS-killed
+  under a long inference run (memory saved). EVO-X2 is the node for sustained/deep work.
 
 ## Just finished (2026-06-20, Claude)
 
