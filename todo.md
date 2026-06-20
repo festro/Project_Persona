@@ -3,19 +3,21 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 2355 PDT by Claude (PHASE 6 COMPLETE: the Sorting Line -- inbox/ watcher + multi-format reader + semantic classifier + provisional->mature lifecycle w/ alias chains, all Exit-Gate legs proven LIVE on Qdrant [offline 14/14]. PUSH PENDING Brandon's OK -- Phase 6 is at its end. NOTE: Phase 3 [cf9205c] already pushed.)
+Last updated: 2026-06-20 0020 PDT by Claude (PHASE 7 COMPLETE: the Sleep Cycle -- idle-triggered conversation distillation + relationship discovery + insight journaling, all Exit-Gate legs proven LIVE [offline 15/15]. PUSH PENDING Brandon's OK -- Phase 7 is at its end. Phase 6 [9bd3fa3] already pushed.)
 
 ## Next up
 
-- [PUSH PENDING] Phase 6 commit(s) on D:\ are NOT yet pushed (origin is at cf9205c / Phase 3).
-  Phase 6 is done -> awaiting the go-ahead to git push.
-- [done] Phase 6 sorting line: sorting_line.py (reader/classify/ingest/process_inbox/promote),
-  ragstore delete+set_alias, API watcher + /health, scripts/ingest_inbox.py. Live-proven.
-- [done] Phase 3 (already PUSHED, cf9205c): daemon supervisor + three-strike restart + EventBus
-  + API task_ready. DEFERRED to Phase 9: NatsBus + nats-server child + the remaining planned
-  events (profile_switched, ingest_complete on a transport, tts_speaking).
-- Remaining 0-8 ladder: Phase 7 (sleep cycle, not started) is the natural next; Phase 8 (Hermes)
-  is mostly EVO-X2-gated; Phases 4-5 optional. Phase 2 manual click-test still owed.
+- [PUSH PENDING] Phase 7 commit on D:\ is NOT yet pushed (origin is at 9bd3fa3 / Phase 6).
+  Phase 7 is done -> awaiting the go-ahead to git push.
+- [done] Phase 7 sleep cycle: sleep_cycle.py (consolidate/discover_links/build_insight),
+  conversations.py undistilled queries, API idle loop + activity middleware + insight journal,
+  /health block. Live-proven on Qwen + Qdrant.
+- 0-8 ladder status: Phases 0,0.5,1,2(code-complete),3,6,7 DONE. Remaining: Phase 8 (Hermes) is
+  mostly EVO-X2-gated (H2d Exit Gate needs the 35B + GPU); Phases 4-5 OPTIONAL (Godot/voice);
+  Phases 9-10 PARKED. Phase 2 manual OpenWebUI click-test still owed.
+- So the 0-8 ladder is effectively DONE except hardware-gated Phase 8 + the manual click-test.
+  Next candidates: finish Phase 8 on EVO-X2 (Brandon's hardware call), or the optional phases,
+  or hardening/polish. Open with Brandon.
 
 ## Phase 2 owed (manual)
 

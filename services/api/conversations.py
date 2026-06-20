@@ -134,6 +134,39 @@ def count_turns(conversation_id: str) -> int:
             (conversation_id,)).fetchone()["c"])
 
 
+def conversations_with_undistilled(min_turns: int = 1, limit: int = 20,
+                                   profile: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Phase 7 sleep cycle: conversations that hold >= min_turns un-distilled turns, newest
+    activity first. Each row: {conversation_id, profile, pending} (pending = undistilled count)."""
+    where = "t.distilled=0"
+    args: List[Any] = []
+    if profile:
+        where += " AND c.profile=?"
+        args.append(profile)
+    sql = (
+        "SELECT c.conversation_id AS conversation_id, c.profile AS profile, "
+        "       COUNT(t.id) AS pending, MAX(c.updated_at) AS updated_at "
+        "FROM turns t JOIN conversations c ON c.conversation_id=t.conversation_id "
+        f"WHERE {where} "
+        "GROUP BY c.conversation_id HAVING pending >= ? "
+        "ORDER BY updated_at DESC LIMIT ?"
+    )
+    args += [int(min_turns), int(limit)]
+    with closing(_connect()) as con:
+        rows = con.execute(sql, args).fetchall()
+    return [dict(r) for r in rows]
+
+
+def undistilled_turns(conversation_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Un-distilled turns for a conversation, chronological."""
+    with closing(_connect()) as con:
+        q = ("SELECT * FROM turns WHERE conversation_id=? AND distilled=0 ORDER BY id ASC"
+             + (" LIMIT ?" if limit else ""))
+        args = (conversation_id, int(limit)) if limit else (conversation_id,)
+        rows = con.execute(q, args).fetchall()
+    return [dict(r) for r in rows]
+
+
 def mark_distilled(turn_ids: List[int], summary: Optional[str] = None) -> int:
     """Flag turns as distilled and attach an optional summary. Returns rows updated."""
     ids = [int(t) for t in (turn_ids or [])]

@@ -19,6 +19,7 @@ import eventbus as eb
 import conversations as convo
 import windowing as win
 import sorting_line as sl
+import sleep_cycle as sc
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -152,6 +153,18 @@ EVENTBUS_ENABLED = os.getenv("EVENTBUS_ENABLED", "1").strip().lower() in ("1", "
 INBOX_DIR = os.getenv("INBOX_DIR", os.path.join(AI_ROOT, "inbox"))
 SORTING_LINE_WATCH = os.getenv("SORTING_LINE_WATCH", "1").strip().lower() in ("1", "true", "yes", "on")
 SORTING_LINE_POLL_S = float(os.getenv("SORTING_LINE_POLL_S", "30"))
+# Phase 7 Sleep Cycle: when idle, distill recent conversations -> facts + relationship links +
+# an insight-journal entry. Runs only after SLEEP_CYCLE_IDLE_S of quiet and yields the moment a
+# request arrives (foreground responsiveness). On by default.
+SLEEP_CYCLE_ENABLED = os.getenv("SLEEP_CYCLE_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+SLEEP_CYCLE_IDLE_S = float(os.getenv("SLEEP_CYCLE_IDLE_S", "300"))
+SLEEP_CYCLE_CHECK_S = float(os.getenv("SLEEP_CYCLE_CHECK_S", "60"))
+SLEEP_CYCLE_MAX_CONVOS = int(os.getenv("SLEEP_CYCLE_MAX_CONVOS", "5"))
+SLEEP_CYCLE_MIN_TURNS = int(os.getenv("SLEEP_CYCLE_MIN_TURNS", "2"))
+SLEEP_CYCLE_MAX_FACTS = int(os.getenv("SLEEP_CYCLE_MAX_FACTS", "5"))
+INSIGHT_COLLECTION = os.getenv("INSIGHT_COLLECTION", "insight_journal")
+INSIGHT_JOURNAL_PATH = os.getenv("INSIGHT_JOURNAL_PATH", os.path.join(GLOBAL_MEMORY_DIR, "insight_journal.md"))
+_last_activity = time.monotonic()
 # Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
@@ -1241,10 +1254,68 @@ async def _inbox_watch_loop():
         await asyncio.sleep(SORTING_LINE_POLL_S)
 
 
+@app.middleware("http")
+async def _track_activity(request, call_next):
+    """Mark foreground activity so the sleep cycle backs off. /health and the index are
+    excluded so liveness polling never starves consolidation."""
+    global _last_activity
+    if request.url.path not in ("/health", "/favicon.ico", "/"):
+        _last_activity = time.monotonic()
+    return await call_next(request)
+
+
+def _write_insight_journal(entry: str) -> None:
+    try:
+        os.makedirs(os.path.dirname(INSIGHT_JOURNAL_PATH) or ".", exist_ok=True)
+        with open(INSIGHT_JOURNAL_PATH, "a", encoding="utf-8") as f:
+            f.write(entry.rstrip() + "\n\n")
+    except OSError:
+        return
+
+
+async def _sleep_distill(transcript: str):
+    """Phase 7 distiller: extract durable facts from a conversation transcript using the same
+    distiller template/parser as the per-turn path; the summary is derived from the facts."""
+    prompt = build_distill_prompt(transcript, "")
+    out, _ = await query_llama(
+        PERSONA_URL, prompt, tokens=MEMORY_DISTILL_MAX_TOKENS * 2, temperature=0.2,
+        timeout_s=MEMORY_DISTILL_TIMEOUT_S * 2, extra={"top_p": 0.9, "repeat_penalty": 1.10})
+    facts, _err = parse_facts(out)
+    facts = [f for f in facts if f][:SLEEP_CYCLE_MAX_FACTS]
+    summary = "; ".join(facts)[:240]
+    return facts, summary
+
+
+async def _sleep_cycle_loop():
+    """Idle-triggered consolidation. Runs a pass only after SLEEP_CYCLE_IDLE_S of quiet; the
+    should_continue probe flips the instant a request arrives, so consolidate() stops between
+    conversations and the foreground stays responsive."""
+    await asyncio.sleep(min(SLEEP_CYCLE_CHECK_S, 15.0))
+    while True:
+        try:
+            idle = time.monotonic() - _last_activity
+            if (SLEEP_CYCLE_ENABLED and _rag_ok and _embedder is not None
+                    and _convo_ok and idle >= SLEEP_CYCLE_IDLE_S):
+                stats = await sc.consolidate(
+                    convo=convo, embed=_embed, store=_store, distill=_sleep_distill,
+                    fact_collection=_collection_name(None), insight_collection=INSIGHT_COLLECTION,
+                    journal_write=_write_insight_journal,
+                    max_convos=SLEEP_CYCLE_MAX_CONVOS, min_turns=SLEEP_CYCLE_MIN_TURNS,
+                    should_continue=lambda: (time.monotonic() - _last_activity) >= SLEEP_CYCLE_IDLE_S,
+                )
+                if stats.get("conversations"):
+                    publish_event("consolidation_done", {k: stats.get(k) for k in ("conversations", "facts", "links")})
+        except Exception:  # noqa: BLE001 -- the sleep cycle must never crash the API
+            pass
+        await asyncio.sleep(SLEEP_CYCLE_CHECK_S)
+
+
 @app.on_event("startup")
-async def _start_inbox_watcher():
+async def _start_background_loops():
     if SORTING_LINE_WATCH:
         asyncio.create_task(_inbox_watch_loop())
+    if SLEEP_CYCLE_ENABLED:
+        asyncio.create_task(_sleep_cycle_loop())
 
 
 import subprocess
@@ -1418,6 +1489,9 @@ async def health():
         "eventbus": {"enabled": EVENTBUS_ENABLED, "port": eb.default_loopback_port()},
         "sorting_line": {"watch": SORTING_LINE_WATCH, "inbox": INBOX_DIR,
                          "poll_s": SORTING_LINE_POLL_S, "prototypes": _sl_prototypes is not None},
+        "sleep_cycle": {"enabled": SLEEP_CYCLE_ENABLED, "idle_s": SLEEP_CYCLE_IDLE_S,
+                        "idle_now_s": round(time.monotonic() - _last_activity, 1),
+                        "journal": INSIGHT_JOURNAL_PATH},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
                           "persist_enabled": CONVO_PERSIST_ENABLED,
                           "history_enabled": HISTORY_ENABLED,

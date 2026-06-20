@@ -14,6 +14,30 @@ Conventions:
 
 ---
 
+## 2026-06-20 0020 PDT -- Phase 7 COMPLETE: the Sleep Cycle (Brandon + Claude)
+
+- Idle-time consolidation: when the persona is quiet, a background pass distills recent
+  un-distilled conversations into durable facts, discovers relationship links, and writes an
+  insight-journal entry -- without disrupting the foreground. All Exit-Gate legs proven LIVE;
+  tests/test_sleep_cycle.py 14 checks; offline suite 14 -> 15 suites.
+- services/api/sleep_cycle.py (NEW, pure pipeline -- injected convo/embed/store/distill):
+  consolidate() = select conversations with undistilled turns -> distill each transcript ->
+  store facts (RAG) -> mark_distilled -> discover_links (k nearest memories) -> build_insight ->
+  journal + insight RAG collection. should_continue() lets it stop between conversations.
+- services/api/conversations.py: conversations_with_undistilled(min_turns, limit, profile) and
+  undistilled_turns(cid) -- the work queue for the sleep cycle (turns.distilled flag, existing).
+- services/api/server.py: idle trigger. An http middleware stamps _last_activity (excluding
+  /health so liveness polls never starve it); _sleep_cycle_loop fires consolidate() only after
+  SLEEP_CYCLE_IDLE_S of quiet and passes should_continue=idle-probe (the foreground-safety gate).
+  _sleep_distill reuses build_distill_prompt + parse_facts; facts -> global_memory, insights ->
+  the insight_journal collection + persona/global_memory/insight_journal.md. SLEEP_CYCLE_* config,
+  /health sleep_cycle block, consolidation_done event.
+- LIVE (Qwen + Qdrant, idle threshold 5s): both undistilled conversations consolidated (undistilled
+  2 -> 0); insight_journal.md got 2 entries (teal -> "favorite color is teal"; the other -> the
+  OpenWebUI/Qdrant tasks) with 4 + 2 relationship links; insight_journal RAG collection count=2 and
+  retrievable; the teal fact landed in global_memory. Foreground: a request mid-window returned in
+  0.011s and reset idle. roadmap Phase 7 -> [x] COMPLETE. Local; push pending Brandon's OK.
+
 ## 2026-06-19 2355 PDT -- Phase 6 COMPLETE: the Sorting Line (Brandon + Claude)
 
 - Auto-contextual RAG: a file dropped in inbox/ is read, classified, routed into a per-bin

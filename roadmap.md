@@ -497,20 +497,34 @@ Exit Gate:
 - [x] a provisional entry promotes to mature on the defined trigger -- LIVE: both promoted to
       sl_<bin> (mature), provisional emptied, retrievable from mature + via the alias
 
-## Phase 7 -- Background consolidation ("sleep cycle")  [ ] NOT STARTED
+## Phase 7 -- Background consolidation ("sleep cycle")  [x] COMPLETE (2026-06-20)
 
 Goal: idle-time memory maintenance.
 
-- [ ] Idle-triggered conversation distillation
-- [ ] Relationship discovery + ontology maintenance
-- [ ] Insight journaling
+Core in services/api/sleep_cycle.py (pure; injected convo/embed/store/distill, like
+sorting_line.py). tests/test_sleep_cycle.py 14 checks; live-proven on Qwen + Qdrant.
+
+- [x] Idle-triggered conversation distillation -- DONE: consolidate() pulls conversations with
+      undistilled turns (conversations.py conversations_with_undistilled / undistilled_turns,
+      new), distills each transcript -> facts + summary via the existing distiller template,
+      stores facts to RAG, and mark_distilled()s the turns. server.py runs it from a background
+      loop that fires only after SLEEP_CYCLE_IDLE_S of quiet.
+- [x] Relationship discovery -- DONE: discover_links() records the k nearest existing memories
+      to each new fact (embedding neighbours). Live: 4 + 2 links discovered across the two
+      consolidated conversations.
+- [x] Insight journaling -- DONE: build_insight() writes a per-conversation entry to the insight
+      journal file (persona/global_memory/insight_journal.md) AND an insight RAG collection
+      (insight_journal), both retrievable.
 
 Exit Gate:
 
-- [ ] an idle period triggers a consolidation pass that distills recent
-      conversations
-- [ ] it links related memories and writes an insight journal entry
-- [ ] foreground responsiveness is not disrupted
+- [x] an idle period triggers a consolidation pass that distills recent conversations -- LIVE:
+      after 5s idle, both undistilled conversations distilled (teal -> "favorite color is teal";
+      the other -> the OpenWebUI/Qdrant tasks), undistilled count 2 -> 0
+- [x] it links related memories and writes an insight journal entry -- LIVE: 2 journal entries
+      (file + RAG collection, count=2, retrievable) with relationship-link counts
+- [x] foreground responsiveness is not disrupted -- LIVE: a request during the window returned
+      in 0.011s and reset idle; should_continue() stops consolidate() between conversations
 
 ## Phase 8 -- Agentic layer (Hermes Agent)  [~] FOUNDATION STARTED
 
