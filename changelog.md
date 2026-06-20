@@ -14,6 +14,14 @@ Conventions:
 
 ---
 
+## 2026-06-20 0250 PDT -- README: vibe-coded disclosure (Brandon + Claude)
+
+- Added a clear callout under the README tagline: Project_Persona is a vibe-coded project (the
+  large majority of code/tests/docs written by an AI coding agent under human direction); inspect
+  + review before trusting it; issues/audits/PRs welcome. Transparency for anyone landing on the repo.
+- NOTE (not changed): the README "Memory & Context" section still says ChromaDB is current with the
+  Qdrant migration "planned (Phase 2a)" -- stale, Qdrant is now the default (flipped 2026-06-19).
+
 ## 2026-06-20 0240 PDT -- Tracker reconciliation: todo + roadmap stamps current (Brandon + Claude)
 
 - The session moved fast and the trackers drifted. Reconciled: roadmap.md "Last updated" stamp

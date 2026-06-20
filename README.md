@@ -2,6 +2,8 @@
 
 > *An open, self-hosted AI agent with an embodied presence — built for everyone, owned by no one.*
 
+> ⚠️ **A note on how this was built — this is a vibe-coded project.** The large majority of Project_Persona's code, tests, and documentation was written by an AI coding agent (Claude Code) under human direction — built by describing intent and iterating toward working behavior, not hand-authored line by line. It is developed in the open and meant to be inspected: **review it before running it on anything you care about**, and expect the rough edges that come with AI-generated software. Issues, security audits, and pull requests are very welcome.
+
 ---
 
 ## What This Is
