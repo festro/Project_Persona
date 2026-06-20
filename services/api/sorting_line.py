@@ -14,6 +14,7 @@ the file is reported unsupported -- never a hard dependency on the inference tie
 import html
 import json
 import os
+import re
 import time
 import uuid
 from html.parser import HTMLParser
@@ -23,18 +24,30 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 # Content bins (keyword prototypes). Each bin routes to its own provisional/mature collection.
 # Keyword scoring is the deterministic baseline; an injected embedder adds semantic similarity.
 DEFAULT_BINS: Dict[str, List[str]] = {
-    "code": ["def ", "class ", "import ", "function", "const ", "return", "git", "python",
+    "code": ["def", "class", "import", "function", "const", "return", "git", "python",
              "javascript", "typescript", "compile", "stack trace", "exception", "</", "());"],
     "research": ["abstract", "hypothesis", "experiment", "method", "results", "conclusion",
                  "figure", "dataset", "we propose", "this paper", "study", "benchmark"],
-    "reference": ["documentation", "manual", "how to", "step ", "usage", "example",
+    "reference": ["documentation", "manual", "how to", "usage", "example",
                   "parameter", "configure", "install", "api reference", "guide", "cheat sheet"],
-    "personal": ["i ", "my ", "we ", "remember", "note to self", "todo", "meeting",
-                 "reminder", "appointment", "my favorite", "i need to", "don't forget"],
+    # NB: bare pronouns (i/my/we) were dropped -- far too common, they swallowed everything;
+    # personal now keys on specific cues + word-boundary matching (see _kw_hit).
+    "personal": ["remember", "note to self", "todo", "to-do", "meeting", "reminder",
+                 "appointment", "my favorite", "i need to", "don't forget", "my birthday",
+                 "grocer", "i live", "i work at"],
     "finance": ["invoice", "payment", "receipt", "budget", "expense", "tax", "balance",
                 "amount due", "subtotal", "$", "usd", "transaction"],
 }
 DEFAULT_BIN = "misc"
+
+
+def _kw_hit(low: str, kw: str) -> bool:
+    """Match a keyword: multi-word phrases and tokens with non-word chars use substring;
+    single words use a WORD BOUNDARY so short cues ('git', 'tax') don't match inside other
+    words ('digit', 'syntax') -- the old substring match made common tokens over-fire."""
+    if " " in kw or not kw.isalnum():
+        return kw in low
+    return re.search(r"\b" + re.escape(kw) + r"\b", low) is not None
 
 # Extensions read as plain text (decode + store as-is).
 _TEXT_EXTS = {
@@ -177,7 +190,7 @@ def classify(text: str, *, bins: Optional[Dict[str, List[str]]] = None,
         except Exception:  # noqa: BLE001
             vec = None
     for name, kws in bins.items():
-        kw = sum(1 for kw_ in kws if kw_ in low)
+        kw = sum(1 for kw_ in kws if _kw_hit(low, kw_))
         sem = _cosine(vec, prototypes.get(name, [])) if (vec is not None and prototypes) else 0.0
         scores[name] = kw_weight * kw + sem_weight * max(sem, 0.0)
     best = max(scores, key=lambda k: scores[k]) if scores else DEFAULT_BIN

@@ -56,7 +56,7 @@ _SECRET_ENV_PREFIXES = (
     "OTEL_EXPORTER_", "LANGCHAIN_", "LANGSMITH_",
 )
 # ...but keep these even though they match a prefix above (they are not secrets).
-_SECRET_ENV_KEEP = {"AWS_DEFAULT_REGION", "AWS_REGION", "GOOGLE_APPLICATION_CREDENTIALS_OK"}
+_SECRET_ENV_KEEP = {"AWS_DEFAULT_REGION", "AWS_REGION"}
 
 
 def sanitize_env(env: Dict[str, str]) -> Dict[str, str]:
@@ -112,12 +112,17 @@ class Supervisor:
 
     def __init__(self, specs: List[ChildSpec], *, max_strikes: int = 3,
                  stable_reset_s: float = 60.0, restart_backoff: float = 1.0,
-                 stop_grace: float = 8.0, bus: Optional[eb.EventBus] = None, log=_log):
+                 stop_grace: float = 8.0, max_total_starts: int = 20,
+                 bus: Optional[eb.EventBus] = None, log=_log):
         self.children = [_Child(s) for s in specs]
         self.max_strikes = max_strikes
         self.stable_reset_s = stable_reset_s
         self.restart_backoff = restart_backoff
         self.stop_grace = stop_grace
+        # Hard ceiling on total launches: a child that crashes just slower than
+        # stable_reset_s would reset its strike count every time and restart forever.
+        # max_total_starts catches that slow crash-loop regardless of the strike window.
+        self.max_total_starts = max_total_starts
         self.bus = bus
         self.log = log
         self._stopping = False
@@ -184,6 +189,12 @@ class Supervisor:
 
             if self._stopping:
                 c.state = "stopped"
+                break
+
+            if c.starts >= self.max_total_starts:  # hard ceiling -> catch slow crash-loops
+                c.state = "failed"
+                self.log(f"[daemon] {c.spec.name} exited rc={rc}; STAYS DOWN "
+                         f"after {c.starts} total starts (max_total_starts)")
                 break
 
             uptime = time.monotonic() - c.last_start

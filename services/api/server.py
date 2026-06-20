@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Literal, AsyncGenerator, Tuple
 
 import httpx
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
@@ -165,6 +166,9 @@ SLEEP_CYCLE_MIN_TURNS = int(os.getenv("SLEEP_CYCLE_MIN_TURNS", "2"))
 SLEEP_CYCLE_MAX_FACTS = int(os.getenv("SLEEP_CYCLE_MAX_FACTS", "5"))
 INSIGHT_COLLECTION = os.getenv("INSIGHT_COLLECTION", "insight_journal")
 INSIGHT_JOURNAL_PATH = os.getenv("INSIGHT_JOURNAL_PATH", os.path.join(GLOBAL_MEMORY_DIR, "insight_journal.md"))
+# Conversations that distilled to nothing this process -- not re-hammered each idle pass (retried
+# after a restart). Phase 7 audit fix.
+_sleep_skip: set = set()
 _last_activity = time.monotonic()
 # Phase 4 embodiment: attach a STATE channel (JSON avatar directives) to /chat replies for a
 # Godot/VR client (docs/avatar_protocol.md). Additive; harmless to text-only clients.
@@ -1235,7 +1239,23 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
 # -----------------------
 # FastAPI
 # -----------------------
-app = FastAPI()
+@asynccontextmanager
+async def _lifespan(app):
+    """Start the Phase 6/7 background loops on boot, cancel them on shutdown. (Replaces the
+    deprecated @app.on_event('startup').) The loop fns are defined below -- resolved at startup."""
+    tasks = []
+    if SORTING_LINE_WATCH:
+        tasks.append(asyncio.create_task(_inbox_watch_loop()))
+    if SLEEP_CYCLE_ENABLED:
+        tasks.append(asyncio.create_task(_sleep_cycle_loop()))
+    try:
+        yield
+    finally:
+        for t in tasks:
+            t.cancel()
+
+
+app = FastAPI(lifespan=_lifespan)
 
 
 async def _inbox_watch_loop():
@@ -1306,20 +1326,13 @@ async def _sleep_cycle_loop():
                     journal_write=_write_insight_journal,
                     max_convos=SLEEP_CYCLE_MAX_CONVOS, min_turns=SLEEP_CYCLE_MIN_TURNS,
                     should_continue=lambda: (time.monotonic() - _last_activity) >= SLEEP_CYCLE_IDLE_S,
+                    skip_cids=_sleep_skip,
                 )
                 if stats.get("conversations"):
                     publish_event("consolidation_done", {k: stats.get(k) for k in ("conversations", "facts", "links")})
         except Exception:  # noqa: BLE001 -- the sleep cycle must never crash the API
             pass
         await asyncio.sleep(SLEEP_CYCLE_CHECK_S)
-
-
-@app.on_event("startup")
-async def _start_background_loops():
-    if SORTING_LINE_WATCH:
-        asyncio.create_task(_inbox_watch_loop())
-    if SLEEP_CYCLE_ENABLED:
-        asyncio.create_task(_sleep_cycle_loop())
 
 
 import subprocess
@@ -1651,6 +1664,47 @@ async def list_tasks(limit: int = 50):
     """Surface-friendly Task Board view (titles + status). Shared by the OpenWebUI task
     Tool plugin and the manage.py status panel; the in-chat persona uses the same data."""
     return tasks_summary(limit=limit)
+
+
+# -----------------------
+# Memory inspection (the embedded Qdrant store is single-writer + held by THIS process, so
+# inspecting/triggering it has to go through the API rather than a second process). Audit fix.
+# -----------------------
+@app.get("/memory/collections")
+async def memory_collections():
+    if not _rag_ok:
+        return {"ok": False, "error": _rag_error, "collections": []}
+    out = []
+    for c in _store.list_collections():
+        try:
+            out.append({"name": c, "count": _store.count(c)})
+        except Exception:  # noqa: BLE001
+            out.append({"name": c, "count": None})
+    return {"ok": True, "backend": _rag_backend, "collections": out}
+
+
+@app.get("/memory/search")
+async def memory_search(collection: str, q: str, k: int = 5):
+    if not (_rag_ok and _embedder is not None):
+        return {"ok": False, "error": "rag_unavailable", "hits": []}
+    try:
+        hits = _store.query(collection, _embed(q), k=max(1, int(k))) or []
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": repr(e), "hits": []}
+    return {"ok": True, "collection": collection, "q": q, "hits": hits}
+
+
+@app.post("/memory/ingest_inbox")
+async def memory_ingest_inbox():
+    """Trigger a one-shot Sorting Line pass over inbox/ through the live store. Lets the manual
+    trigger work WHILE the API holds the Qdrant lock (the always-on watcher does this on a timer)."""
+    if not (_rag_ok and _embedder is not None):
+        return {"ok": False, "error": "rag_unavailable"}
+    results = sl.process_inbox(INBOX_DIR, store=_store, embed=_embed, prototypes=_sl_prototypes)
+    for r in results:
+        if r.get("ok"):
+            publish_event("ingest_complete", {kk: r.get(kk) for kk in ("doc_id", "bin", "collection", "chars", "source")})
+    return {"ok": True, "ingested": sum(1 for r in results if r.get("ok")), "results": results}
 
 
 @app.get("/jobs/{job_id}")

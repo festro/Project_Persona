@@ -63,12 +63,18 @@ async def consolidate(*, convo, embed: Callable[[str], List[float]], store, dist
                       journal_write: Optional[Callable[[str], None]] = None,
                       max_convos: int = 5, min_turns: int = 2, link_k: int = 3,
                       should_continue: Optional[Callable[[], bool]] = None,
+                      skip_cids: Optional[set] = None,
                       now: Optional[float] = None) -> Dict[str, Any]:
     """Run one consolidation pass. For each conversation with >= min_turns un-distilled turns:
     distill -> facts + summary, store facts (with relationship links), mark the turns distilled,
     and write an insight-journal entry. Stops early (between conversations) if should_continue()
-    returns False -- this is how the foreground stays responsive."""
+    returns False -- this is how the foreground stays responsive.
+
+    A conversation that distills to NOTHING (no facts, empty summary) is NOT marked distilled --
+    that would permanently retire turns on a transient empty result. Its cid is added to skip_cids
+    (caller-owned, process-lifetime) so it is retried after a restart but not re-hammered each pass."""
     now = time.time() if now is None else now
+    skip = skip_cids if skip_cids is not None else set()
     selected = convo.conversations_with_undistilled(min_turns=min_turns, limit=max_convos)
     results: List[Dict[str, Any]] = []
     total_facts = 0
@@ -77,6 +83,8 @@ async def consolidate(*, convo, embed: Callable[[str], List[float]], store, dist
         if should_continue is not None and not should_continue():
             break  # a request arrived -> yield the foreground
         cid = row["conversation_id"]
+        if cid in skip:
+            continue  # distilled to nothing earlier this process -> don't re-hammer the LLM
         profile = row.get("profile") or "default"
         turns = convo.undistilled_turns(cid)
         if len(turns) < min_turns:
@@ -99,6 +107,9 @@ async def consolidate(*, convo, embed: Callable[[str], List[float]], store, dist
             links_found += len(discover_links(vec, store=store, collection=coll,
                                               k=link_k, exclude=f))
             stored.append(f)
+        if not stored and not (summary or "").strip():
+            skip.add(cid)  # empty result -> leave undistilled for a future retry, skip this session
+            continue
         # only mark distilled once the facts are safely stored
         convo.mark_distilled([t["id"] for t in turns], summary)
         entry = build_insight(cid, profile, summary, stored, links_found, now)

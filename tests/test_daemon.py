@@ -96,6 +96,25 @@ async def test_crashloop():
     await sup.stop()
 
 
+async def test_max_total_starts():
+    # stable_reset_s=0 -> every death resets the strike count, so the 3-strike rule NEVER
+    # fires (a "slow crash-loop"). The max_total_starts ceiling must still stop it.
+    logs = []
+    s = spec("slowcrash", "import sys; sys.exit(1)")
+    sup = dmn.Supervisor([s], max_strikes=3, stable_reset_s=0.0, restart_backoff=0.02,
+                         max_total_starts=5, log=lambda m: logs.append(m))
+    await sup.start()
+    try:
+        await asyncio.wait_for(sup.wait(), timeout=15.0)
+    except asyncio.TimeoutError:
+        pass
+    st = sup.status()["children"]["slowcrash"]
+    check("slow crash-loop gave up despite strike resets", st["state"] == "failed")
+    check("stopped exactly at max_total_starts (5)", st["starts"] == 5)
+    check("logged the max_total_starts reason", any("max_total_starts" in m for m in logs))
+    await sup.stop()
+
+
 async def test_kill_restarts():
     s = spec("sleeper", "import time; time.sleep(30)")
     sup = dmn.Supervisor([s], stable_reset_s=100.0, restart_backoff=0.02,
@@ -138,6 +157,7 @@ async def test_bus_hosted():
 async def run():
     await test_stable()
     await test_crashloop()
+    await test_max_total_starts()
     await test_kill_restarts()
     await test_bus_hosted()
 

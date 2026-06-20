@@ -14,6 +14,30 @@ Conventions:
 
 ---
 
+## 2026-06-20 0210 PDT -- Audit fixes round 2: the remaining polish items (Brandon + Claude)
+
+Cleared the rest of the Phase 1-8 reevaluation backlog. Offline suite 17 -> 18 suites.
+
+- daemon.py: max_total_starts ceiling (default 20) -- a child crashing just slower than
+  stable_reset_s would reset its strikes and restart forever; now it stays down after the cap.
+  Removed the dead GOOGLE_APPLICATION_CREDENTIALS_OK sanitize KEEP typo. tests/test_daemon.py +
+  a slow-crash-loop case (17 checks).
+- sleep_cycle.consolidate: a conversation that distills to nothing (no facts + empty summary) is
+  no longer marked distilled (a transient empty no longer permanently retires the turns); its cid
+  goes into a caller-owned skip set (server._sleep_skip) so it's retried after a restart but not
+  re-hammered each pass. tests/test_sleep_cycle.py + empty-distill case (18 checks).
+- sorting_line.classify: word-aware matching (_kw_hit -- single words use a \b boundary, phrases
+  stay substring) and dropped the bare pronouns (i/my/we) from the personal bin, which were
+  swallowing everything. "we import the dataset" -> research/code (not personal); "git" no longer
+  fires inside "digit". tests/test_sorting_line.py + over-match regression (35 checks).
+- server.py: replaced the deprecated @app.on_event("startup") with a FastAPI lifespan handler for
+  the inbox-watcher + sleep-cycle loops (live-verified: the lifespan watcher still ingests a drop).
+  NEW memory-inspection endpoints (the embedded Qdrant store is single-writer + held by the API):
+  GET /memory/collections, GET /memory/search, POST /memory/ingest_inbox. tests/test_memory_
+  endpoints.py (7 checks). scripts/ingest_inbox.py now routes through POST /memory/ingest_inbox
+  when the API is up (no store-lock conflict) and only opens the store directly when it's down --
+  live-verified both the lifespan watcher and the API-routed manual trigger.
+
 ## 2026-06-20 0140 PDT -- Audit fixes: /v1 thread-merge bug + gitignore + sleep-cycle profile (Brandon + Claude)
 
 Found in a Phase 1-8 reevaluation; three issues fixed (offline suite 17/17).

@@ -109,6 +109,27 @@ def main():
                                       collection_for=lambda p: "facts", min_turns=2,
                                       should_continue=lambda: False))
     check("should_continue=False does no work", res3["conversations"] == 0)
+
+    # --- empty distill must NOT retire the turns (and must not re-hammer) ----
+    async def empty_distill(text):
+        return ([], "")
+    estore = FakeStore()
+    cide = cv.new_conversation(profile="default")
+    cv.add_turn(cide, "user", "a conversation the distiller finds nothing in", profile="default")
+    cv.add_turn(cide, "assistant", "ok", profile="default")
+    skip = set()
+    asyncio.run(sc.consolidate(convo=cv, embed=fake_embed, store=estore, distill=empty_distill,
+                               collection_for=lambda p: "facts", min_turns=2, skip_cids=skip))
+    check("empty distill did NOT mark the turns distilled", len(cv.undistilled_turns(cide)) == 2)
+    check("empty-distill cid recorded in skip set", cide in skip)
+    # a second pass with the same skip set must NOT re-call the distiller on it
+    called = {"n": 0}
+    async def counting_distill(text):
+        called["n"] += 1
+        return ([], "")
+    asyncio.run(sc.consolidate(convo=cv, embed=fake_embed, store=estore, distill=counting_distill,
+                               collection_for=lambda p: "facts", min_turns=2, skip_cids=skip))
+    check("skipped cid not re-distilled", called["n"] == 0)
     check("its turns stay undistilled (not consumed)", len(cv.undistilled_turns(cid2)) == 2)
 
     print()

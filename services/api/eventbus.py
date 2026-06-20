@@ -24,7 +24,8 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 # The fixed event vocabulary (docs/ipc_decision.md section 2). Not enforced -- a tiny,
 # documented set that subscribers and publishers agree on; "*" subscribes to all.
-EVENTS = ("ping", "profile_switched", "ingest_complete", "tts_speaking", "task_ready")
+EVENTS = ("ping", "profile_switched", "ingest_complete", "tts_speaking", "task_ready",
+          "consolidation_done")
 
 # 4-byte big-endian length prefix; cap a frame so a bad/hostile sender can't allocate huge.
 _MAX_FRAME = 1 << 20  # 1 MiB

@@ -107,6 +107,16 @@ def main():
 
     check("no-match text -> DEFAULT_BIN", sl.classify("zzz qqq")[0] == sl.DEFAULT_BIN)
 
+    # over-match regression: first-person prose with technical content must NOT land in personal
+    check("'we import the dataset for our experiment' -> not personal",
+          sl.classify("we import the dataset for our experiment")[0] != "personal")
+    check("'my function returns a value' -> code (no bare-pronoun personal match)",
+          sl.classify("my function returns a value")[0] == "code")
+    # word boundary: 'git' must not fire inside 'digit', 'tax' not inside 'syntax'
+    check("'the digit count' does not match code via git", "code" not in sl.classify("the digit count")[1] or sl.classify("the digit count")[1]["code"] == 0)
+    check("clear personal note still routes to personal",
+          sl.classify("note to self: remember the meeting and my birthday")[0] == "personal")
+
     # embedding-only routing: keywords match nothing, semantics decide
     bins = {"x": ["foo"], "y": ["bar"]}
     table = {"foo": [1.0, 0.0], "bar": [0.0, 1.0], "zzz": [0.0, 1.0]}
