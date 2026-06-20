@@ -388,6 +388,8 @@ def api_env(root, cfg):
     for key in (
         "THINKING_MODE_DEFAULT",
         "THINKING_MODE_TOPICS",
+        "PERSONA_USE_MESSAGES",
+        "PERSONA_MAX_TOKENS",
         "SAMPLING_DEFAULT_TEMP",
         "SAMPLING_DEFAULT_TOP_P",
         "SAMPLING_DEFAULT_TOP_K",

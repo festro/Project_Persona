@@ -255,9 +255,15 @@ docs/llama_build_matrix.md), at 8192 ctx/slot (32768/4), full offload. The prior
 Instruct-2507 fallback (49/49 layers on RADV GFX1151) is archived in models/archive/
 as rollback. Single model now on every host. Vulkan backends may report bf16=0, which
 does not affect Q5_K weights or the q8_0 cache but must be flagged for any config that
-assumes bf16. TUNABLE: with thinking ON (messages path / enable_thinking) the
-PERSONA_MAX_TOKENS=192 default starves the answer (CoT eats the budget) -- raise to
->= ~4096 for thinking deployments; the default raw path (messages OFF) is unaffected.
+assumes bf16. THINKING-MODEL TUNABLE (2026-06-20): the 35B thinks even when the raw
+/completion path sends /no_think, so a small PERSONA_MAX_TOKENS starves the answer (CoT
+eats the budget -> empty reply -> canned fallback ~1/3 of the time; measured on Windows).
+FIX: PERSONA_USE_MESSAGES=1 is now the default -- the messages path controls thinking
+reliably via the chat template (enable_thinking off on casual topics, on for
+THINKING_MODE_TOPICS) and returns clean content (sanitizer bypassed). PERSONA_MAX_TOKENS
+is per-OS, sized to the per-slot ctx (CTX/PARALLEL): linux 4096 (8192/slot), windows 2048
+(4096/slot) so prompt+history+RAG still fit. The retired raw-path note ("messages OFF
+unaffected") was wrong for the 35B.
 
 Runtime tunables: `run/config.toml` is the primary typed source (base + runtime +
 per-OS overlays), read by manage.py via stdlib tomllib (2026-06-06; changelog
@@ -318,7 +324,8 @@ not drift). Reference values:
 HOST=127.0.0.1
 PERSONA_PORT=8090
 PERSONA_MODEL=Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf
-PERSONA_CTX=32768
+PERSONA_CTX=32768          # per-OS: 32768 linux, 16384 windows
+PERSONA_MAX_TOKENS=4096    # per-OS: 4096 linux (8192/slot), 2048 windows (4096/slot)
 GPU_LAYERS_PERSONA=999
 PERSONA_PARALLEL=4
 PERSONA_CONCURRENCY=4
@@ -327,7 +334,7 @@ CACHE_TYPE_V=q8_0
 THINKING_MODE_DEFAULT=auto
 THINKING_MODE_TOPICS=science,biology,coding,math,research
 TOPIC_ROUTING=0
-PERSONA_USE_MESSAGES=0
+PERSONA_USE_MESSAGES=1
 PERSONA_SANITIZE_MESSAGES=0
 THINKING_AUTO_GATE=0
 PRESERVE_THINKING_DEFAULT=0
