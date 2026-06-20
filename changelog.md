@@ -14,6 +14,18 @@ Conventions:
 
 ---
 
+## 2026-06-20 0300 PDT -- README: status reconciled with reality (Brandon + Claude)
+
+- Updated the README to match the current build (it lagged the session's phase work):
+  * Memory & Context: ChromaDB-current/"Qdrant planned" -> Qdrant is the DEFAULT (embedded, on-disk;
+    ChromaDB fallback), since Phase 2a.
+  * Current Stack table: Vector store -> Default (done); Agent backbone -> bridge wired as a daemon
+    child, execution EVO-X2-gated; Frontend -> stood up + wired to /v1 (click-test owed); Voice +
+    Avatar -> scaffolded (engines/client host-side). Dropped the inaccurate "Wyoming protocol" voice
+    component (the scaffold uses HTTP server children).
+  * Roadmap summary list: Qdrant, always-on daemon, Sorting Line, Sleep Cycle flipped ⏳ -> ✅; Hermes
+    / embodiment / voice -> 🔄 scaffolded; added Phase 2 history+task-surfacing and Phases 9-10 parked.
+
 ## 2026-06-20 0250 PDT -- README: vibe-coded disclosure (Brandon + Claude)
 
 - Added a clear callout under the README tagline: Project_Persona is a vibe-coded project (the

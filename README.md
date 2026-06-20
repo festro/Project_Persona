@@ -46,7 +46,7 @@ Inference is served by a single **Qwen3.6-35B-A3B MoE model** (UD Q5_K_XL) via l
 
 ### Memory & Context
 
-Project_Persona uses a persistent vector store for typed semantic memory — facts, episodes, entities, decisions — built up over time across sessions. The current store is **ChromaDB** (fastembed embeddings); the planned migration to **Qdrant** is Phase 2a. Combined with Hermes' own session-lineage memory, this gives the agent both knowledge depth and conversational continuity.
+Project_Persona uses a persistent vector store for typed semantic memory — facts, episodes, entities, decisions — built up over time across sessions. The store is **Qdrant** (embedded, on-disk; fastembed embeddings) — the default since Phase 2a — with **ChromaDB** kept as a fallback backend behind a shared interface. Combined with Hermes' own session-lineage memory, this gives the agent both knowledge depth and conversational continuity.
 
 A **Sorting Line** auto-classifies files dropped into `inbox/` and routes them into the right memory collections. A **Sleep Cycle** runs during idle periods to consolidate, summarize, and discover relationships across memory.
 
@@ -63,11 +63,11 @@ A **Godot Engine** avatar is a core goal — a real-time, expressive face for th
 | Inference | llama.cpp via llama-server (Vulkan backend) | MIT | ✅ Working |
 | Model | Qwen3.6-35B-A3B (UD Q5_K_XL) | Apache 2.0 | ✅ Single-model topology (live) |
 | API | FastAPI Companion API (Python, port 8000, OpenAI-compatible) | MIT | ✅ Running |
-| Vector store | Qdrant (planned) — replacing ChromaDB | Apache 2.0 | ⏳ Phase 2a |
-| Agent backbone | Hermes Agent (Nous Research) | MIT | ⏳ Planned daemon child |
-| Frontend | OpenWebUI (port 3000) | BSD-3 + branding clause | ⏳ Selected as primary; dormant (Phase 2) |
-| Voice (planned) | Whisper.cpp (STT) + Piper TTS + Wyoming protocol | MIT / GPL-3.0 / MIT | ⏳ Phase 5 |
-| Avatar (planned) | Godot Engine | MIT | ⏳ Phase 4 |
+| Vector store | Qdrant (embedded, on-disk) — ChromaDB fallback | Apache 2.0 | ✅ Default (Phase 2a done) |
+| Agent backbone | Hermes Agent (Nous Research) | MIT | 🔄 Bridge wired as a daemon child; full execution EVO-X2-gated (Phase 8) |
+| Frontend | OpenWebUI (port 3000) | BSD-3 + branding clause | 🔄 Stood up + wired to `/v1`; manual click-test owed (Phase 2) |
+| Voice | Whisper.cpp (STT) + Piper TTS | MIT / GPL-3.0 | 🔄 Daemon wiring scaffolded; engines host-provided (Phase 5, optional) |
+| Avatar | Godot client + persona STATE protocol | MIT | 🔄 STATE protocol scaffolded; client host-side (Phase 4, optional) |
 | Profile structure | 2-file per profile: `SOUL.md` + `.hermes.md` (Hermes naming) | — | ✅ Convention locked |
 
 ### Hardware reference
@@ -89,17 +89,18 @@ Tested on a **GMKtec EVO-X2** (AMD RYZEN AI MAX+ 395, Strix Halo iGPU, 96GB unif
 The project is organized into phases and tiered work blocks. Current state lives in `todo.md`; phase/feature status and detailed acceptance criteria live in `roadmap.md`; architecture in `knowledge.md`. High-level summary:
 
 - ✅ Core API with persona response + per-profile structure
-- ✅ ChromaDB RAG (global memory)
 - ✅ GPU offload via Vulkan on tested hardware
-- ✅ OpenWebUI frontend integration (locked as primary)
 - ✅ Single-model topology live (Qwen3.6-35B-A3B with parallel slots; replaced multi-model topology)
-- 🔄 Hermes Agent integration as daemon-managed agent backbone
-- ⏳ Qdrant vector store migration (replaces ChromaDB)
-- ⏳ Always-on daemon with three-strike restart, asyncio child process management
-- ⏳ Godot Engine avatar — real-time embodied presence
-- ⏳ Voice pipeline (Whisper.cpp + Piper TTS via Wyoming)
-- ⏳ Auto-Contextual RAG ("Sorting Line") — drop file into `inbox/`, system classifies and routes
-- ⏳ Background Cognitive Consolidation ("Sleep Cycle") — idle-triggered memory maintenance
+- ✅ Vector RAG (global memory) — **Qdrant** the default, ChromaDB fallback (Phase 2a done)
+- ✅ Conversation history + hybrid windowing; task surfacing across all surfaces (Phase 2)
+- ✅ OpenWebUI frontend stood up + wired to `/v1` (manual browser click-test owed)
+- ✅ Always-on daemon — three-strike restart, asyncio child supervision, control-plane EventBus (Phase 3)
+- ✅ Auto-Contextual RAG ("Sorting Line") — drop a file into `inbox/`, it's classified + routed (Phase 6)
+- ✅ Background Consolidation ("Sleep Cycle") — idle-triggered memory maintenance + insight journal (Phase 7)
+- 🔄 Hermes Agent backbone — bridge wired as a supervised daemon child; full execution EVO-X2-gated (Phase 8)
+- 🔄 Embodiment — persona two-channel STATE protocol scaffolded; Godot client host-side (Phase 4, optional)
+- 🔄 Voice pipeline — Whisper.cpp + Piper daemon wiring scaffolded; engines host-provided (Phase 5, optional)
+- ⏳ Decentralized cooperative node mesh + full-system test (Phases 9–10, parked)
 
 ---
 
