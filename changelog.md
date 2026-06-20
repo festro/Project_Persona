@@ -14,6 +14,15 @@ Conventions:
 
 ---
 
+## 2026-06-20 0230 PDT -- docs/host_onboarding.md (new-machine checklist) (Brandon + Claude)
+
+- Ordered, copy-pasteable checklist to bring a new host to a working stack: per-host SSH key ->
+  clone (LFS) -> scripts/setup_native_stack.sh (or windows_portable_setup.bat) -> provide a model
+  (manage.py provision) -> per-host run/config.<host>.toml -> verify (status/doctor/run_all_offline
+  18/18 + live up/health/down) -> run (manage.py up OR daemon.py [--with-hermes|--with-voice]) ->
+  optional surfaces (OpenWebUI, memory endpoints, sorting line, egress) -> EVO-X2 specifics (the
+  35B Vulkan target, Hermes/H2d, kernel egress) -> troubleshooting. Written for the move to EVO-X2.
+
 ## 2026-06-20 0210 PDT -- Audit fixes round 2: the remaining polish items (Brandon + Claude)
 
 Cleared the rest of the Phase 1-8 reevaluation backlog. Offline suite 17 -> 18 suites.
