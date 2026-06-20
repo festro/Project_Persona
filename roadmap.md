@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-19 0410 PDT by Claude (Phase 0.5 GREEN; KV-aware ctx sizing landed [GGUF-metadata-driven] + provisioner --tier closed as not-needed; egress baseline scripted [Windows read-only verify done]; installer .env resolved; T1 restored; Item 10.0 Linux-green)
+Last updated: 2026-06-20 0235 PDT by Claude (big session: Phase 2 finished [task surfacing + RAG->qdrant], Phase 3 COMPLETE [daemon + EventBus on LoopbackBus; NatsBus->Phase 9], Phase 6 COMPLETE [sorting line], Phase 7 COMPLETE [sleep cycle], Phase 8 WSL scaffold [Hermes daemon child + env hygiene], optional Phases 4-5 scaffolded [avatar STATE + voice daemon wiring]. Then a Phase 1-8 audit: 1 /v1 bug + polish all fixed, + /memory inspection endpoints. Offline 18/18. All pushed through origin a2a8e6f. Remaining is host-gated [EVO-X2 Phase 8 H2d + kernel egress] + manual [OpenWebUI click-test]; see docs/host_onboarding.md)
 
 ## Boundaries (do not duplicate)
 
@@ -357,10 +357,12 @@ Goal: a thin client over the API with durable conversation history.
       DELETE reload/list, /health conversations block. tests/test_conversations.py 21 checks
       + live API persist/reload round-trip (4 turns, continuation, list). /v1 + UI
       conversation-id mapping DONE 2026-06-19: /v1/chat/completions now at parity with /chat
-      -- HYBRID keying (explicit conversation_id/`user` field, else owui-<sha256[:16]> of the
-      system+first-user prefix so stock OpenWebUI threads map deterministically), cold-thread
-      seeding from the client array, windowed history from the DB (not the client array),
-      user+assistant persist, conversation_id returned. tests/test_v1_history.py 25 checks +
+      -- HYBRID keying (explicit conversation_id wins; else an owui-<sha256[:16]> hash of the
+      system+first-user prefix, with the OpenAI `user` field FOLDED INTO the hash to namespace it
+      -- NOT used as the id directly; that was an audit bug, fixed 2026-06-20, that had merged a
+      user's distinct threads), cold-thread seeding from the client array, windowed history from
+      the DB (not the client array), user+assistant persist, conversation_id returned.
+      tests/test_v1_history.py 29 checks +
       LIVE 2-turn (Qwen2.5-7B CPU): turn 2 recalled "teal" purely from reloaded DB history;
       4 ordered turns, no double-seed.
 - [x] Persona task surfacing -- ALL THREE surfaces DONE 2026-06-19. Shared data: GET /tasks

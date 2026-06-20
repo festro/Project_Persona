@@ -3,36 +3,33 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 0100 PDT by Claude (PHASE 4 + 5 SCAFFOLDED [optional]: persona two-channel RESPONSE+STATE avatar protocol [/chat state field, live-derivable] + Whisper/Piper voice engines as guarded daemon children; offline 17/17. Push pending Brandon's OK.)
+Last updated: 2026-06-20 0235 PDT by Claude (Phases 2-8 + optional 4-5 ALL landed + PUSHED through origin a2a8e6f; full Phase 1-8 audit done [1 /v1 bug + all polish fixed], offline 18/18; docs/host_onboarding.md added. Everything buildable on this CPU-WSL box is DONE -- remaining is host-gated [EVO-X2] + manual.)
 
 ## Next up
 
-- [PUSH PENDING] Phase 4+5 scaffold commit on D:\ not yet pushed (origin at b23a476 / Phase 8 scaffold).
-- [done] Phase 4 persona side: avatar_state.py (derive_state + STATE vocab), /chat `state` field,
-  docs/avatar_protocol.md, test 14. Godot client = optional, host-side (not in repo).
-- [done] Phase 5 voice wiring: daemon whisper_stt_spec/piper_tts_spec (guarded), --with-voice,
-  docs/voice_pipeline.md, tests. Engines + audio device = host-side.
-- 0-8 + optional status: Phases 0,0.5,1,2,3,6,7 DONE; Phase 8 foundation+WSL scaffold done (rest
-  EVO-X2/host-gated); Phases 4-5 OPTIONAL now scaffolded (persona + daemon side); 9-10 PARKED.
-  Owed/host-side: Phase 2 OpenWebUI click-test; Phase 8 H2d/H3-H6 + kernel egress; Godot client;
-  voice engines+audio. Effectively everything buildable on this CPU-WSL box is now done.
+Everything buildable on this CPU-WSL box is DONE and on origin (a2a8e6f). Completion status lives
+in `roadmap.md`; full history in `changelog.md`. New-host bring-up: `docs/host_onboarding.md`.
+What remains is host-gated or a Brandon decision:
 
-- [done] Phase 8 WSL scaffold: daemon.py hermes_present/hermes_bridge_spec + build_specs
-  with_hermes + `--with-hermes`/HERMES_DAEMON_ENABLED (bridge as a supervised child, LIVE on WSL);
-  ChildSpec.hygiene + sanitize_env (runtime egress containment). tests/test_daemon_hermes.py 14.
-- [EVO-X2 / host, Brandon] Phase 8 remainder: H2d (Hermes worker + 35B + GPU claims+executes+writes
-  back), H3-H6 execution, the kernel netns/iptables egress layer (scripts/egress_baseline.* live),
-  doctor.sh fully green. These cannot be done from this CPU-WSL box.
-- 0-8 ladder: Phases 0,0.5,1,2(code-complete),3,6,7 DONE; Phase 8 foundation + WSL scaffold done,
-  rest EVO-X2-gated. Phases 4-5 OPTIONAL; 9-10 PARKED. Phase 2 manual OpenWebUI click-test owed.
-- Candidates next: optional Phase 4/5, hardening/polish, or drive the EVO-X2 Phase 8 legs. Open
-  with Brandon.
+Host-gated (EVO-X2 / a real box -- not doable from CPU-WSL):
+- Phase 8 H2d: Hermes worker claims + executes the 35B (GPU) + writes back, egress-off -- THE
+  Phase 8 Exit-Gate evidence. Plus H3-H6 execution, the kernel netns/iptables egress layer
+  (`scripts/egress_baseline.*` applied live), and `doctor.sh` fully green.
+- Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
+  shell (read-only paths already verified).
+- Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.
 
-## Phase 2 owed (manual)
+Manual (only Brandon):
+- Phase 2 OpenWebUI browser click-test at http://127.0.0.1:3000 (interactive admin signup) ->
+  Phase 2 [x] (`manage.py up` / `python daemon.py` to bring the stack up).
+- Phase 4 Godot client + Phase 5 audio engines/device (the host-side halves of the optional phases).
 
-- Human browser click-test of OpenWebUI at http://127.0.0.1:3000 (interactive admin signup) ->
-  then Phase 2 [x]. The stack is currently DOWN (daemon smoke stopped it); bring it up with
-  `manage.py up` or `python daemon.py`.
+Housekeeping / decisions:
+- TWO D: clones still exist: `D:\Projects\Git\Project_Persona` (canonical gateway, in use) and
+  `D:\Projects\Project_Persona` (STALE dup, HEAD ~P3). Recommend delete/archive the stale one so
+  there is exactly one gateway -- pending Brandon's OK (a repo Claude didn't create).
+- Optional `INBOX_PROCESSED_KEEP` retention cap (deliberately left -- kept files over silent delete).
+- Phases 9-10 PARKED until 0-8 green. NatsBus deferred to Phase 9 (Phase 3 runs on LoopbackBus).
 
 ## Rules of the road
 
@@ -44,61 +41,15 @@ Last updated: 2026-06-20 0100 PDT by Claude (PHASE 4 + 5 SCAFFOLDED [optional]: 
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Next up (this session)
+## Just finished (2026-06-20, Claude)
 
-- DISCREPANCY for Brandon -- TWO Project_Persona git clones live on D:, and they have
-  diverged:
-  * D:\Projects\Git\Project_Persona -- the CANONICAL gateway (matches wsl_h2_sim.ps1's
-    $RepoWin default; HEAD now = the egress batch). This is the one to use.
-  * D:\Projects\Project_Persona -- a STALE duplicate (HEAD stuck at P3, 70796f7). It is
-    NOT wired into the sync script and risks a wrong-clone commit. RECOMMEND: delete it
-    (or archive it) so there is exactly one D: gateway. Left in place pending Brandon's OK
-    (did not delete a git repo I did not create).
-- PUSHED to origin 2026-06-19: origin/main fast-forwarded aa145fa -> 41cb82e (P3 +
-  roadmap-runner + P4 + egress + docs). origin synced (0/0). Generated an ed25519 key in
-  WSL (~/.ssh/id_ed25519, no passphrase) + added it to GitHub; ssh -T git@github.com now
-  greets "festro". UNBLOCKS the WORKFLOW "deferred upgrade" (WSL clone as a real git
-  checkout over SSH, retiring folder-sync) -- still a Brandon decision, no longer infra-
-  blocked. NOTE: origin also carries branch chore/chroma-to-qdrant (Phase 2 Item 2a).
-- OWED verification on the egress baseline (needs a real box / Windows):
-  * live-apply the SERVE lock on a real Linux box (apply --yes -> a curl should fail ->
-    remove --yes); not done on the dev surface to avoid cutting its own connectivity.
-  * Windows PowerShell verify of egress_baseline.ps1: READ-ONLY paths DONE 2026-06-19
-    (PS 5.1.26100: -Plan/-Status/-Plan -Strict/-Plan -Provision all rc=0). Live -Apply/
-    -Remove in an admin shell still owed.
-  * (optional) iptables fallback for hosts without nftables.
-  * broader Debian / other-Linux installer + doctor parity passes.
-- SCOPE (Brandon 2026-06-19): Phases 9-10 PARKED until 0-8 are all ironed out + green.
-  Focus stays on the 0-8 ladder.
-- Both prior "pending decisions" RESOLVED 2026-06-19 (Brandon: provisioner + ctx are a
-  hardware-spec-driven recommender):
-  1. provisioner --tier -> NOT needed; selection is already hardware-driven (budget-fit +
-     rank). Playbook "Tier" headers are docs, not a manual taxonomy gate. Closed.
-  2. KV-aware ctx sizing -> DONE (GGUF-metadata-driven; see Just finished). Closed.
-- OWED on the provisioner (need hardware/Windows): Windows-side live-confirm of the `up`
-  first-run path + a vision-model serving smoke.
-- HARDWARE / Phase 9-10 (PARKED until 0-8 green): EVO-X2 H2d Exit Gate, EVO-X2-native +
-  ARM64 + non-Vulkan accel passes, the mesh, live cross-host validation.
-
-## Next up (Phase 2 -- CODE-COMPLETE; only the manual browser click-test owed)
-
-- [done] Item 2a Chroma->Qdrant RagStore + migration + RAG_BACKEND default FLIPPED to qdrant.
-- [done] conversations.db store + /chat persistence + reload endpoints.
-- [done] Hybrid windowing -- history fed into the prompt; multi-turn memory works end to end.
-- [done] /v1 <-> conversation_id mapping + history reload (hybrid keying).
-- [done] OpenWebUI stood up on :3000 + wired to API /v1 (pip route).
-- [done] Task surfacing -- ALL THREE surfaces (in-chat persona LIVE, OpenWebUI tool, status panel).
-- [done] Exit Gate: persist/reload/windowing + Qdrant-parity-live all green (see roadmap).
-- [OWED, manual] Human browser click-test of OpenWebUI at http://127.0.0.1:3000 (interactive
-  admin signup -- the one Phase 2 step Claude cannot do headless). Then Phase 2 -> [x].
-
-## SYNC DONE (2026-06-19)
-
-- Phase 2 finish synced WSL -> D:\ (surgical copy of the 9 authored files, not a full
-  pullback -- runtime/data left local) and committed on the D:\ gateway as 52a14c4, then
-  PUSHED to origin (558056c..52a14c4, main -> main; origin in sync 0/0). NOTE: the broad
-  folder pullback (full WSL <-> D:\ redundancy incl. runtime) was NOT run this session;
-  run scripts/wsl_h2_sim.ps1 -Stage pullback if you want the runtime tree mirrored too.
+- AUDIT (Phase 1-8 reevaluation) + FIXES, all pushed (799ae34, 6f4a389): fixed a confirmed /v1
+  thread-merge bug (the OpenAI `user` field keyed the thread -> all of a user's chats collapsed;
+  now namespaces the hash), the .gitignore gap (persona/global_memory/ qdrant+journal), sleep-cycle
+  per-profile routing, daemon slow-crash-loop cap, sleep-cycle empty-distill retirement, sorting-line
+  classifier over-match, FastAPI on_event->lifespan, + new /memory/{collections,search,ingest_inbox}
+  endpoints (embedded-Qdrant is single-writer/API-held) with ingest_inbox.py routing through the API.
+  Offline suite 18/18. docs/host_onboarding.md added (a2a8e6f). See changelog.md for the rest.
 
 ## Just finished (2026-06-19, Claude)
 

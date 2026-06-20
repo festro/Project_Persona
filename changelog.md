@@ -14,6 +14,19 @@ Conventions:
 
 ---
 
+## 2026-06-20 0240 PDT -- Tracker reconciliation: todo + roadmap stamps current (Brandon + Claude)
+
+- The session moved fast and the trackers drifted. Reconciled: roadmap.md "Last updated" stamp
+  bumped 06-19 -> 06-20 with the session summary (Phases 2-8 + optional 4-5 + audit, all pushed
+  through a2a8e6f); roadmap Phase 2 keying description corrected to the FIXED behavior (the `user`
+  field is folded into the hash, not used as the id -- it was describing the pre-audit bug).
+- todo.md: bumped the stamp; collapsed THREE drifted/overlapping "Next up" sections (one still said
+  "PUSH PENDING ... origin at b23a476") into ONE accurate snapshot -- host-gated (EVO-X2 Phase 8
+  H2d/H3-H6 + kernel egress; egress live-apply; provisioner Windows confirm), manual (OpenWebUI
+  click-test; Godot/audio), housekeeping (the stale 2nd D: clone; optional inbox/processed cap).
+  Added a "Just finished 06-20" entry for the audit. (Older Just-finished history retained below;
+  it is authoritative in changelog.md -- a deeper todo trim is offered, not yet done.)
+
 ## 2026-06-20 0230 PDT -- docs/host_onboarding.md (new-machine checklist) (Brandon + Claude)
 
 - Ordered, copy-pasteable checklist to bring a new host to a working stack: per-host SSH key ->
