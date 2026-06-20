@@ -284,8 +284,57 @@ def hermes_bridge_spec(root: Path) -> Optional[ChildSpec]:
                      hygiene=True)
 
 
+def _voice_paths(root: Path) -> Dict[str, str]:
+    """Conventional host-provided voice engine locations; all env-overridable. The engines
+    themselves are host-side compute (Phase 5: "host-side compute only") -- this only wires
+    them as supervised children when their binary + model are present."""
+    return {
+        "stt_bin": os.getenv("WHISPER_SERVER_BIN", str(root / "llama_cpp" / "build" / "bin" / "whisper-server")),
+        "stt_model": os.getenv("WHISPER_MODEL", str(root / "models" / "ggml-base.en.bin")),
+        "stt_port": os.getenv("WHISPER_PORT", "8120"),
+        "tts_bin": os.getenv("PIPER_BIN", str(root / "tools" / "piper" / "piper")),
+        "tts_model": os.getenv("PIPER_MODEL", str(root / "models" / "piper_voice.onnx")),
+        "tts_port": os.getenv("PIPER_PORT", "8121"),
+    }
+
+
+def stt_present(root: Path) -> bool:
+    p = _voice_paths(root)
+    return Path(p["stt_bin"]).is_file() and Path(p["stt_model"]).is_file()
+
+
+def tts_present(root: Path) -> bool:
+    p = _voice_paths(root)
+    return Path(p["tts_bin"]).is_file() and Path(p["tts_model"]).is_file()
+
+
+def whisper_stt_spec(root: Path) -> Optional[ChildSpec]:
+    """Phase 5: whisper.cpp STT HTTP server as a supervised child. None if the binary/model is
+    absent (the engine is host-provided -- see docs/voice_pipeline.md)."""
+    if not stt_present(root):
+        return None
+    p = _voice_paths(root)
+    return ChildSpec("whisper-stt",
+                     [p["stt_bin"], "--model", p["stt_model"], "--host", "127.0.0.1", "--port", p["stt_port"]],
+                     cwd=str(root), logfile=str(root / "logs" / "whisper.log"),
+                     pidfile=str(root / "run" / "whisper.pid"))
+
+
+def piper_tts_spec(root: Path) -> Optional[ChildSpec]:
+    """Phase 5: Piper TTS HTTP server as a supervised child. None if the binary/model is absent.
+    (Piper is GPL-3.0 -- used as a separate process, never linked; see knowledge.md licensing.)"""
+    if not tts_present(root):
+        return None
+    p = _voice_paths(root)
+    return ChildSpec("piper-tts",
+                     [p["tts_bin"], "--model", p["tts_model"], "--http", "--port", p["tts_port"]],
+                     cwd=str(root), logfile=str(root / "logs" / "piper.log"),
+                     pidfile=str(root / "run" / "piper.pid"))
+
+
 def build_specs(root: Path, cfg: Dict[str, Any], *, with_llama: bool = True,
-                with_api: bool = True, with_hermes: bool = False) -> List[ChildSpec]:
+                with_api: bool = True, with_hermes: bool = False,
+                with_voice: bool = False) -> List[ChildSpec]:
     """Build the real child map from manage.py's shared argv builders."""
     import manage  # imported here so the Supervisor stays importable without manage's deps
     specs: List[ChildSpec] = []
@@ -307,6 +356,13 @@ def build_specs(root: Path, cfg: Dict[str, Any], *, with_llama: bool = True,
             specs.append(hspec)
         else:
             _log("[daemon] --with-hermes requested but env_hermes/ not found; skipping")
+    if with_voice:  # Phase 5: STT/TTS engines, only if host-provided
+        for builder, label in ((whisper_stt_spec, "whisper STT"), (piper_tts_spec, "piper TTS")):
+            vspec = builder(root)
+            if vspec is not None:
+                specs.append(vspec)
+            else:
+                _log(f"[daemon] --with-voice: {label} engine not found; skipping")
     # nats-server child: DEFERRED to Phase 9 (NatsBus). The LoopbackBus needs no child.
     return specs
 
@@ -325,9 +381,11 @@ async def _run(args) -> int:
     (root / "logs").mkdir(exist_ok=True)
     (root / "run").mkdir(exist_ok=True)
 
-    with_hermes = args.with_hermes or os.getenv("HERMES_DAEMON_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
+    _on = lambda v: v.strip().lower() in ("1", "true", "yes", "on")  # noqa: E731
+    with_hermes = args.with_hermes or _on(os.getenv("HERMES_DAEMON_ENABLED", "0"))
+    with_voice = args.with_voice or _on(os.getenv("VOICE_DAEMON_ENABLED", "0"))
     specs = build_specs(root, cfg, with_llama=not args.no_llama, with_api=not args.no_api,
-                        with_hermes=with_hermes)
+                        with_hermes=with_hermes, with_voice=with_voice)
     bus = make_bus()
 
     async def _on_event(event, payload):
@@ -368,6 +426,8 @@ def main(argv=None) -> int:
     ap.add_argument("--no-api", action="store_true", help="Do not supervise the API.")
     ap.add_argument("--with-hermes", action="store_true",
                     help="Also supervise the Hermes H2 bridge (needs env_hermes/; or set HERMES_DAEMON_ENABLED=1).")
+    ap.add_argument("--with-voice", action="store_true",
+                    help="Also supervise the voice engines (Whisper STT / Piper TTS, if installed; or VOICE_DAEMON_ENABLED=1).")
     args = ap.parse_args(argv)
     try:
         return asyncio.run(_run(args))

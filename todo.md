@@ -3,9 +3,19 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 0050 PDT by Claude (PHASE 8 SCAFFOLDED on WSL: Hermes H2 bridge as a supervised daemon child [live] + daemon env hygiene [secrets stripped for agent children]; offline 16/16. Phase 7 [a72c452] already pushed; this Phase 8 scaffold commit pushed too per Brandon.)
+Last updated: 2026-06-20 0100 PDT by Claude (PHASE 4 + 5 SCAFFOLDED [optional]: persona two-channel RESPONSE+STATE avatar protocol [/chat state field, live-derivable] + Whisper/Piper voice engines as guarded daemon children; offline 17/17. Push pending Brandon's OK.)
 
 ## Next up
+
+- [PUSH PENDING] Phase 4+5 scaffold commit on D:\ not yet pushed (origin at b23a476 / Phase 8 scaffold).
+- [done] Phase 4 persona side: avatar_state.py (derive_state + STATE vocab), /chat `state` field,
+  docs/avatar_protocol.md, test 14. Godot client = optional, host-side (not in repo).
+- [done] Phase 5 voice wiring: daemon whisper_stt_spec/piper_tts_spec (guarded), --with-voice,
+  docs/voice_pipeline.md, tests. Engines + audio device = host-side.
+- 0-8 + optional status: Phases 0,0.5,1,2,3,6,7 DONE; Phase 8 foundation+WSL scaffold done (rest
+  EVO-X2/host-gated); Phases 4-5 OPTIONAL now scaffolded (persona + daemon side); 9-10 PARKED.
+  Owed/host-side: Phase 2 OpenWebUI click-test; Phase 8 H2d/H3-H6 + kernel egress; Godot client;
+  voice engines+audio. Effectively everything buildable on this CPU-WSL box is now done.
 
 - [done] Phase 8 WSL scaffold: daemon.py hermes_present/hermes_bridge_spec + build_specs
   with_hermes + `--with-hermes`/HERMES_DAEMON_ENABLED (bridge as a supervised child, LIVE on WSL);

@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-20 0100 PDT -- Phase 4 + 5 scaffolding (optional phases) (Brandon + Claude)
+
+- Phase 4 (embodiment) persona side -- the two-channel RESPONSE + STATE protocol:
+  * services/api/avatar_state.py (NEW): derive_state(text, speaking) -> {emotion, intensity,
+    gesture, speaking, viseme} in a fixed vocabulary (EMOTIONS/GESTURES). Pure + deterministic
+    keyword-cue deriver (concerned/confused/excited/happy/amused; questions -> thinking; "!"
+    amplifies). No model call.
+  * server.py: /chat returns a `state` object alongside `text` (AVATAR_STATE_ENABLED, default on,
+    additive). /health.avatar_state advertises the enums. docs/avatar_protocol.md documents the
+    two-channel protocol + STATE vocabulary for a Godot/VR client. tests/test_avatar_state.py 14.
+- Phase 5 (voice) -- Whisper STT / Piper TTS as supervised daemon children:
+  * daemon.py: stt_present/tts_present + whisper_stt_spec/piper_tts_spec (guarded child specs;
+    None when binary/model absent), build_specs(with_voice) + `daemon.py --with-voice` /
+    VOICE_DAEMON_ENABLED. Engines are host-provided (env-overridable WHISPER_SERVER_BIN/MODEL/PORT,
+    PIPER_BIN/MODEL/PORT); Piper GPL-3.0 runs as a separate process (never linked).
+    docs/voice_pipeline.md (offline STT->LLM->TTS design + install + tts_speaking->avatar tie-in).
+  * tests/test_daemon_hermes.py extended (now 20 checks): voice specs None when absent; build with
+    a fake binary+model; with_voice includes both children when present.
+- Offline suite 16 -> 17 suites. Both phases are OPTIONAL: the Godot client and the audio engines/
+  device are host-side; the persona STATE channel + the daemon supervision wiring are done + tested.
+
 ## 2026-06-20 0050 PDT -- Phase 8 scaffolding (WSL): Hermes daemon child + daemon env hygiene (Brandon + Claude)
 
 - "All that can be done on WSL without the 35B/GPU" toward Phase 8. Two Exit-Gate items advanced.

@@ -20,6 +20,7 @@ import conversations as convo
 import windowing as win
 import sorting_line as sl
 import sleep_cycle as sc
+import avatar_state as av
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -165,6 +166,9 @@ SLEEP_CYCLE_MAX_FACTS = int(os.getenv("SLEEP_CYCLE_MAX_FACTS", "5"))
 INSIGHT_COLLECTION = os.getenv("INSIGHT_COLLECTION", "insight_journal")
 INSIGHT_JOURNAL_PATH = os.getenv("INSIGHT_JOURNAL_PATH", os.path.join(GLOBAL_MEMORY_DIR, "insight_journal.md"))
 _last_activity = time.monotonic()
+# Phase 4 embodiment: attach a STATE channel (JSON avatar directives) to /chat replies for a
+# Godot/VR client (docs/avatar_protocol.md). Additive; harmless to text-only clients.
+AVATAR_STATE_ENABLED = os.getenv("AVATAR_STATE_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
 # Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
@@ -1492,6 +1496,8 @@ async def health():
         "sleep_cycle": {"enabled": SLEEP_CYCLE_ENABLED, "idle_s": SLEEP_CYCLE_IDLE_S,
                         "idle_now_s": round(time.monotonic() - _last_activity, 1),
                         "journal": INSIGHT_JOURNAL_PATH},
+        "avatar_state": {"enabled": AVATAR_STATE_ENABLED, "emotions": list(av.EMOTIONS),
+                         "gestures": list(av.GESTURES)},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
                           "persist_enabled": CONVO_PERSIST_ENABLED,
                           "history_enabled": HISTORY_ENABLED,
@@ -1602,8 +1608,11 @@ async def chat(req: ChatRequest):
             },
         }
 
-    return {"text": reply, "persona": True, "conversation_id": conversation_id,
+    resp = {"text": reply, "persona": True, "conversation_id": conversation_id,
             "reasoning": reasoning if preserve else "", "debug": debug}
+    if AVATAR_STATE_ENABLED:
+        resp["state"] = av.derive_state(reply, topic=topic)  # Phase 4 STATE channel
+    return resp
 
 
 # -----------------------

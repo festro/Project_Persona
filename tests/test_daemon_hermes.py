@@ -108,6 +108,34 @@ async def run():
     if present:
         check("with_hermes=True includes the bridge", any(s.name == "hermes-bridge" for s in withh))
 
+    # --- Phase 5 voice spec scaffolding ------------------------------------
+    # No real engines on this box -> specs are None and with_voice adds nothing.
+    check("stt absent -> whisper spec None", dmn.whisper_stt_spec(ROOT) is None)
+    check("tts absent -> piper spec None", dmn.piper_tts_spec(ROOT) is None)
+    base_v = dmn.build_specs(ROOT, {}, with_llama=False, with_api=False, with_voice=True)
+    check("with_voice but no engines -> no voice children",
+          all(s.name not in ("whisper-stt", "piper-tts") for s in base_v))
+
+    # Point the env at fake binary+model files -> the guarded specs build with the right argv.
+    fake = Path(tempfile.mkdtemp(prefix="voice_"))
+    for n in ("whisper-server", "piper", "ggml.bin", "voice.onnx"):
+        (fake / n).write_text("x")
+    os.environ["WHISPER_SERVER_BIN"] = str(fake / "whisper-server")
+    os.environ["WHISPER_MODEL"] = str(fake / "ggml.bin")
+    os.environ["PIPER_BIN"] = str(fake / "piper")
+    os.environ["PIPER_MODEL"] = str(fake / "voice.onnx")
+    try:
+        check("stt present (fake) -> spec built", dmn.stt_present(ROOT) and dmn.whisper_stt_spec(ROOT).name == "whisper-stt")
+        sp = dmn.piper_tts_spec(ROOT)
+        check("tts present (fake) -> piper spec + model argv",
+              sp is not None and sp.name == "piper-tts" and str(fake / "voice.onnx") in sp.argv)
+        vv = dmn.build_specs(ROOT, {}, with_llama=False, with_api=False, with_voice=True)
+        check("with_voice + engines -> both voice children",
+              {"whisper-stt", "piper-tts"} <= {s.name for s in vv})
+    finally:
+        for k in ("WHISPER_SERVER_BIN", "WHISPER_MODEL", "PIPER_BIN", "PIPER_MODEL"):
+            os.environ.pop(k, None)
+
 
 def main():
     asyncio.run(run())

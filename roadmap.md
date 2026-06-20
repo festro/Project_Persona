@@ -442,29 +442,39 @@ Exit Gate:
 - [x] IPC events deliver one-way (components -> daemon) without the API ever blocking on it --
       LIVE: /agent/delegate returned immediately while the daemon logged the task_ready event
 
-## Phase 4 -- Embodied presence (Godot)  [-] OPTIONAL
+## Phase 4 -- Embodied presence (Godot)  [-] OPTIONAL (persona side SCAFFOLDED 2026-06-20)
 
 Goal: optional 3D/VR client driven by a two-channel protocol.
 
-- [-] Persona emits RESPONSE (text/TTS) + STATE (JSON avatar directives)
-- [-] Godot client consumes the protocol
+- [x] Persona emits RESPONSE (text/TTS) + STATE (JSON avatar directives) -- DONE 2026-06-20:
+      services/api/avatar_state.py (derive_state: emotion/intensity/gesture/speaking/viseme, the
+      STATE vocabulary; deterministic, dependency-free). /chat returns a `state` object alongside
+      `text` (AVATAR_STATE_ENABLED), /health.avatar_state advertises the enums. Protocol:
+      docs/avatar_protocol.md. tests/test_avatar_state.py 14 checks.
+- [-] Godot client consumes the protocol -- the optional client (a 3D app) is not in this repo;
+      the protocol + persona emitter are ready for it.
 
 Exit Gate:
 
-- [-] the avatar reflects STATE directives in sync with RESPONSE output for a
-      scripted exchange
+- [~] the avatar reflects STATE directives in sync with RESPONSE output for a scripted exchange --
+      the persona STATE channel is live on /chat; the avatar-side sync is the (optional) Godot client
 
-## Phase 5 -- Voice pipeline  [-] OPTIONAL
+## Phase 5 -- Voice pipeline  [-] OPTIONAL (daemon wiring SCAFFOLDED 2026-06-20)
 
 Goal: local speech in/out as daemon children (host-side compute only).
 
-- [-] Whisper.cpp STT
-- [-] Piper TTS (GPL-3.0)
+- [~] Whisper.cpp STT -- daemon child WIRED: daemon.py whisper_stt_spec() + stt_present() (guarded
+      by binary+model; --with-voice / VOICE_DAEMON_ENABLED). Engine is host-provided (build
+      whisper-server + a ggml model). docs/voice_pipeline.md.
+- [~] Piper TTS (GPL-3.0) -- daemon child WIRED: daemon.py piper_tts_spec() + tts_present() (guarded;
+      separate-process HTTP, GPL-3.0 respected). Engine + ONNX voice host-provided.
+      tests/test_daemon_hermes.py covers the guarded spec building (None when absent; builds + both
+      voice children included when the binaries/models are present).
 
 Exit Gate:
 
-- [-] spoken input is transcribed, answered, and spoken back end-to-end, fully
-      offline
+- [-] spoken input is transcribed, answered, and spoken back end-to-end, fully offline -- needs the
+      engines + an audio device on a host (headless WSL has no audio); the supervision wiring is done
 
 ## Phase 6 -- Auto-contextual RAG ("sorting line")  [x] COMPLETE (2026-06-19)
 
