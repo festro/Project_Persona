@@ -575,17 +575,31 @@ single-model migration M6.)
   - [ ] H2d: run on EVO-X2 with the real 35B + GPU + egress-off (no sim overrides) ->
         expect status=ok + summary. THIS IS THE Phase 8 Exit Gate evidence; deferred
         until the rest of the near-term work is finished (Brandon, 2026-06-14).
+- [~] H2e SCAFFOLDED 2026-06-20 (WSL, all that can be done without the 35B/GPU): the
+      persona-side H2 bridge now runs as a SUPERVISED DAEMON CHILD. daemon.py: hermes_present()
+      + hermes_bridge_spec() (guarded by env_hermes/; launches env_hermes/bin/python
+      tools/hermes_bridge.py --interval under the three-strike supervisor with HERMES_CLI/
+      HERMES_KANBAN_HOME/HERMES_HOME/TASKS_DB env); build_specs(with_hermes=...) + `daemon.py
+      --with-hermes` / HERMES_DAEMON_ENABLED (opt-in; default off so base behavior is unchanged).
+      LIVE on WSL: the daemon spawned + supervised the bridge child (pid up, clean shutdown).
+      tests/test_daemon_hermes.py 14 checks.
 - [ ] H3-H6: Hermes claims + executes end to end, then role-prefix template library,
-      cache_prompt amortization, Tenacity-style failure semantics.
-- [ ] Runtime egress containment: kernel netns/iptables + daemon env hygiene
-      (config-time half exists; runtime half H1.6 still required)
+      cache_prompt amortization, Tenacity-style failure semantics. (Hermes worker/dispatcher
+      execution is GPU-bound -> EVO-X2.)
+- [~] Runtime egress containment: DAEMON ENV HYGIENE DONE 2026-06-20 -- daemon.py sanitize_env()
+      + ChildSpec.hygiene strip cloud/egress secrets (OPENAI/ANTHROPIC/AWS_*/AZURE_*/GOOGLE_*/
+      LANGSMITH_* + a keyed list) from a supervised agent's env at launch; the hermes-bridge child
+      runs hygiene=True. Proven with a real-subprocess test. STILL REQUIRED (host/root): the
+      kernel netns/iptables half (scripts/egress_baseline.* applied live on the box).
 
 Exit Gate:
 
-- [ ] Hermes runs as a daemon child
-- [ ] it claims a Task Board task and executes it
+- [~] Hermes runs as a daemon child -- WIRED + LIVE on WSL for the persona-side bridge
+      (hermes_bridge_spec under the supervisor); the GPU Hermes worker/dispatcher rides with H2d
+- [ ] it claims a Task Board task and executes it (EVO-X2: Hermes worker + GPU)
 - [ ] it writes results back for the persona to surface (H2d on EVO-X2 35B)
-- [ ] egress is contained at both config and kernel level
+- [~] egress is contained at both config and kernel level -- config (T1 safe-config) + the daemon
+      env-hygiene runtime layer DONE; the kernel netns/iptables layer still host-applied
 - [ ] `doctor.sh` is fully green
 
 ## Phase 9 -- Decentralized cooperative node mesh  [ ] DESIGN (extended)

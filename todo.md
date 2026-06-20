@@ -3,21 +3,20 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 0020 PDT by Claude (PHASE 7 COMPLETE: the Sleep Cycle -- idle-triggered conversation distillation + relationship discovery + insight journaling, all Exit-Gate legs proven LIVE [offline 15/15]. PUSH PENDING Brandon's OK -- Phase 7 is at its end. Phase 6 [9bd3fa3] already pushed.)
+Last updated: 2026-06-20 0050 PDT by Claude (PHASE 8 SCAFFOLDED on WSL: Hermes H2 bridge as a supervised daemon child [live] + daemon env hygiene [secrets stripped for agent children]; offline 16/16. Phase 7 [a72c452] already pushed; this Phase 8 scaffold commit pushed too per Brandon.)
 
 ## Next up
 
-- [PUSH PENDING] Phase 7 commit on D:\ is NOT yet pushed (origin is at 9bd3fa3 / Phase 6).
-  Phase 7 is done -> awaiting the go-ahead to git push.
-- [done] Phase 7 sleep cycle: sleep_cycle.py (consolidate/discover_links/build_insight),
-  conversations.py undistilled queries, API idle loop + activity middleware + insight journal,
-  /health block. Live-proven on Qwen + Qdrant.
-- 0-8 ladder status: Phases 0,0.5,1,2(code-complete),3,6,7 DONE. Remaining: Phase 8 (Hermes) is
-  mostly EVO-X2-gated (H2d Exit Gate needs the 35B + GPU); Phases 4-5 OPTIONAL (Godot/voice);
-  Phases 9-10 PARKED. Phase 2 manual OpenWebUI click-test still owed.
-- So the 0-8 ladder is effectively DONE except hardware-gated Phase 8 + the manual click-test.
-  Next candidates: finish Phase 8 on EVO-X2 (Brandon's hardware call), or the optional phases,
-  or hardening/polish. Open with Brandon.
+- [done] Phase 8 WSL scaffold: daemon.py hermes_present/hermes_bridge_spec + build_specs
+  with_hermes + `--with-hermes`/HERMES_DAEMON_ENABLED (bridge as a supervised child, LIVE on WSL);
+  ChildSpec.hygiene + sanitize_env (runtime egress containment). tests/test_daemon_hermes.py 14.
+- [EVO-X2 / host, Brandon] Phase 8 remainder: H2d (Hermes worker + 35B + GPU claims+executes+writes
+  back), H3-H6 execution, the kernel netns/iptables egress layer (scripts/egress_baseline.* live),
+  doctor.sh fully green. These cannot be done from this CPU-WSL box.
+- 0-8 ladder: Phases 0,0.5,1,2(code-complete),3,6,7 DONE; Phase 8 foundation + WSL scaffold done,
+  rest EVO-X2-gated. Phases 4-5 OPTIONAL; 9-10 PARKED. Phase 2 manual OpenWebUI click-test owed.
+- Candidates next: optional Phase 4/5, hardening/polish, or drive the EVO-X2 Phase 8 legs. Open
+  with Brandon.
 
 ## Phase 2 owed (manual)
 

@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-20 0050 PDT -- Phase 8 scaffolding (WSL): Hermes daemon child + daemon env hygiene (Brandon + Claude)
+
+- "All that can be done on WSL without the 35B/GPU" toward Phase 8. Two Exit-Gate items advanced.
+- daemon.py -- Hermes as a supervised daemon child (the persona-side H2 bridge):
+  * hermes_present(root) + hermes_bridge_spec(root): guarded by env_hermes/; builds a ChildSpec
+    that runs `env_hermes/bin/python tools/hermes_bridge.py --interval N` under the three-strike
+    supervisor with HERMES_CLI / HERMES_KANBAN_HOME / HERMES_HOME / TASKS_DB env, hygiene=True.
+  * build_specs gains with_hermes; `daemon.py --with-hermes` + HERMES_DAEMON_ENABLED (opt-in,
+    default OFF so base daemon behavior is unchanged). Skips with a log if env_hermes/ is absent.
+  * LIVE on WSL: `daemon.py --with-hermes --no-llama --no-api` spawned + supervised the bridge
+    child (pid up under env_hermes python), clean SIGTERM shutdown.
+- daemon.py -- env hygiene (runtime egress containment): ChildSpec.hygiene + sanitize_env() strip
+  cloud/egress secrets (keyed list incl. OPENAI/ANTHROPIC/HF/GitHub/Slack tokens + prefixes
+  AWS_/AZURE_/GOOGLE_/GCP_/OPENAI_/ANTHROPIC_/LANGCHAIN_/LANGSMITH_/OTEL_EXPORTER_, with an
+  AWS_REGION-style KEEP list) from a supervised agent's env at launch; applied to the hermes child.
+- tests/test_daemon_hermes.py: 14 checks -- sanitize_env stripping/keeping, hygiene honoured by a
+  REAL subprocess (hygiene child sees secret=MISSING, plain child still sees it), hermes spec shape,
+  build_specs with_hermes inclusion/exclusion. Offline suite 15 -> 16 suites.
+- Remaining Phase 8 is EVO-X2/host-gated: H2d (Hermes worker + 35B + GPU), H3-H6 execution, and the
+  kernel netns/iptables egress layer. roadmap Phase 8 sub-items marked [~] accordingly.
+
 ## 2026-06-20 0020 PDT -- Phase 7 COMPLETE: the Sleep Cycle (Brandon + Claude)
 
 - Idle-time consolidation: when the persona is quiet, a background pass distills recent

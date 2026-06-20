@@ -41,18 +41,53 @@ def _log(msg: str) -> None:
     print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
 
 
+# Phase 8 daemon env hygiene: env vars stripped from a hygiene=True child's environment so a
+# supervised agent (Hermes) inherits no cloud credential it could egress through. Exact names
+# plus prefixes (any var starting with one of _SECRET_ENV_PREFIXES is dropped).
+_SECRET_ENV_KEYS = {
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+    "GROQ_API_KEY", "MISTRAL_API_KEY", "COHERE_API_KEY", "HF_TOKEN",
+    "HUGGINGFACE_TOKEN", "HUGGING_FACE_HUB_TOKEN", "REPLICATE_API_TOKEN",
+    "OPENROUTER_API_KEY", "TOGETHER_API_KEY", "PERPLEXITY_API_KEY", "DEEPSEEK_API_KEY",
+    "GITHUB_TOKEN", "GH_TOKEN", "SLACK_TOKEN", "SLACK_BOT_TOKEN", "NPM_TOKEN",
+}
+_SECRET_ENV_PREFIXES = (
+    "AWS_", "AZURE_", "GOOGLE_", "GCP_", "GCLOUD_", "OPENAI_", "ANTHROPIC_",
+    "OTEL_EXPORTER_", "LANGCHAIN_", "LANGSMITH_",
+)
+# ...but keep these even though they match a prefix above (they are not secrets).
+_SECRET_ENV_KEEP = {"AWS_DEFAULT_REGION", "AWS_REGION", "GOOGLE_APPLICATION_CREDENTIALS_OK"}
+
+
+def sanitize_env(env: Dict[str, str]) -> Dict[str, str]:
+    """Return a copy of env with cloud/egress secrets removed (Phase 8 hygiene)."""
+    out = {}
+    for k, v in env.items():
+        if k in _SECRET_ENV_KEEP:
+            out[k] = v
+            continue
+        if k in _SECRET_ENV_KEYS or any(k.startswith(p) for p in _SECRET_ENV_PREFIXES):
+            continue
+        out[k] = v
+    return out
+
+
 class ChildSpec:
     """Static description of a supervised child. Pure config; runtime state lives in _Child."""
 
     def __init__(self, name: str, argv: List[str], *, cwd: Optional[str] = None,
                  env: Optional[Dict[str, str]] = None, logfile: Optional[str] = None,
-                 pidfile: Optional[str] = None):
+                 pidfile: Optional[str] = None, hygiene: bool = False):
         self.name = name
         self.argv = list(argv)
         self.cwd = cwd
         self.env = dict(env or {})
         self.logfile = logfile
         self.pidfile = pidfile
+        # hygiene=True -> launch this child with cloud/egress secrets stripped from the env
+        # (Phase 8 runtime-egress-containment: a supervised agent inherits no API keys it could
+        # exfiltrate through). The kernel netns/iptables half is host-applied (egress_baseline.*).
+        self.hygiene = hygiene
 
 
 class _Child:
@@ -109,6 +144,8 @@ class Supervisor:
     async def _launch(self, c: _Child) -> asyncio.subprocess.Process:
         full_env = os.environ.copy()
         full_env.update(c.spec.env)
+        if c.spec.hygiene:  # Phase 8: strip cloud/egress secrets for supervised agents
+            full_env = sanitize_env(full_env)
         logf = open(c.spec.logfile, "ab") if c.spec.logfile else None
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -213,8 +250,42 @@ class Supervisor:
 # ---------------------------------------------------------------------------
 # Real-stack wiring
 # ---------------------------------------------------------------------------
+def hermes_present(root: Path) -> bool:
+    """True if the isolated Hermes venv + CLI are installed (env_hermes/)."""
+    sub = "Scripts" if os.name == "nt" else "bin"
+    exe = ".exe" if os.name == "nt" else ""
+    return (root / "env_hermes" / sub / f"python{exe}").is_file() and \
+           (root / "env_hermes" / sub / f"hermes{exe}").is_file()
+
+
+def hermes_bridge_spec(root: Path) -> Optional[ChildSpec]:
+    """Phase 8: supervise the persona-side H2 bridge (tools/hermes_bridge.py loop) as a daemon
+    child. Stdlib-only, so it runs under the project python; it shells out to the Hermes public
+    CLI (HERMES_CLI). Launched with hygiene=True (no cloud secrets) -- runtime egress containment.
+    Returns None if Hermes is not installed. NOTE: this supervises OUR bridge; the Hermes
+    dispatcher/worker (their process, GPU-bound) is the EVO-X2 H2d leg, wired separately there."""
+    if not hermes_present(root):
+        return None
+    sub = "Scripts" if os.name == "nt" else "bin"
+    exe = ".exe" if os.name == "nt" else ""
+    py = root / "env_hermes" / sub / f"python{exe}"  # stdlib, but keep it in the Hermes venv
+    interval = os.getenv("HERMES_BRIDGE_INTERVAL", "30")
+    env = {
+        "HERMES_CLI": str(root / "env_hermes" / sub / f"hermes{exe}"),
+        "HERMES_KANBAN_HOME": os.getenv("HERMES_KANBAN_HOME", str(root / "run" / "hermes_kanban")),
+        "HERMES_HOME": os.getenv("HERMES_HOME", str(root / "persona" / "profiles" / "default")),
+        "TASKS_DB": os.getenv("TASKS_DB", str(root / "data" / "tasks.db")),
+    }
+    return ChildSpec("hermes-bridge",
+                     [str(py), "tools/hermes_bridge.py", "--interval", interval],
+                     cwd=str(root), env=env,
+                     logfile=str(root / "logs" / "hermes_bridge.log"),
+                     pidfile=str(root / "run" / "hermes_bridge.pid"),
+                     hygiene=True)
+
+
 def build_specs(root: Path, cfg: Dict[str, Any], *, with_llama: bool = True,
-                with_api: bool = True) -> List[ChildSpec]:
+                with_api: bool = True, with_hermes: bool = False) -> List[ChildSpec]:
     """Build the real child map from manage.py's shared argv builders."""
     import manage  # imported here so the Supervisor stays importable without manage's deps
     specs: List[ChildSpec] = []
@@ -230,7 +301,13 @@ def build_specs(root: Path, cfg: Dict[str, Any], *, with_llama: bool = True,
         specs.append(ChildSpec("api", argv, cwd=str(root), env=env,
                                logfile=str(runlog / "api.log"),
                                pidfile=str(runpid / "api.pid")))
-    # nats-server child is added in task 11 (NatsBus); the LoopbackBus needs no child.
+    if with_hermes:
+        hspec = hermes_bridge_spec(root)
+        if hspec is not None:
+            specs.append(hspec)
+        else:
+            _log("[daemon] --with-hermes requested but env_hermes/ not found; skipping")
+    # nats-server child: DEFERRED to Phase 9 (NatsBus). The LoopbackBus needs no child.
     return specs
 
 
@@ -248,7 +325,9 @@ async def _run(args) -> int:
     (root / "logs").mkdir(exist_ok=True)
     (root / "run").mkdir(exist_ok=True)
 
-    specs = build_specs(root, cfg, with_llama=not args.no_llama, with_api=not args.no_api)
+    with_hermes = args.with_hermes or os.getenv("HERMES_DAEMON_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
+    specs = build_specs(root, cfg, with_llama=not args.no_llama, with_api=not args.no_api,
+                        with_hermes=with_hermes)
     bus = make_bus()
 
     async def _on_event(event, payload):
@@ -287,6 +366,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Project_Persona Phase 3 supervised daemon.")
     ap.add_argument("--no-llama", action="store_true", help="Do not supervise llama-server.")
     ap.add_argument("--no-api", action="store_true", help="Do not supervise the API.")
+    ap.add_argument("--with-hermes", action="store_true",
+                    help="Also supervise the Hermes H2 bridge (needs env_hermes/; or set HERMES_DAEMON_ENABLED=1).")
     args = ap.parse_args(argv)
     try:
         return asyncio.run(_run(args))
