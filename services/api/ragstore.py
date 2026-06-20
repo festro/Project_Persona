@@ -134,6 +134,21 @@ class ChromaStore:
                 "meta": metas[i] if i < len(metas) else {},
             }
 
+    def delete(self, collection, ids) -> int:
+        c = self._coll(collection)
+        if c is None or not ids:
+            return 0
+        try:
+            c.delete(ids=list(ids))
+            return len(list(ids))
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def set_alias(self, alias, collection) -> bool:
+        # Chroma has no native collection aliases; the Phase 6 alias chain falls back to
+        # querying the mature collection name directly. Reported as unsupported.
+        return False
+
 
 class QdrantStore:
     """Wraps qdrant-client in EMBEDDED local mode (path=... on disk, or :memory:).
@@ -259,6 +274,30 @@ class QdrantStore:
                 yield {"id": p.id, "document": doc, "vector": p.vector, "meta": payload}
             if offset is None:
                 break
+
+    def delete(self, collection, ids) -> int:
+        if not self._ensure(collection) or not ids:
+            return 0
+        m = self._models
+        try:
+            self._client.delete(collection, points_selector=m.PointIdsList(points=list(ids)))
+            return len(list(ids))
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def set_alias(self, alias, collection) -> bool:
+        """Point a stable alias at `collection` (Phase 6 alias chain). Lets retrieval target
+        the alias while the physical mature collection can be rebuilt underneath."""
+        if not self._ensure(collection):
+            return False
+        m = self._models
+        try:
+            self._client.update_collection_aliases(change_aliases_operations=[
+                m.CreateAliasOperation(create_alias=m.CreateAlias(
+                    collection_name=collection, alias_name=alias))])
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
 
 def make_store(backend: str, *, chroma_path: str, default_collection: str,

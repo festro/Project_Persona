@@ -466,21 +466,36 @@ Exit Gate:
 - [-] spoken input is transcribed, answered, and spoken back end-to-end, fully
       offline
 
-## Phase 6 -- Auto-contextual RAG ("sorting line")  [ ] NOT STARTED
+## Phase 6 -- Auto-contextual RAG ("sorting line")  [x] COMPLETE (2026-06-19)
 
 Goal: dropped files become retrievable, classified memory automatically.
 
-- [ ] `inbox/` file watcher
-- [ ] Multi-format reader
-- [ ] Semantic classifier + multi-bin routing
-- [ ] Provisional/mature collection lifecycle with alias chains
+All in services/api/sorting_line.py (pure pipeline; injected embed + RagStore, like
+eventbus.py/conversations.py). tests/test_sorting_line.py 31 checks; live-proven on Qdrant.
+
+- [x] `inbox/` file watcher -- API-hosted background poll loop (_inbox_watch_loop, server.py;
+      stdlib, no watchdog dep; SORTING_LINE_WATCH/POLL_S/INBOX_DIR config). process_inbox scans
+      inbox/, ingests, moves files to inbox/processed | inbox/failed, re-publishes ingest_complete
+      on the loop. scripts/ingest_inbox.py is the one-shot/manual trigger.
+- [x] Multi-format reader -- read_document: stdlib text family (txt/md/code/json/csv/html via
+      html.parser), utf-8/utf-16/latin-1 fallback, size cap; optional pypdf/python-docx degrade
+      gracefully (never a hard dep on the inference tier); unsupported/oversized/binary -> ok=False.
+- [x] Semantic classifier + multi-bin routing -- classify(): deterministic keyword score per bin
+      PLUS weighted cosine-to-prototype when an embedder is present (build_prototypes); DEFAULT_BINS
+      = code/research/reference/personal/finance + misc fallback. Routes to the bin's collection.
+- [x] Provisional/mature lifecycle with alias chains -- ingest lands in sl_<bin>__provisional;
+      promote() graduates docs passing a trigger (default age_trigger) into sl_<bin> (mature) and
+      deletes them from provisional; RagStore gained delete() + set_alias() (Qdrant alias; Chroma
+      falls back). Alias sl_<bin>_current -> mature, queryable. LIVE: querying the alias hit the
+      promoted doc.
 
 Exit Gate:
 
-- [ ] a file dropped in `inbox/` is read, classified, and routed to the correct
-      collection
-- [ ] it is retrievable via RAG
-- [ ] a provisional entry promotes to mature on the defined trigger
+- [x] a file dropped in `inbox/` is read, classified, and routed to the correct collection --
+      LIVE: snippet.py -> sl_code__provisional, groceries.txt -> sl_personal__provisional
+- [x] it is retrievable via RAG -- LIVE: semantic queries hit both docs
+- [x] a provisional entry promotes to mature on the defined trigger -- LIVE: both promoted to
+      sl_<bin> (mature), provisional emptied, retrievable from mature + via the alias
 
 ## Phase 7 -- Background consolidation ("sleep cycle")  [ ] NOT STARTED
 

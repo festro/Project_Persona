@@ -18,6 +18,7 @@ import taskboard
 import eventbus as eb
 import conversations as convo
 import windowing as win
+import sorting_line as sl
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -145,6 +146,12 @@ TASKS_INCHAT_LIMIT = int(os.getenv("TASKS_INCHAT_LIMIT", "8"))
 # (docs/ipc_decision.md). Same loopback port/token the daemon hosts; a missing daemon is a
 # silent drop -- the API NEVER blocks or raises on a publish.
 EVENTBUS_ENABLED = os.getenv("EVENTBUS_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+# Phase 6 Sorting Line: watch inbox/ for dropped files; read -> classify -> route into the
+# bin's provisional RAG collection; emits ingest_complete per file. Poll-based (stdlib, no
+# watchdog dep). On by default; INBOX_DIR defaults under AI_ROOT.
+INBOX_DIR = os.getenv("INBOX_DIR", os.path.join(AI_ROOT, "inbox"))
+SORTING_LINE_WATCH = os.getenv("SORTING_LINE_WATCH", "1").strip().lower() in ("1", "true", "yes", "on")
+SORTING_LINE_POLL_S = float(os.getenv("SORTING_LINE_POLL_S", "30"))
 # Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
@@ -391,6 +398,14 @@ _store = ragstore.make_store(
 _rag_ok = bool(getattr(_store, "ok", False))
 _rag_error = getattr(_store, "error", None)
 _rag_backend = getattr(_store, "backend", RAG_BACKEND)
+
+# Phase 6: embed the sorting-line bin prototypes once (semantic classification term).
+_sl_prototypes = None
+if _embedder is not None:
+    try:
+        _sl_prototypes = sl.build_prototypes(_embed)
+    except Exception:  # noqa: BLE001
+        _sl_prototypes = None
 
 
 def memory_add(text: str, meta: Dict[str, Any], *, profile: Optional[str] = None) -> None:
@@ -1205,6 +1220,33 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
 # -----------------------
 app = FastAPI()
 
+
+async def _inbox_watch_loop():
+    """Phase 6 watcher: poll INBOX_DIR, ingest dropped files via the sorting line, and
+    re-publish ingest_complete on the loop. Runs inline (no worker thread) so it never races
+    the request-path RAG on the embedded store; the inbox is usually empty so the poll is a
+    cheap iterdir, and ingest only blocks briefly when a file actually lands."""
+    await asyncio.sleep(min(SORTING_LINE_POLL_S, 5.0))  # let startup settle
+    while True:
+        try:
+            if _rag_ok and _embedder is not None:
+                results = sl.process_inbox(INBOX_DIR, store=_store, embed=_embed,
+                                           prototypes=_sl_prototypes)
+                for r in results:
+                    if r.get("ok"):
+                        publish_event("ingest_complete",
+                                      {k: r.get(k) for k in ("doc_id", "bin", "collection", "chars", "source")})
+        except Exception:  # noqa: BLE001 -- the watcher must never crash the API
+            pass
+        await asyncio.sleep(SORTING_LINE_POLL_S)
+
+
+@app.on_event("startup")
+async def _start_inbox_watcher():
+    if SORTING_LINE_WATCH:
+        asyncio.create_task(_inbox_watch_loop())
+
+
 import subprocess
 from pathlib import Path
 
@@ -1374,6 +1416,8 @@ async def health():
         "task_store": {"db": TASKS_DB, "count": taskboard.count(),
                        "inchat_surfacing": TASKS_INCHAT_ENABLED},
         "eventbus": {"enabled": EVENTBUS_ENABLED, "port": eb.default_loopback_port()},
+        "sorting_line": {"watch": SORTING_LINE_WATCH, "inbox": INBOX_DIR,
+                         "poll_s": SORTING_LINE_POLL_S, "prototypes": _sl_prototypes is not None},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
                           "persist_enabled": CONVO_PERSIST_ENABLED,
                           "history_enabled": HISTORY_ENABLED,

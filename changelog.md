@@ -14,6 +14,34 @@ Conventions:
 
 ---
 
+## 2026-06-19 2355 PDT -- Phase 6 COMPLETE: the Sorting Line (Brandon + Claude)
+
+- Auto-contextual RAG: a file dropped in inbox/ is read, classified, routed into a per-bin
+  Qdrant collection, and (on a trigger) promoted provisional -> mature. All Exit-Gate legs
+  proven LIVE; tests/test_sorting_line.py 31 checks; offline suite 13 -> 14 suites.
+- services/api/sorting_line.py (NEW, pure pipeline -- injected embed + RagStore):
+  * read_document: stdlib text family (txt/md/code/json/csv + html via html.parser),
+    utf-8/utf-16/latin-1 decode fallback, 8 MiB cap; optional pypdf/python-docx degrade
+    gracefully; unsupported/oversized/binary -> ok=False (never raises).
+  * classify: deterministic keyword score per bin + weighted cosine-to-prototype when an
+    embedder is present (build_prototypes); DEFAULT_BINS code/research/reference/personal/
+    finance + misc fallback.
+  * ingest_text/ingest_path -> the bin's sl_<bin>__provisional collection with metadata
+    (kind=inbox_doc, bin, status=provisional, origin, fmt); emits ingest_complete.
+  * process_inbox: scan inbox/, ingest, move to inbox/processed | inbox/failed.
+  * promote + age_trigger + mature_alias: graduate provisional -> sl_<bin> (mature), delete
+    from provisional, point alias sl_<bin>_current at mature (the alias chain).
+- services/api/ragstore.py: added delete(collection, ids) + set_alias(alias, collection) to
+  both stores (Qdrant native alias; Chroma set_alias -> False fallback).
+- services/api/server.py: API hosts the watcher (_inbox_watch_loop, startup task; runs inline
+  so it never races request-path RAG on the embedded store), builds bin prototypes once, /health
+  sorting_line block, SORTING_LINE_WATCH/POLL_S + INBOX_DIR config. scripts/ingest_inbox.py =
+  one-shot/manual trigger reusing the live store+embedder.
+- LIVE (real Qwen embedder + Qdrant): dropped snippet.py + groceries.txt in inbox/ -> routed to
+  sl_code__provisional / sl_personal__provisional, both retrievable; promote() moved both to
+  sl_<bin> (mature), emptied provisional, set aliases; querying the alias sl_code_current hit the
+  promoted doc. roadmap Phase 6 -> [x] COMPLETE. Local; push pending Brandon's OK (end of phase).
+
 ## 2026-06-19 2330 PDT -- Phase 3 COMPLETE on LoopbackBus: API event publishing (Brandon + Claude)
 
 - Decision (Brandon): finish Phase 3 on the stdlib LoopbackBus; DEFER NatsBus + the nats-server

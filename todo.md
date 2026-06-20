@@ -3,21 +3,19 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 2330 PDT by Claude (PHASE 3 COMPLETE on LoopbackBus: daemon supervisor + three-strike restart + EventBus + API task_ready publishing, all Exit-Gate legs proven LIVE [offline 13/13]. NatsBus DEFERRED to Phase 9. PUSH PENDING Brandon's OK -- Phase 3 is at its end.)
+Last updated: 2026-06-19 2355 PDT by Claude (PHASE 6 COMPLETE: the Sorting Line -- inbox/ watcher + multi-format reader + semantic classifier + provisional->mature lifecycle w/ alias chains, all Exit-Gate legs proven LIVE on Qdrant [offline 14/14]. PUSH PENDING Brandon's OK -- Phase 6 is at its end. NOTE: Phase 3 [cf9205c] already pushed.)
 
 ## Next up
 
-- [PUSH PENDING] Phase 3 commits on D:\ (359278a foundation + the API-events commit) are NOT yet
-  pushed to origin. Per the rule (push only at end of a phase with Brandon's OK): Phase 3 is done,
-  awaiting the go-ahead to git push.
-- [done] Phase 3 -- daemon.py Supervisor (llama+api), three-strike restart, fresh logs, clean
-  shutdown; EventBus + LoopbackBus; API one-way task_ready publishing. All Exit-Gate legs LIVE.
-  (roadmap Phase 3 [x] COMPLETE on LoopbackBus.)
-- DEFERRED to Phase 9 (mesh unpark): NatsBus (nats-py, Core NATS) + nats-server child behind
-  [ipc] transport=nats|loopback; remaining planned events (profile_switched, ingest_complete,
-  tts_speaking).
-- Candidate next phase: Phase 4 is OPTIONAL (Godot). Phases 9-10 PARKED. Open the next 0-8 item
-  with Brandon, or take the Phase 2 manual browser click-test.
+- [PUSH PENDING] Phase 6 commit(s) on D:\ are NOT yet pushed (origin is at cf9205c / Phase 3).
+  Phase 6 is done -> awaiting the go-ahead to git push.
+- [done] Phase 6 sorting line: sorting_line.py (reader/classify/ingest/process_inbox/promote),
+  ragstore delete+set_alias, API watcher + /health, scripts/ingest_inbox.py. Live-proven.
+- [done] Phase 3 (already PUSHED, cf9205c): daemon supervisor + three-strike restart + EventBus
+  + API task_ready. DEFERRED to Phase 9: NatsBus + nats-server child + the remaining planned
+  events (profile_switched, ingest_complete on a transport, tts_speaking).
+- Remaining 0-8 ladder: Phase 7 (sleep cycle, not started) is the natural next; Phase 8 (Hermes)
+  is mostly EVO-X2-gated; Phases 4-5 optional. Phase 2 manual click-test still owed.
 
 ## Phase 2 owed (manual)
 
