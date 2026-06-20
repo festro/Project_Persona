@@ -402,24 +402,37 @@ Exit Gate:
 - [x] retrieval works against Qdrant with parity to the Chroma path -- live parity proven,
       RAG_BACKEND default flipped to qdrant
 
-## Phase 3 -- Always-on daemon (daemon.py)  [ ] NOT STARTED
+## Phase 3 -- Always-on daemon (daemon.py)  [~] STARTED (2026-06-19)
 
 Goal: one supervised entry point for all services.
 
-- [ ] Single asyncio daemon with a child-process map (llama-server, API,
-      nats-server, others)
-- [ ] Three-strike restart policy
-- [ ] NATS-based IPC (local nats-server child, loopback; stdlib loopback-TCP compat
-      fallback; EventBus interface -- see docs/ipc_decision.md); events beyond `ping`
-      (profile_switched, ingest_complete, tts_speaking, task_ready)
-- [ ] Fresh-logs-on-start contract; absorbs the start/stop scripts
+- [x] Single asyncio daemon with a child-process map -- DONE 2026-06-19: daemon.py
+      (Supervisor + ChildSpec). Children run as REAL children (asyncio.create_subprocess_exec)
+      so a death is seen instantly via proc.wait(). build_specs() wires llama-server + api
+      from manage.py's shared argv builders (manage.llama_argv / api_argv, refactored out of
+      start_llama/start_api so CLI + daemon spawn the byte-identical command). Writes
+      run/<name>.pid so manage.py status/down stay compatible. (nats-server child: with NatsBus.)
+- [x] Three-strike restart policy -- DONE: a dead child is relaunched; a child up longer than
+      stable_reset_s (60s) is healthy and its strike count resets; after max_strikes (3) a
+      further death STAYS DOWN. Live: killed the API child -> "restart 1/3" -> new pid -> /health
+      200. Offline: a crash-looper gives up after exactly 4 starts (tests/test_daemon.py, 14 checks).
+- [~] NATS-based IPC -- EventBus interface + stdlib LoopbackBus DONE 2026-06-19
+      (services/api/eventbus.py: asyncio.start_server, length-prefixed JSON, shared-token gated,
+      one-way fire-and-forget, never-block/never-raise; tests/test_eventbus.py 12 checks). Daemon
+      hosts the bus (live on 127.0.0.1:8791, ping round-trips). NEXT: NatsBus (nats-py, Core NATS)
+      + nats-server child behind [ipc] transport=nats|loopback; events beyond ping
+      (profile_switched, ingest_complete, tts_speaking, task_ready) wired from the API.
+- [x] Fresh-logs-on-start contract -- DONE: each child log truncated once at daemon start,
+      restarts append (history preserved). Absorbs start/stop: SIGINT/SIGTERM -> graceful
+      SIGTERM-then-SIGKILL shutdown of all children + bus (live: "all children stopped", ports freed).
 
 Exit Gate:
 
-- [ ] daemon brings up and supervises all children
-- [ ] killing a child triggers restart within policy; a fourth failure stays down
-- [ ] IPC events deliver one-way (components -> daemon) without the API ever
-      blocking on it
+- [x] daemon brings up and supervises all children -- live (llama + api, both /health 200)
+- [x] killing a child triggers restart within policy; a fourth failure stays down -- live
+      restart (API) + offline crash-loop give-up after 4 starts
+- [~] IPC events deliver one-way (components -> daemon) without the API ever blocking on it --
+      bus contract proven (never-block/never-raise); API-side publish wiring is the next item
 
 ## Phase 4 -- Embodied presence (Godot)  [-] OPTIONAL
 

@@ -3,7 +3,24 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 1645 PDT by Claude (PHASE 2 CODE-COMPLETE: /v1 wiring + OpenWebUI up + task surfacing ALL THREE surfaces [in-chat LIVE] + RAG_BACKEND flipped to qdrant w/ live parity [offline 10/10]. Only owed: manual browser click-test. NEXT: sync WSL -> D:\ + git push)
+Last updated: 2026-06-19 2110 PDT by Claude (PHASE 2 done + pushed [52a14c4]; PHASE 3 STARTED: daemon.py supervisor + EventBus/LoopbackBus, three-strike restart proven LIVE, fresh-logs + clean shutdown [offline 12/12]. NEXT in Phase 3: NatsBus + nats-server child, then API event publishing. NOT pushed -- mid-phase.)
+
+## Next up (Phase 3 -- daemon)
+
+- [done] daemon.py Supervisor: child map (llama+api) + three-strike restart + fresh logs +
+  clean shutdown; manage.py llama_argv/api_argv refactor. EventBus + LoopbackBus done. (roadmap [x]/[~])
+- [next] NatsBus (nats-py, Core NATS pub/sub; JetStream deferred to Phase 9) + nats-server child
+  via nats-server-bin (pip, portable), behind [ipc] transport=nats|loopback (default nats,
+  loopback fallback + loud log). Add nats-server to the supervised child map. (roadmap Phase 3 IPC)
+- [ ] Wire one-way EventBus publishes from the API: task_ready (/agent/delegate + /agent/run),
+  profile_switched, ingest_complete, tts_speaking -- fire-and-forget, never block a request.
+- [ ] Exit Gate: final docs; the live supervise + restart + clean-shutdown legs are already green.
+
+## Phase 2 owed (manual)
+
+- Human browser click-test of OpenWebUI at http://127.0.0.1:3000 (interactive admin signup) ->
+  then Phase 2 [x]. The stack is currently DOWN (daemon smoke stopped it); bring it up with
+  `manage.py up` or `python daemon.py`.
 
 ## Rules of the road
 

@@ -447,26 +447,19 @@ def _mmproj_args(root, cfg):
     return ["--mmproj", str(p)]
 
 
-def start_llama(root, cfg, wait):
-    pidfile = root / "run" / "persona.pid"
-    existing = read_pid(pidfile)
-    if pid_alive(existing):
-        ok(f"llama-server already running (pid {existing})")
-        return True
-
+def llama_argv(root, cfg):
+    """Build (argv, extra_env) for llama-server. Raises RuntimeError if the binary or
+    model is missing. Shared by start_llama (detached spawn) and daemon.py (asyncio
+    supervised child) so both launch the byte-identical command."""
     binpath = llama_binary(root)
     if not binpath.is_file():
-        err(f"llama-server binary not found: {binpath}")
-        if IS_WINDOWS:
-            warn("Extract the Vulkan prebuilt into llama_cpp/windows/")
-        else:
-            warn("Build llama.cpp into llama_cpp/build/")
-        return False
+        hint = ("Extract the Vulkan prebuilt into llama_cpp/windows/" if IS_WINDOWS
+                else "Build llama.cpp into llama_cpp/build/")
+        raise RuntimeError(f"llama-server binary not found: {binpath} ({hint})")
 
     model_path = resolve_model(root, cfg)
     if model_path is None:
-        return False
-    model = model_path.name
+        raise RuntimeError("llama model not found (resolve_model returned None)")
 
     host = cfg.get("HOST", "127.0.0.1")
     port = cfg.get("PERSONA_PORT", "8090")
@@ -510,6 +503,25 @@ def start_llama(root, cfg, wait):
         extra_env["LD_LIBRARY_PATH"] = (
             lib + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
         )
+    return argv, extra_env
+
+
+def start_llama(root, cfg, wait):
+    pidfile = root / "run" / "persona.pid"
+    existing = read_pid(pidfile)
+    if pid_alive(existing):
+        ok(f"llama-server already running (pid {existing})")
+        return True
+
+    try:
+        argv, extra_env = llama_argv(root, cfg)
+    except RuntimeError as e:
+        err(str(e))
+        return False
+
+    host = cfg.get("HOST", "127.0.0.1")
+    port = cfg.get("PERSONA_PORT", "8090")
+    model = Path(argv[argv.index("--model") + 1]).name
 
     logfile = root / "logs" / "persona.log"
     info(f"Starting llama-server on http://{host}:{port}  (model={model})")
@@ -529,19 +541,12 @@ def start_llama(root, cfg, wait):
     return True
 
 
-def start_api(root, cfg):
-    pidfile = root / "run" / "api.pid"
-    existing = read_pid(pidfile)
-    if pid_alive(existing):
-        ok(f"API already running (pid {existing})")
-        return True
-
+def api_argv(root, cfg):
+    """Build (argv, extra_env) for the FastAPI/uvicorn server. Raises RuntimeError if the
+    interpreter is missing. Shared by start_api and daemon.py."""
     pybin = find_api_python(root)
     if not pybin.is_file():
-        err(f"API python interpreter not found: {pybin}")
-        warn("Run scripts/bootstrap_portable_python.ps1 (Windows) or setup_native_stack.sh (Linux)")
-        return False
-
+        raise RuntimeError(f"API python interpreter not found: {pybin}")
     argv = [
         str(pybin),
         "-m", "uvicorn",
@@ -550,10 +555,27 @@ def start_api(root, cfg):
         "--host", "127.0.0.1",
         "--port", "8000",
     ]
+    return argv, api_env(root, cfg)
+
+
+def start_api(root, cfg):
+    pidfile = root / "run" / "api.pid"
+    existing = read_pid(pidfile)
+    if pid_alive(existing):
+        ok(f"API already running (pid {existing})")
+        return True
+
+    try:
+        argv, extra_env = api_argv(root, cfg)
+    except RuntimeError as e:
+        err(str(e))
+        warn("Run scripts/bootstrap_portable_python.ps1 (Windows) or setup_native_stack.sh (Linux)")
+        return False
+
     logfile = root / "logs" / "api.log"
     info("Starting FastAPI on http://127.0.0.1:8000")
     pid = spawn_detached(
-        argv, str(logfile), cwd=str(root), extra_env=api_env(root, cfg)
+        argv, str(logfile), cwd=str(root), extra_env=extra_env
     )
     write_pid(pidfile, pid)
     time.sleep(1.5)

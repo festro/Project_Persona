@@ -14,6 +14,31 @@ Conventions:
 
 ---
 
+## 2026-06-19 2110 PDT -- Phase 3 foundation: daemon supervisor + EventBus/LoopbackBus (Brandon + Claude)
+
+- Phase 3 STARTED. Two foundational pieces, both fully tested + the Exit Gate proven live.
+- services/api/eventbus.py (NEW): EventBus interface + stdlib LoopbackBus per
+  docs/ipc_decision.md section 7. asyncio.start_server on 127.0.0.1, 4-byte length-prefixed
+  JSON frames (1 MiB cap), shared-token gated, "*" wildcard subscribe. Hard guarantees:
+  ONE-WAY fire-and-forget and never-block/never-raise (publish to a dead/closed endpoint
+  returns False, never throws). tests/test_eventbus.py 12 checks (round-trip, wildcard,
+  token rejection, dead-endpoint, oversized-frame, post-stop).
+- daemon.py (NEW): single asyncio entry point. Supervisor + ChildSpec supervise a child map
+  as REAL children (asyncio.create_subprocess_exec -> death seen instantly via proc.wait()).
+  THREE-STRIKE restart: relaunch on death; a child up > stable_reset_s (60s) resets its strike
+  count; after max_strikes (3) a further death STAYS DOWN. Fresh-logs-on-start (truncate once,
+  restarts append). Hosts the EventBus. SIGINT/SIGTERM -> graceful SIGTERM-then-SIGKILL of all
+  children + bus, writes run/<name>.pid for manage.py compat. tests/test_daemon.py 14 checks
+  (stable stays up, crash-loop gives up after 4 starts, kill->restart, hosted bus).
+- manage.py: refactored start_llama/start_api -> extracted llama_argv(root,cfg) and
+  api_argv(root,cfg) returning (argv, extra_env). The daemon and the CLI now build the
+  byte-identical child command from one source. Behavior unchanged; offline suite 12/12.
+- LIVE Exit-Gate smoke (Qwen2.5-7B, CPU): daemon brought up llama-server + api (both /health
+  200) + bus on 127.0.0.1:8791; SIGKILL'd the API child -> daemon logged "restart 1/3" ->
+  relaunched (new pid) -> /health 200; SIGTERM -> "all children stopped", ports freed.
+- roadmap.md Phase 3 -> [~] (daemon/restart/fresh-logs [x]; IPC [~] LoopbackBus done, NatsBus +
+  API event wiring next). Offline suite 10 -> 12 suites. Local (mid-phase; not pushed).
+
 ## 2026-06-19 1645 PDT -- Phase 2: task surfacing (all three surfaces) + RAG_BACKEND flip (Brandon + Claude)
 
 - Task surfacing -- ALL THREE surfaces (Brandon's spec). Shared data + helpers in
