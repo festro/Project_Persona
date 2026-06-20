@@ -1302,7 +1302,7 @@ async def _sleep_cycle_loop():
                     and _convo_ok and idle >= SLEEP_CYCLE_IDLE_S):
                 stats = await sc.consolidate(
                     convo=convo, embed=_embed, store=_store, distill=_sleep_distill,
-                    fact_collection=_collection_name(None), insight_collection=INSIGHT_COLLECTION,
+                    collection_for=_collection_name, insight_collection=INSIGHT_COLLECTION,
                     journal_write=_write_insight_journal,
                     max_convos=SLEEP_CYCLE_MAX_CONVOS, min_turns=SLEEP_CYCLE_MIN_TURNS,
                     should_continue=lambda: (time.monotonic() - _last_activity) >= SLEEP_CYCLE_IDLE_S,
@@ -1731,15 +1731,19 @@ def _v1_prior_turns(messages: List[OA_Message]) -> List[Tuple[str, str]]:
 
 
 def _v1_conversation_id(req: OA_ChatCompletionsReq) -> str:
-    """Hybrid keying: explicit conversation_id wins, else the OpenAI `user` field, else a
-    stable `owui-<sha256[:16]>` hash of the system+first-user prefix (deterministic per
-    stock-OpenWebUI thread, no plugin required)."""
-    explicit = (req.conversation_id or req.user or "").strip()
+    """Hybrid keying: an explicit conversation_id wins outright (e.g. from an OpenWebUI plugin).
+    Otherwise a stable `owui-<sha256[:16]>` hash of the system+first-user prefix keys the thread.
+    The OpenAI `user` field is an END-USER id (stable per user, NOT per conversation), so it must
+    NOT key the thread directly -- doing so collapses all of a user's chats into one. It is folded
+    into the hash instead, namespacing the per-thread key so different users stay isolated while a
+    user's distinct threads stay distinct."""
+    explicit = (req.conversation_id or "").strip()
     if explicit:
         return explicit
+    user = (req.user or "").strip()
     sys_txt = next((m.content for m in req.messages if m.role == "system"), "")
     first_user = next((m.content for m in req.messages if m.role == "user"), "")
-    seed = (sys_txt + "\x00" + first_user).encode("utf-8", "replace")
+    seed = (user + "\x00" + sys_txt + "\x00" + first_user).encode("utf-8", "replace")
     return "owui-" + hashlib.sha256(seed).hexdigest()[:16]
 
 

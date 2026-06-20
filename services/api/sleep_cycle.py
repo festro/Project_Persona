@@ -58,7 +58,8 @@ def build_insight(conversation_id: str, profile: str, summary: str, facts: List[
 
 
 async def consolidate(*, convo, embed: Callable[[str], List[float]], store, distill: DistillFn,
-                      fact_collection: str, insight_collection: Optional[str] = None,
+                      collection_for: Callable[[Optional[str]], str],
+                      insight_collection: Optional[str] = None,
                       journal_write: Optional[Callable[[str], None]] = None,
                       max_convos: int = 5, min_turns: int = 2, link_k: int = 3,
                       should_continue: Optional[Callable[[], bool]] = None,
@@ -84,6 +85,7 @@ async def consolidate(*, convo, embed: Callable[[str], List[float]], store, dist
             facts, summary = await distill(render_turns(turns))
         except Exception:  # noqa: BLE001 -- a distill failure must not wedge the cycle
             continue
+        coll = collection_for(profile)  # route facts to the conversation's own profile collection
         stored: List[str] = []
         links_found = 0
         for f in facts:
@@ -91,10 +93,10 @@ async def consolidate(*, convo, embed: Callable[[str], List[float]], store, dist
             if not f:
                 continue
             vec = embed(f)
-            store.add(fact_collection, uuid.uuid4().hex, f, vec,
+            store.add(coll, uuid.uuid4().hex, f, vec,
                       {"kind": "fact", "source": "sleep_cycle", "profile": profile,
                        "conversation_id": cid, "ts": int(now)})
-            links_found += len(discover_links(vec, store=store, collection=fact_collection,
+            links_found += len(discover_links(vec, store=store, collection=coll,
                                               k=link_k, exclude=f))
             stored.append(f)
         # only mark distilled once the facts are safely stored

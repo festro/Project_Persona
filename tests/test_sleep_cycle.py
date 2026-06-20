@@ -74,7 +74,7 @@ def main():
     journal = []
     res = asyncio.run(sc.consolidate(
         convo=cv, embed=fake_embed, store=store, distill=fake_distill,
-        fact_collection="facts", insight_collection="insights",
+        collection_for=lambda p: "facts", insight_collection="insights",
         journal_write=journal.append, min_turns=2, link_k=3))
 
     check("one conversation consolidated", res["conversations"] == 1)
@@ -88,15 +88,25 @@ def main():
 
     # second pass finds nothing left to do
     res2 = asyncio.run(sc.consolidate(convo=cv, embed=fake_embed, store=store, distill=fake_distill,
-                                      fact_collection="facts", min_turns=2))
+                                      collection_for=lambda p: "facts", min_turns=2))
     check("nothing left to consolidate", res2["conversations"] == 0)
+
+    # facts route to the CONVERSATION'S profile collection (collection_for(profile))
+    pstore = FakeStore()
+    cida = cv.new_conversation(profile="alice")
+    cv.add_turn(cida, "user", "alice likes hiking and lives in denver", profile="alice")
+    cv.add_turn(cida, "assistant", "noted: hiking, denver", profile="alice")
+    asyncio.run(sc.consolidate(convo=cv, embed=fake_embed, store=pstore, distill=fake_distill,
+                               collection_for=lambda p: f"mem_{p}", min_turns=2))
+    check("facts routed to the profile collection (mem_alice)", "mem_alice" in pstore.cols
+          and "facts" not in pstore.cols)
 
     # --- should_continue=False yields immediately (foreground safety) -------
     cid2 = cv.new_conversation(profile="default")
     cv.add_turn(cid2, "user", "another thing to remember for later", profile="default")
     cv.add_turn(cid2, "assistant", "ok noted", profile="default")
     res3 = asyncio.run(sc.consolidate(convo=cv, embed=fake_embed, store=store, distill=fake_distill,
-                                      fact_collection="facts", min_turns=2,
+                                      collection_for=lambda p: "facts", min_turns=2,
                                       should_continue=lambda: False))
     check("should_continue=False does no work", res3["conversations"] == 0)
     check("its turns stay undistilled (not consumed)", len(cv.undistilled_turns(cid2)) == 2)

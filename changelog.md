@@ -14,6 +14,30 @@ Conventions:
 
 ---
 
+## 2026-06-20 0140 PDT -- Audit fixes: /v1 thread-merge bug + gitignore + sleep-cycle profile (Brandon + Claude)
+
+Found in a Phase 1-8 reevaluation; three issues fixed (offline suite 17/17).
+
+- BUG (Phase 2 /v1): _v1_conversation_id keyed on the OpenAI `user` field BEFORE the per-thread
+  hash. `user` is a per-END-USER id (not per-conversation), so two unrelated threads from the same
+  user collapsed into one conversation_id -- confirmed live (cats + france, user="brandon", both
+  got id "brandon"). FIX: an explicit conversation_id still wins; otherwise `user` is folded INTO
+  the hash (user + system + first_user), namespacing the per-thread key -- distinct threads stay
+  distinct, distinct users stay isolated. tests/test_v1_history.py +regression (29 checks).
+- .gitignore: only persona/global_memory/chroma/ was ignored -- persona/global_memory/qdrant/ and
+  insight_journal.md were NOT, so a full WSL->D:\ pullback could land the vector DB + journal
+  untracked (a stray `git add -A` could commit them). FIX: ignore persona/global_memory/ wholesale
+  (covers chroma + qdrant + journal). (Inline `#` comments are not valid in .gitignore -- fixed.)
+- sleep_cycle.consolidate took a fixed fact_collection and server.py passed _collection_name(None)
+  (always global_memory), diverging from the per-turn distiller's _collection_name(profile) if
+  RAG_PER_PROFILE is ever enabled. FIX: consolidate now takes collection_for(profile) and routes
+  each conversation's facts to its own profile collection; server passes _collection_name.
+  tests/test_sleep_cycle.py +per-profile routing check (15 checks).
+- Not fixed (reported, lower priority): embedded-Qdrant single-writer lock (ingest_inbox.py can't
+  run while the API holds the store; no live-inspection endpoint); FastAPI on_event deprecation;
+  sorting-line `personal` bin over-matching common pronouns; sleep cycle marking turns distilled on
+  an empty distill; daemon stable-reset vs slow crash-loops; sanitize_env dead KEEP entry.
+
 ## 2026-06-20 0100 PDT -- Phase 4 + 5 scaffolding (optional phases) (Brandon + Claude)
 
 - Phase 4 (embodiment) persona side -- the two-channel RESPONSE + STATE protocol:

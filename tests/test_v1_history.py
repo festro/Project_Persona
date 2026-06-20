@@ -65,8 +65,26 @@ def main():
     r_explicit = req([msg("user", "hi")], conversation_id="cid-explicit")
     check("explicit conversation_id wins", server._v1_conversation_id(r_explicit) == "cid-explicit")
 
+    # the `user` field must NOT be used as the thread id directly (it is per-USER, not
+    # per-conversation) -- it namespaces the hash, so it never collapses distinct threads.
     r_user = req([msg("user", "hi")], user="user-abc")
-    check("user field used when no conversation_id", server._v1_conversation_id(r_user) == "user-abc")
+    check("user field is NOT the raw conversation id", server._v1_conversation_id(r_user) != "user-abc")
+    check("user-namespaced id still has owui- prefix", server._v1_conversation_id(r_user).startswith("owui-"))
+
+    # REGRESSION: same user, two different threads -> DIFFERENT ids (the merge bug)
+    u_cats = req([msg("system", "S"), msg("user", "tell me about cats")], user="brandon")
+    u_paris = req([msg("system", "S"), msg("user", "capital of france?")], user="brandon")
+    check("same user, different threads -> different ids",
+          server._v1_conversation_id(u_cats) != server._v1_conversation_id(u_paris))
+    # same user, same thread -> stable
+    check("same user, same thread -> stable id",
+          server._v1_conversation_id(u_cats) == server._v1_conversation_id(
+              req([msg("system", "S"), msg("user", "tell me about cats"),
+                   msg("assistant", "meow"), msg("user", "more?")], user="brandon")))
+    # different users, identical message -> different ids (user namespacing)
+    check("different users, same first message -> different ids",
+          server._v1_conversation_id(req([msg("user", "hello")], user="alice"))
+          != server._v1_conversation_id(req([msg("user", "hello")], user="bob")))
 
     r_a1 = req([msg("system", "you are P"), msg("user", "first message")])
     r_a2 = req([msg("system", "you are P"), msg("user", "first message"),

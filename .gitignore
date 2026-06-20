@@ -43,7 +43,8 @@ inbox/
 persona/**/chroma/
 persona/**/chroma.sqlite3
 persona/**/memory/chroma/
-persona/global_memory/chroma/
+# all runtime memory under global_memory: chroma/ + qdrant/ + insight_journal.md (Phase 6/7)
+persona/global_memory/
 persona/**/memory/exports/
 persona/**/exports/
 services/chromadb/
