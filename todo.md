@@ -63,11 +63,13 @@ Last updated: 2026-06-19 1645 PDT by Claude (PHASE 2 CODE-COMPLETE: /v1 wiring +
 - [OWED, manual] Human browser click-test of OpenWebUI at http://127.0.0.1:3000 (interactive
   admin signup -- the one Phase 2 step Claude cannot do headless). Then Phase 2 -> [x].
 
-## SYNC PENDING (Brandon asked: do AFTER Phase 2)
+## SYNC DONE (2026-06-19)
 
-- All Phase 2 work below is LOCAL on the WSL primary clone, NOT yet pulled back to
-  D:\Projects\Git\Project_Persona or pushed to origin. Next action: pullback WSL -> D:\,
-  per-item commits on the D:\ gateway, then git push to origin (milestone).
+- Phase 2 finish synced WSL -> D:\ (surgical copy of the 9 authored files, not a full
+  pullback -- runtime/data left local) and committed on the D:\ gateway as 52a14c4, then
+  PUSHED to origin (558056c..52a14c4, main -> main; origin in sync 0/0). NOTE: the broad
+  folder pullback (full WSL <-> D:\ redundancy incl. runtime) was NOT run this session;
+  run scripts/wsl_h2_sim.ps1 -Stage pullback if you want the runtime tree mirrored too.
 
 ## Just finished (2026-06-19, Claude)
 
