@@ -133,7 +133,7 @@ MEMORY_WRITEBACK_FILTER_ENABLED = os.getenv("MEMORY_WRITEBACK_FILTER_ENABLED", "
 # Memory distillation
 MEMORY_DISTILL_ENABLED = os.getenv("MEMORY_DISTILL_ENABLED", "1") == "1"
 MEMORY_DISTILL_MAX_FACTS = int(os.getenv("MEMORY_DISTILL_MAX_FACTS", "3"))
-MEMORY_DISTILL_MAX_TOKENS = int(os.getenv("MEMORY_DISTILL_MAX_TOKENS", "96"))
+MEMORY_DISTILL_MAX_TOKENS = int(os.getenv("MEMORY_DISTILL_MAX_TOKENS", "256"))
 MEMORY_DISTILL_TIMEOUT_S = float(os.getenv("MEMORY_DISTILL_TIMEOUT_S", "30"))
 
 # Keep chat logs for audit/history (not retrieved by default)
@@ -734,8 +734,6 @@ def sanitize_persona_reply(text: str) -> str:
 
     head_raw = re.sub(r"(?i)\bnext actions\s*:\b.*$", "", head_raw).strip()
     head = re.split(r"\n\s*\n", head_raw, maxsplit=1)[0].strip()
-    if not head:
-        head = "I can help with local, offline assistance across research, coding, and planning."
 
     bullets_raw = _split_bullets_anywhere(tail_raw)
 
@@ -749,6 +747,19 @@ def sanitize_persona_reply(text: str) -> str:
             continue
         seen.add(key)
         bullets.append(b)
+
+    if not head:
+        # The model produced no leading head paragraph -- e.g. it emitted only a
+        # "Next actions:" section, common on the thinking 35B. Promote whatever real
+        # content it DID produce rather than the generic canned head, which silently
+        # discarded real answers ~1/3 of the time. Canned text is the last resort,
+        # used only when there is genuinely nothing to surface.
+        if head_raw:
+            head = head_raw
+        elif bullets:
+            head = bullets.pop(0)
+        else:
+            head = "I can help with local, offline assistance across research, coding, and planning."
 
     bullets = bullets[:4]
     while len(bullets) < 2:

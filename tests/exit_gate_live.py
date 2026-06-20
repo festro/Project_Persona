@@ -9,7 +9,7 @@ companion API and the live llama-server, so it must be run with the stack UP:
 Stdlib only (urllib) -- no extra deps. Exit code 0 = all required checks pass.
 
 Checks (roadmap Phase 1 Exit Gate):
-  - /health green: status ok, embedder_ok, chroma_ok
+  - /health green: status ok, embedder_ok, rag_ok (backend-agnostic)
   - thinking resolution: chat -> no_think; science/coding/math/research -> think
   - T2.3 preserve_thinking: reasoning surfaced under preserve, stripped by default
   - /v1: stream=true yields SSE chunks + [DONE]; non-stream reports prompt_tokens>0
@@ -75,7 +75,9 @@ status, health = _req("GET", "/health")
 check("/health -> 200", status == 200)
 check("/health status ok", health.get("status") == "ok")
 check("/health embedder_ok", health.get("embedder_ok") is True)
-check("/health chroma_ok", health.get("chroma_ok") is True)
+# backend-agnostic since Phase 2a flipped the default RAG backend to qdrant;
+# rag_ok reflects whichever backend (chroma|qdrant) is configured.
+check("/health rag_ok", health.get("rag_ok") is True)
 print("  thinking_auto_gate:", health.get("thinking_auto_gate"),
       "| preserve_thinking_default:", health.get("preserve_thinking_default"))
 

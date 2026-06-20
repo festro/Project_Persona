@@ -35,7 +35,11 @@ Assistant reply:
 def build_distill_prompt(user_text: str, assistant_text: str) -> str:
     u = (user_text or "").strip()
     a = (assistant_text or "").strip()
-    return DISTILL_PROMPT.format(user=u, assistant=a)
+    # /no_think: distillation is structured JSON extraction, not reasoning. On a thinking
+    # model (Qwen3.6-35B) the <think> block otherwise consumes the token budget before the
+    # required JSON is emitted, so parse_facts gets nothing. This shortens it; parse_facts
+    # also strips any residual <think> defensively.
+    return DISTILL_PROMPT.format(user=u, assistant=a) + "\n/no_think"
 
 def _cleanup_fact(s: str) -> str:
     s = (s or "").strip()
@@ -61,6 +65,11 @@ def parse_facts(text: str) -> Tuple[List[str], str]:
       - weird keys like '\"facts\"'
     """
     raw = (text or "").strip()
+    # Drop a thinking model's reasoning block before locating the JSON: a <think> body can
+    # contain braces that corrupt the greedy {...} match below. Handle both a closed block
+    # and a truncated/unclosed one (which means no JSON followed -> empty).
+    raw = re.sub(r"(?is)<think>.*?</think>", "", raw).strip()
+    raw = re.sub(r"(?is)<think>.*$", "", raw).strip()
     if not raw:
         return [], "empty"
 

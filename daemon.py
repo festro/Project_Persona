@@ -32,7 +32,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 REPO = Path(__file__).resolve().parent
+# Repo root first so `import manage` resolves under the Windows portable (embeddable)
+# Python, which -- unlike a normal interpreter -- does NOT auto-add the script's
+# directory to sys.path. services/api for the API-side modules (eventbus, etc.).
 sys.path.insert(0, str(REPO / "services" / "api"))
+sys.path.insert(0, str(REPO))
 
 import eventbus as eb  # noqa: E402
 
