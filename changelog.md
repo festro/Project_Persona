@@ -14,6 +14,26 @@ Conventions:
 
 ---
 
+## 2026-06-19 2330 PDT -- Phase 3 COMPLETE on LoopbackBus: API event publishing (Brandon + Claude)
+
+- Decision (Brandon): finish Phase 3 on the stdlib LoopbackBus; DEFER NatsBus + the nats-server
+  child to ride with the Phase 9 mesh unpark (the EventBus abstraction makes it a config swap).
+  No nats-py / nats-server-bin installed.
+- services/api/server.py: one-way control-plane publishing. publish_event(event, payload) schedules
+  the publish on the running loop via a module LoopbackBus client (token from DAEMON_TOKEN, port
+  from IPC_LOOPBACK_PORT) and returns immediately -- it NEVER awaits, blocks, or raises into a
+  request; no daemon listening => silent drop. Wired task_ready on /agent/delegate (job_id/title/
+  status) and /agent/run (job_id/kind/status). EVENTBUS_ENABLED flag + /health eventbus block.
+- tests/test_api_events.py (NEW): 6 checks -- publish off-loop and on-loop-with-no-daemon both
+  never raise, /agent/delegate emits task_ready (job_id+status), /health advertises the bus.
+- LIVE end-to-end (daemon --no-llama hosting the bus + supervising the API): POST /agent/delegate
+  returned "delegated" immediately AND the daemon logged
+  "event task_ready: {'job_id': 'delegate-...', 'title': 'Phase 3 IPC smoke task', 'status':
+  'delegated'}" -- proving one-way delivery without the API blocking. SIGTERM -> clean shutdown.
+- Phase 3 Exit Gate fully green (bring-up + supervise, kill->restart, 4th-stays-down, one-way IPC).
+  roadmap.md Phase 3 -> [x] COMPLETE on LoopbackBus (NatsBus deferred to Phase 9). Offline 13/13.
+  Local; mid-/end-of-phase -- push pending Brandon's OK.
+
 ## 2026-06-19 2110 PDT -- Phase 3 foundation: daemon supervisor + EventBus/LoopbackBus (Brandon + Claude)
 
 - Phase 3 STARTED. Two foundational pieces, both fully tested + the Exit Gate proven live.

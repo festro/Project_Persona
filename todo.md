@@ -3,18 +3,21 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-19 2110 PDT by Claude (PHASE 2 done + pushed [52a14c4]; PHASE 3 STARTED: daemon.py supervisor + EventBus/LoopbackBus, three-strike restart proven LIVE, fresh-logs + clean shutdown [offline 12/12]. NEXT in Phase 3: NatsBus + nats-server child, then API event publishing. NOT pushed -- mid-phase.)
+Last updated: 2026-06-19 2330 PDT by Claude (PHASE 3 COMPLETE on LoopbackBus: daemon supervisor + three-strike restart + EventBus + API task_ready publishing, all Exit-Gate legs proven LIVE [offline 13/13]. NatsBus DEFERRED to Phase 9. PUSH PENDING Brandon's OK -- Phase 3 is at its end.)
 
-## Next up (Phase 3 -- daemon)
+## Next up
 
-- [done] daemon.py Supervisor: child map (llama+api) + three-strike restart + fresh logs +
-  clean shutdown; manage.py llama_argv/api_argv refactor. EventBus + LoopbackBus done. (roadmap [x]/[~])
-- [next] NatsBus (nats-py, Core NATS pub/sub; JetStream deferred to Phase 9) + nats-server child
-  via nats-server-bin (pip, portable), behind [ipc] transport=nats|loopback (default nats,
-  loopback fallback + loud log). Add nats-server to the supervised child map. (roadmap Phase 3 IPC)
-- [ ] Wire one-way EventBus publishes from the API: task_ready (/agent/delegate + /agent/run),
-  profile_switched, ingest_complete, tts_speaking -- fire-and-forget, never block a request.
-- [ ] Exit Gate: final docs; the live supervise + restart + clean-shutdown legs are already green.
+- [PUSH PENDING] Phase 3 commits on D:\ (359278a foundation + the API-events commit) are NOT yet
+  pushed to origin. Per the rule (push only at end of a phase with Brandon's OK): Phase 3 is done,
+  awaiting the go-ahead to git push.
+- [done] Phase 3 -- daemon.py Supervisor (llama+api), three-strike restart, fresh logs, clean
+  shutdown; EventBus + LoopbackBus; API one-way task_ready publishing. All Exit-Gate legs LIVE.
+  (roadmap Phase 3 [x] COMPLETE on LoopbackBus.)
+- DEFERRED to Phase 9 (mesh unpark): NatsBus (nats-py, Core NATS) + nats-server child behind
+  [ipc] transport=nats|loopback; remaining planned events (profile_switched, ingest_complete,
+  tts_speaking).
+- Candidate next phase: Phase 4 is OPTIONAL (Godot). Phases 9-10 PARKED. Open the next 0-8 item
+  with Brandon, or take the Phase 2 manual browser click-test.
 
 ## Phase 2 owed (manual)
 

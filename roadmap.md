@@ -402,9 +402,14 @@ Exit Gate:
 - [x] retrieval works against Qdrant with parity to the Chroma path -- live parity proven,
       RAG_BACKEND default flipped to qdrant
 
-## Phase 3 -- Always-on daemon (daemon.py)  [~] STARTED (2026-06-19)
+## Phase 3 -- Always-on daemon (daemon.py)  [x] COMPLETE on LoopbackBus (2026-06-19; NatsBus deferred to Phase 9)
 
 Goal: one supervised entry point for all services.
+
+Transport note (Brandon 2026-06-19): all Exit-Gate items are met on the stdlib LoopbackBus.
+NatsBus + the nats-server child are DEFERRED to ride with the Phase 9 mesh unpark -- the
+EventBus abstraction makes that a config swap, not a rewrite (docs/ipc_decision.md unchanged:
+NATS stays the eventual default; LoopbackBus is the working single-host transport for now).
 
 - [x] Single asyncio daemon with a child-process map -- DONE 2026-06-19: daemon.py
       (Supervisor + ChildSpec). Children run as REAL children (asyncio.create_subprocess_exec)
@@ -416,12 +421,15 @@ Goal: one supervised entry point for all services.
       stable_reset_s (60s) is healthy and its strike count resets; after max_strikes (3) a
       further death STAYS DOWN. Live: killed the API child -> "restart 1/3" -> new pid -> /health
       200. Offline: a crash-looper gives up after exactly 4 starts (tests/test_daemon.py, 14 checks).
-- [~] NATS-based IPC -- EventBus interface + stdlib LoopbackBus DONE 2026-06-19
-      (services/api/eventbus.py: asyncio.start_server, length-prefixed JSON, shared-token gated,
-      one-way fire-and-forget, never-block/never-raise; tests/test_eventbus.py 12 checks). Daemon
-      hosts the bus (live on 127.0.0.1:8791, ping round-trips). NEXT: NatsBus (nats-py, Core NATS)
-      + nats-server child behind [ipc] transport=nats|loopback; events beyond ping
-      (profile_switched, ingest_complete, tts_speaking, task_ready) wired from the API.
+- [x] IPC bus (LoopbackBus) + API publishing -- DONE 2026-06-19. EventBus interface + stdlib
+      LoopbackBus (services/api/eventbus.py: asyncio.start_server, length-prefixed JSON,
+      shared-token gated, one-way fire-and-forget, never-block/never-raise; tests/test_eventbus.py
+      12 checks). API publishes fire-and-forget via publish_event (server.py): task_ready on
+      /agent/delegate + /agent/run, scheduled on the loop so it NEVER blocks/raises a request;
+      /health eventbus block; tests/test_api_events.py 6 checks. LIVE E2E: /agent/delegate
+      returned immediately AND the daemon logged "event task_ready: {...}". DEFERRED to Phase 9:
+      NatsBus (nats-py, Core NATS) + nats-server child behind [ipc] transport=nats|loopback, and
+      the remaining planned events (profile_switched, ingest_complete, tts_speaking).
 - [x] Fresh-logs-on-start contract -- DONE: each child log truncated once at daemon start,
       restarts append (history preserved). Absorbs start/stop: SIGINT/SIGTERM -> graceful
       SIGTERM-then-SIGKILL shutdown of all children + bus (live: "all children stopped", ports freed).
@@ -431,8 +439,8 @@ Exit Gate:
 - [x] daemon brings up and supervises all children -- live (llama + api, both /health 200)
 - [x] killing a child triggers restart within policy; a fourth failure stays down -- live
       restart (API) + offline crash-loop give-up after 4 starts
-- [~] IPC events deliver one-way (components -> daemon) without the API ever blocking on it --
-      bus contract proven (never-block/never-raise); API-side publish wiring is the next item
+- [x] IPC events deliver one-way (components -> daemon) without the API ever blocking on it --
+      LIVE: /agent/delegate returned immediately while the daemon logged the task_ready event
 
 ## Phase 4 -- Embodied presence (Godot)  [-] OPTIONAL
 

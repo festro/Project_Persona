@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
 
 import taskboard
+import eventbus as eb
 import conversations as convo
 import windowing as win
 from memory_distiller import build_distill_prompt, parse_facts
@@ -140,6 +141,10 @@ TASKS_DB = os.getenv("TASKS_DB", os.path.join(AI_ROOT, "data", "tasks.db"))
 # injecting a live task-board block into the prompt when the user's message is task-related.
 TASKS_INCHAT_ENABLED = os.getenv("TASKS_INCHAT_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
 TASKS_INCHAT_LIMIT = int(os.getenv("TASKS_INCHAT_LIMIT", "8"))
+# Phase 3 control plane: publish one-way fire-and-forget events to the daemon's EventBus
+# (docs/ipc_decision.md). Same loopback port/token the daemon hosts; a missing daemon is a
+# silent drop -- the API NEVER blocks or raises on a publish.
+EVENTBUS_ENABLED = os.getenv("EVENTBUS_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
 # Conversation history (SQLite) -- Phase 2 source of truth for multi-turn history.
 CONVERSATIONS_DB = os.getenv("CONVERSATIONS_DB", os.path.join(AI_ROOT, "data", "conversations.db"))
 # Persist turns to conversations.db on /chat + /v1 (Phase 2). On by default.
@@ -570,6 +575,27 @@ def tasks_block_for(text: str) -> str:
         return render_tasks_block(tasks_summary(limit=TASKS_INCHAT_LIMIT), limit=TASKS_INCHAT_LIMIT)
     except Exception:  # noqa: BLE001
         return ""
+
+
+# Phase 3: one-way publisher to the daemon's EventBus. A single LoopbackBus client (it only
+# opens a short-lived connection per publish) pointed at the daemon's loopback port + token.
+_event_bus = eb.LoopbackBus(token=os.getenv("DAEMON_TOKEN", ""))
+
+
+def publish_event(event: str, payload: Optional[Dict[str, Any]] = None) -> None:
+    """Fire-and-forget a control-plane event to the daemon. Schedules the publish on the
+    running loop and returns immediately -- it NEVER awaits, blocks, or raises into the
+    request path. If no daemon is listening the LoopbackBus publish quietly returns False."""
+    if not EVENTBUS_ENABLED:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return  # no event loop (e.g. called off the request path) -> drop
+    try:
+        loop.create_task(_event_bus.publish(event, payload or {}))
+    except Exception:  # noqa: BLE001
+        return
 
 # Conversation history (SQLite) -- see services/api/conversations.py
 _convo_ok = False
@@ -1206,6 +1232,7 @@ async def agent_run(payload: dict):
         "job_file": str(job_path), "result_file": str(result_path),
         "started_at": int(time.time()),
     })
+    publish_event("task_ready", {"job_id": task_id, "kind": "agent_run", "status": "running"})
 
     cmd = [
         sys.executable,
@@ -1346,6 +1373,7 @@ async def health():
         "rag_kinds_for_science": sorted(list(RAG_KINDS_FOR_SCIENCE)),
         "task_store": {"db": TASKS_DB, "count": taskboard.count(),
                        "inchat_surfacing": TASKS_INCHAT_ENABLED},
+        "eventbus": {"enabled": EVENTBUS_ENABLED, "port": eb.default_loopback_port()},
         "conversations": {"db": CONVERSATIONS_DB, "ok": _convo_ok, "error": _convo_error,
                           "persist_enabled": CONVO_PERSIST_ENABLED,
                           "history_enabled": HISTORY_ENABLED,
@@ -1535,6 +1563,7 @@ async def agent_delegate(payload: dict):
         "priority": int(payload.get("priority", 2)),
         "delegated_at": int(time.time()),
     })
+    publish_event("task_ready", {"job_id": job_id, "title": title, "status": "delegated"})
     return {"status": "delegated", "job_id": job_id, "job": state}
 
 
