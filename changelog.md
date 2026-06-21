@@ -14,6 +14,31 @@ Conventions:
 
 ---
 
+## 2026-06-21 1225 PDT -- Phase 8 H3 PROVEN LIVE on EVO-X2: hands-off delegate -> ok+summary (Brandon + Claude)
+
+- Brought the standing Hermes layer up on EVO-X2 (driven over SSH) and proved H3 end to end
+  with ZERO manual dispatch. `manage.py daemon start --with-hermes` now supervises FOUR
+  children: llama-server, api, hermes-bridge, hermes-dispatcher. Confirmed the daemon + both
+  Hermes children persist across fresh SSH sessions (systemd --user + linger; same pids held
+  over 5+ min of separate SSH connections).
+- THE H3 GATE (unattended): POST /agent/delegate "H3 hands-off smoke" -> the bridge created
+  Hermes card t_97ebe628 (~25s) -> the supervised dispatch loop spawned the worker
+  (logs/hermes_dispatcher.log: `[hermes_dispatch] spawned=[t_97ebe628]`) -> the 35B ran the
+  agent loop -> kanban_complete -> the bridge mirrored ok + summary to /jobs. ~100s
+  delegate->ok, attempts=1. This is H2d made UNATTENDED: the dispatch pass that was run BY
+  HAND in H2d now runs on the 60s loop with no operator. (job delegate-c391ee760eca, summary
+  mirrored: "H3 hands-off smoke test passed: Hermes worker ... ran autonomously ...".)
+- Cleaned 2 stuck p4 orphans (t_2e5bc9c1/t_aa26e318, leftovers of the 2026-06-21 PARALLEL=4
+  test) by archiving them so the dispatcher would not auto-rerun them -> active board clean
+  before the gate test.
+- FIX (observability): tools/hermes_bridge.py main() print now flush=True. Under the supervisor
+  a child's stdout is a block-buffered pipe, so the bridge log sat at 0 bytes despite the
+  bridge working (the dispatch loop already flushed); an unattended standing child must log
+  promptly. Pre-existing; surfaced by the H3 live run.
+- ROADMAP: Phase 8 H3 -> [x]; the "Hermes runs as a daemon child" Exit-Gate line -> [x] (bridge
+  + dispatcher run as supervised children, live on EVO-X2). Offline 18/18 retained. NEXT: H4-H6
+  per the approved plan.
+
 ## 2026-06-21 1200 PDT -- Phase 8 H3: standing dispatcher child (loops the SUPPORTED `dispatch`) (Brandon + Claude)
 
 - H3 makes the H2d chain UNATTENDED. H2d proved delegate -> bridge card -> `hermes kanban

@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-21 1200 PDT by Claude (Phase 8 H3 standing dispatcher CODED + offline 18/18: H2d's manual `hermes kanban dispatch` pass now runs as a supervised daemon child -- NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` primitive [NOT the deprecated `kanban daemon`/messaging gateway], wired via hermes_dispatcher_spec + build_specs so `--with-hermes` brings up bridge + dispatcher together under the three-strike supervisor. H3 -> [~]; LIVE on EVO-X2 [restart --with-hermes + clean the 2 stuck p4 orphans + hands-off delegate -> ok+summary] is the next step -> then [x]. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN: drove EVO-X2 over SSH -- pulled to a18a78f, fixed the same qdrant-client venv gap, re-baselined [offline 18/18, doctor green incl. T1 with env_hermes], brought up the 35B on real Vulkan GPU under a persistent systemd --user daemon, verified Phase 1 + messages-path on GPU, then proved the full UNATTENDED H2d chain: delegate -> bridge -> dispatcher spawns 35B worker -> kanban_complete -> bridge mirrors ok+summary to /jobs [h2d-001/002/003 all ok]. Key fix: worker shell tool uses a clean PATH so `hermes` was exit 127 -> shell_init_files puts env_hermes/bin on PATH. EARLIER 1510: WINDOWS VERIFICATION PASS [Phases 1,2,3,6,7 live; thinking-model fixes; messages-path default; daemon.py + qdrant fixes; pushed a70fe90+cf79270]. Remaining: Phase 8 H3-H6 + kernel egress [needs root] + manual OpenWebUI click-test.)
+Last updated: 2026-06-21 1225 PDT by Claude (Phase 8 H3 PROVEN LIVE on EVO-X2 -- the standing dispatcher made the H2d chain UNATTENDED: a hands-off POST /agent/delegate [NO manual dispatch] -> bridge card t_97ebe628 -> the supervised dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s, attempts=1]. `manage.py daemon start --with-hermes` supervises llama/api/bridge/dispatcher, persistent across SSH sessions. Code: NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [NOT the deprecated `kanban daemon`/messaging gateway] + daemon hermes_dispatcher_spec + a bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN: drove EVO-X2 over SSH -- pulled to a18a78f, fixed the same qdrant-client venv gap, re-baselined [offline 18/18, doctor green incl. T1 with env_hermes], brought up the 35B on real Vulkan GPU under a persistent systemd --user daemon, verified Phase 1 + messages-path on GPU, then proved the full UNATTENDED H2d chain: delegate -> bridge -> dispatcher spawns 35B worker -> kanban_complete -> bridge mirrors ok+summary to /jobs [h2d-001/002/003 all ok]. Key fix: worker shell tool uses a clean PATH so `hermes` was exit 127 -> shell_init_files puts env_hermes/bin on PATH. EARLIER 1510: WINDOWS VERIFICATION PASS [Phases 1,2,3,6,7 live; thinking-model fixes; messages-path default; daemon.py + qdrant fixes; pushed a70fe90+cf79270]. Remaining: Phase 8 H3-H6 + kernel egress [needs root] + manual OpenWebUI click-test.)
 
 ## Boundaries (do not duplicate)
 
@@ -555,7 +555,7 @@ Exit Gate:
 - [x] foreground responsiveness is not disrupted -- LIVE: a request during the window returned
       in 0.011s and reset idle; should_continue() stops consolidate() between conversations
 
-## Phase 8 -- Agentic layer (Hermes Agent)  [~] H2d PROVEN (2026-06-20); H3 dispatcher CODED (2026-06-21); H4-H6 + kernel egress remain
+## Phase 8 -- Agentic layer (Hermes Agent)  [~] H2d + H3 PROVEN on EVO-X2 (2026-06-20/21); H4-H6 + kernel egress remain
 
 Goal: Hermes runs as a daemon child pulling background work from the Task Board.
 (Near-term in execution despite the late Phase number; depended on the Phase 1
@@ -627,7 +627,7 @@ single-model migration M6.)
       --with-hermes` / HERMES_DAEMON_ENABLED (opt-in; default off so base behavior is unchanged).
       LIVE on WSL: the daemon spawned + supervised the bridge child (pid up, clean shutdown).
       tests/test_daemon_hermes.py 14 checks.
-- [~] H3 standing dispatcher: the Hermes dispatch pass (manual in H2d) now runs as a
+- [x] H3 standing dispatcher: the Hermes dispatch pass (manual in H2d) now runs as a
       SUPERVISED DAEMON CHILD. NEW tools/hermes_dispatch_loop.py (stdlib, mirrors the bridge)
       loops the SUPPORTED `hermes kanban dispatch` (reclaim stale + promote ready + spawn
       workers + `--failure-limit` auto-block) -- NOT `hermes kanban daemon` (v0.16.0
@@ -636,8 +636,12 @@ single-model migration M6.)
       alongside the bridge under one `--with-hermes` (the three-strike supervisor satisfies
       H3.1 daemon-child + H3.4; the 2026-05-10 spec's custom dispatcher/heartbeat H3.2/H3.3
       are Hermes-native under the 2026-06-13 bridge arch). CODE DONE + offline 18/18
-      (2026-06-21). NEXT: LIVE on EVO-X2 (restart --with-hermes + clean the 2 stuck p4 orphans
-      + hands-off delegate -> ok+summary) -> then [x].
+      (2026-06-21); PROVEN LIVE on EVO-X2 the same day -- `manage.py daemon start --with-hermes`
+      supervises FOUR children (llama/api/bridge/dispatcher); a hands-off POST /agent/delegate
+      (NO manual dispatch) -> bridge card t_97ebe628 -> the dispatch loop spawned the 35B worker
+      (spawned=[t_97ebe628]) -> kanban_complete -> bridge mirrored ok+summary to /jobs (~100s,
+      attempts=1); daemon + both Hermes children persist across fresh SSH sessions. Also fixed
+      the bridge log (flush=True) so the standing child is observable.
 - [ ] H4-H6 (GPU-bound -> EVO-X2): H4 role-prefix template library + cache_prompt
       amortization (role -> Hermes assignee profile); H5 server.py routing verify/close
       (classifier + task-surfacing largely exist); H6 validation -- failure semantics
@@ -651,8 +655,9 @@ single-model migration M6.)
 
 Exit Gate:
 
-- [~] Hermes runs as a daemon child -- WIRED + LIVE on WSL for the persona-side bridge
-      (hermes_bridge_spec under the supervisor); the GPU Hermes worker/dispatcher rides with H2d
+- [x] Hermes runs as a daemon child -- DONE 2026-06-21 (EVO-X2): `--with-hermes` supervises BOTH
+      the persona bridge (hermes_bridge_spec) AND the standing dispatcher (hermes_dispatcher_spec)
+      under the three-strike supervisor; proven live + persistent across SSH sessions (H3)
 - [x] it claims a Task Board task and executes it -- DONE 2026-06-20 (EVO-X2 35B+GPU): dispatcher
       claims the card + spawns the worker, which runs the kanban-worker agent loop on the 35B (H2d)
 - [x] it writes results back for the persona to surface -- DONE 2026-06-20: bridge mirrors the

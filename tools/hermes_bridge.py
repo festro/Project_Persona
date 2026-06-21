@@ -304,7 +304,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     while True:
         result = tick(board)
         if result["created"] or result["updated"]:
-            print("[hermes_bridge] " + json.dumps(result))
+            # flush=True: under the daemon supervisor stdout is a pipe (block-buffered), so
+            # without this the bridge log stays empty until the buffer fills -- an unattended
+            # standing child must log promptly to be observable (H3). (hermes_dispatch_loop
+            # already flushes.)
+            print("[hermes_bridge] " + json.dumps(result), flush=True)
         if args.once:
             return 0
         time.sleep(args.interval)
