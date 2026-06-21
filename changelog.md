@@ -14,6 +14,25 @@ Conventions:
 
 ---
 
+## 2026-06-20 2010 PDT -- Portable persistence: `manage.py daemon` + init_profiles PATH fix (Brandon + Claude)
+
+- Brandon's portability rule: everything must run from INSIDE the project folder; the only exception
+  is python (prefer the in-folder venv). Reworked the EVO-X2 H2d setup to honor it (no /usr/local/bin):
+  * init_profiles.sh now generates run/hermes_shell_init.sh (project-relative; puts $AI_ROOT/env_hermes/bin
+    on PATH) and wires it into the generated config.yaml terminal.shell_init_files, so a worker's
+    clean-PATH shell resolves `hermes` from inside the project -- no system symlink. New hosts get it
+    automatically; write_hermes_config still skips existing configs.
+  * manage.py gained a `daemon [start|stop|status]` command for PORTABLE background persistence:
+    Windows -> detached process group (run/daemon.pid); Linux+systemd -> a transient `systemd --user`
+    unit (survives SSH disconnect/logout via linger; NO unit file outside the project; daemon runs from
+    the project via env/bin/python); non-systemd -> setsid best-effort with a warning. Encapsulates the
+    systemd-run detail inside the project launcher (was a manual command on EVO-X2).
+- FINDING (why systemd is unavoidable for an always-on daemon on this OS): plain setsid/nohup/double-fork
+  do NOT survive an SSH session end on a systemd host -- the process stays in the SSH session's systemd
+  cgroup, which is torn down at session end (proven: a setsid marker died though KillUserProcesses=no).
+  systemd-run --user is the only unprivileged escape to the persistent user manager.
+- Offline 18/18; `manage.py daemon status/help` verified on Windows + py_compile clean.
+
 ## 2026-06-20 1915 PDT -- Phase 8 H2d Exit Gate PROVEN on EVO-X2 (driven over SSH) (Brandon + Claude)
 
 - Brought EVO-X2 (Daemonic-evox2, KDE neon, RADV GFX1151 Vulkan) up to date over SSH and proved

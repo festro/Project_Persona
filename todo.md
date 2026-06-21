@@ -17,13 +17,17 @@ Host-gated -- need root on EVO-X2 (sudo is a hard-deny for the remote agent; Bra
 - (Optional, cleaner) symlink env_hermes/bin/hermes -> /usr/local/bin so the worker-shell PATH fix
   doesn't depend on shell_init_files.
 
-EVO-X2 H2d durability / follow-ups (doable over SSH next):
-- Persistent daemon across reboot: promote the systemd --user transient unit to a real
-  ~/.config/systemd/user/persona-daemon.service (linger already on).
-- Codify the worker-shell PATH fix in init_profiles.sh (generate run/hermes_shell_init.sh + set
-  shell_init_files, or use terminal.env_passthrough:[PATH]) so new hosts get it automatically.
-- Canonicalize run/config.daemonic-evox2.toml into the D:\ repo (per-host config convention); consider
-  PARALLEL=4 (worker prompt is ~750 tok, so 16384/slot at CTX=65536 is ample) for worker concurrency.
+EVO-X2 H2d durability / follow-ups:
+- DONE 2026-06-20 (portable): worker-shell PATH fix codified in init_profiles.sh (generates
+  run/hermes_shell_init.sh + sets terminal.shell_init_files); `manage.py daemon [start|stop|status]`
+  for portable background persistence (Windows detached / Linux systemd --user transient / setsid
+  fallback) -- the daemon now starts from a project command, not a manual systemd-run.
+- (Optional) reboot survival: a ~/.config/systemd/user/persona-daemon.service unit file (the
+  manage.py daemon transient unit survives disconnect/logout but not reboot). Deferred -- needs a
+  file outside the project folder.
+- Drop the EVO-X2 per-host override: run/config.daemonic-evox2.toml (CTX 65536/PARALLEL 1) is
+  UNNECESSARY -- the worker prompt is ~750 tok, so the canonical [linux] (32768/4 = 8192/slot) fits
+  it AND keeps 4-way concurrency. Verify the worker completes at 8192/slot, then remove the override.
 - Phase 8 H3-H6: role-prefix template library, cache_prompt amortization, Tenacity failure semantics.
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).

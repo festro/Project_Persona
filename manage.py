@@ -24,6 +24,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -1911,7 +1912,119 @@ def build_parser():
     pan.add_argument("--detach", action="store_true", help="Run in the background (survives terminal close); writes run/panel.pid.")
     pan.add_argument("--stop", action="store_true", help="Stop a detached/running panel via run/panel.pid.")
 
+    dmn = sub.add_parser("daemon", help="Start/stop/status the supervised daemon in the background (portable persistence).")
+    dmn.add_argument("action", nargs="?", choices=["start", "stop", "status"], default="start",
+                     help="start (default), stop, or status.")
+    dmn.add_argument("--with-hermes", action="store_true", help="Also supervise the Hermes H2 bridge (needs env_hermes/).")
+    dmn.add_argument("--with-voice", action="store_true", help="Also supervise the voice engines (if installed).")
+
     return p
+
+
+DAEMON_UNIT = "persona-daemon"
+
+
+def daemon_argv(root, cfg, with_hermes=False, with_voice=False):
+    """argv to launch the Phase 3 supervisor (daemon.py) with the project interpreter."""
+    argv = [str(find_api_python(root)), str(root / "daemon.py")]
+    if with_hermes:
+        argv.append("--with-hermes")
+    if with_voice:
+        argv.append("--with-voice")
+    return argv
+
+
+def _systemd_user_ok():
+    """True when systemd-run --user is usable (Linux with a user manager)."""
+    return (not IS_WINDOWS) and shutil.which("systemd-run") is not None
+
+
+def _daemon_unit_active():
+    if not _systemd_user_ok():
+        return False
+    r = subprocess.run(["systemctl", "--user", "is-active", DAEMON_UNIT],
+                       capture_output=True, text=True)
+    return r.stdout.strip() == "active"
+
+
+def _daemon_running(root):
+    return _daemon_unit_active() or pid_alive(read_pid(root / "run" / "daemon.pid"))
+
+
+def cmd_daemon(root, cfg, args):
+    """Start/stop/status the Phase 3 supervisor in the background, PORTABLY and project-locally.
+
+    Persistence is OS-specific because plain setsid/nohup do NOT survive an SSH session end on a
+    systemd host (the process stays in the session's systemd cgroup, which is torn down at
+    session end -- proven on EVO-X2). So:
+      Windows -> a detached process group (run/daemon.pid).
+      Linux + systemd -> a transient `systemd --user` unit (survives disconnect/logout via linger;
+                         no unit file is written outside the project; daemon runs from the project).
+      other Linux -> setsid best-effort (a warning notes it may not survive logout on systemd).
+    """
+    action = getattr(args, "action", "start") or "start"
+    logf = root / "logs" / "daemon.log"
+    pidf = root / "run" / "daemon.pid"
+
+    if action == "status":
+        info(f"daemon: {'ACTIVE' if _daemon_running(root) else 'not running'}"
+             + (f"  (systemd --user unit {DAEMON_UNIT})" if _daemon_unit_active() else ""))
+        for name, port in (("llama", cfg.get("PERSONA_PORT", "8090")), ("api", "8000")):
+            up = http_get_json(f"http://127.0.0.1:{port}/health")[0] is not None
+            print(f"  {name} :{port} {'up' if up else 'down'}")
+        return 0
+
+    if action == "stop":
+        stopped = False
+        if _daemon_unit_active():
+            subprocess.run(["systemctl", "--user", "stop", DAEMON_UNIT])
+            subprocess.run(["systemctl", "--user", "reset-failed", DAEMON_UNIT], capture_output=True)
+            ok(f"stopped systemd --user unit {DAEMON_UNIT}")
+            stopped = True
+        pid = read_pid(pidf)
+        if pid_alive(pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+                ok(f"sent SIGTERM to daemon pid {pid}")
+                stopped = True
+            except OSError as e:
+                warn(f"could not signal {pid}: {e}")
+        if not stopped:
+            warn("daemon not running")
+        return 0
+
+    # action == "start"
+    if _daemon_running(root):
+        ok("daemon already running")
+        return 0
+    argv = daemon_argv(root, cfg, with_hermes=args.with_hermes, with_voice=args.with_voice)
+    (root / "logs").mkdir(exist_ok=True)
+    (root / "run").mkdir(exist_ok=True)
+
+    if IS_WINDOWS:
+        pid = spawn_detached(argv, str(logf), cwd=str(root))
+        write_pid(pidf, pid)
+        ok(f"daemon started (detached) pid={pid}  log={logf}")
+        return 0
+
+    if _systemd_user_ok():
+        inner = "exec %s > %s 2>&1" % (" ".join(shlex.quote(a) for a in argv),
+                                       shlex.quote(str(logf)))
+        run = ["systemd-run", "--user", "--collect", "--unit", DAEMON_UNIT,
+               "--working-directory", str(root), "bash", "-c", inner]
+        r = subprocess.run(run, capture_output=True, text=True)
+        if r.returncode != 0:
+            err("systemd-run failed: " + (r.stderr.strip() or r.stdout.strip()))
+            return 1
+        ok(f"daemon started as systemd --user unit {DAEMON_UNIT} "
+           f"(persists across SSH disconnect)  log={logf}")
+        return 0
+
+    pid = spawn_detached(argv, str(logf), cwd=str(root))
+    write_pid(pidf, pid)
+    warn("systemd-run unavailable; used a detached session (may not survive logout on systemd hosts)")
+    ok(f"daemon started pid={pid}  log={logf}")
+    return 0
 
 
 def main(argv=None):
@@ -1930,6 +2043,7 @@ def main(argv=None):
         "toggle": cmd_toggle,
         "test": cmd_test,
         "panel": cmd_panel,
+        "daemon": cmd_daemon,
     }
     return handlers[args.command](root, cfg, args)
 
