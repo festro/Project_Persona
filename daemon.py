@@ -299,6 +299,33 @@ def hermes_bridge_spec(root: Path) -> Optional[ChildSpec]:
                      hygiene=True)
 
 
+def hermes_dispatcher_spec(root: Path) -> Optional[ChildSpec]:
+    """Phase 8 H3: supervise the standing DISPATCHER (tools/hermes_dispatch_loop.py) as a daemon
+    child. Where the bridge enqueues delegated rows + mirrors outcomes, this loop periodically
+    runs `hermes kanban dispatch` so ready cards actually get workers spawned UNATTENDED -- the
+    pass that was manual in H2d. Built on the SUPPORTED dispatch primitive (NOT the deprecated
+    `kanban daemon`/messaging gateway). Stdlib-only loop; shells out to HERMES_CLI (absolute path).
+    hygiene=True (no cloud secrets). Returns None if Hermes is not installed."""
+    if not hermes_present(root):
+        return None
+    sub = "Scripts" if os.name == "nt" else "bin"
+    exe = ".exe" if os.name == "nt" else ""
+    py = root / "env_hermes" / sub / f"python{exe}"  # stdlib, but keep it in the Hermes venv
+    interval = os.getenv("HERMES_DISPATCH_INTERVAL", "60")
+    env = {
+        "HERMES_CLI": str(root / "env_hermes" / sub / f"hermes{exe}"),
+        "HERMES_KANBAN_HOME": os.getenv("HERMES_KANBAN_HOME", str(root / "run" / "hermes_kanban")),
+        "HERMES_HOME": os.getenv("HERMES_HOME", str(root / "persona" / "profiles" / "default")),
+        "TASKS_DB": os.getenv("TASKS_DB", str(root / "data" / "tasks.db")),
+    }
+    return ChildSpec("hermes-dispatcher",
+                     [str(py), "tools/hermes_dispatch_loop.py", "--interval", interval],
+                     cwd=str(root), env=env,
+                     logfile=str(root / "logs" / "hermes_dispatcher.log"),
+                     pidfile=str(root / "run" / "hermes_dispatcher.pid"),
+                     hygiene=True)
+
+
 def _voice_paths(root: Path) -> Dict[str, str]:
     """Conventional host-provided voice engine locations; all env-overridable. The engines
     themselves are host-side compute (Phase 5: "host-side compute only") -- this only wires
@@ -366,9 +393,13 @@ def build_specs(root: Path, cfg: Dict[str, Any], *, with_llama: bool = True,
                                logfile=str(runlog / "api.log"),
                                pidfile=str(runpid / "api.pid")))
     if with_hermes:
-        hspec = hermes_bridge_spec(root)
-        if hspec is not None:
-            specs.append(hspec)
+        # Two children form the standing Hermes layer (H2e bridge + H3 dispatcher): the bridge
+        # enqueues delegated rows / mirrors outcomes; the dispatcher loop spawns workers for
+        # ready cards. Both guarded by env_hermes/ and run under the three-strike supervisor.
+        hermes_specs = [b for b in (hermes_bridge_spec(root), hermes_dispatcher_spec(root))
+                        if b is not None]
+        if hermes_specs:
+            specs.extend(hermes_specs)
         else:
             _log("[daemon] --with-hermes requested but env_hermes/ not found; skipping")
     if with_voice:  # Phase 5: STT/TTS engines, only if host-provided

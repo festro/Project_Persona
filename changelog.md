@@ -14,6 +14,35 @@ Conventions:
 
 ---
 
+## 2026-06-21 1200 PDT -- Phase 8 H3: standing dispatcher child (loops the SUPPORTED `dispatch`) (Brandon + Claude)
+
+- H3 makes the H2d chain UNATTENDED. H2d proved delegate -> bridge card -> `hermes kanban
+  dispatch` (run BY HAND) -> 35B worker -> mirror ok+summary; H3 supervises that dispatch
+  pass as a standing daemon child so no operator is needed.
+- Command surface RE-VERIFIED on EVO-X2 (env_hermes v0.16.0, pinned @9b1e0d6f): `hermes
+  kanban daemon` is DEPRECATED ("dispatcher now runs in the gateway"); the `gateway` is a
+  messaging service (Telegram/Discord/WhatsApp) needing its own OUT-OF-PROJECT
+  systemd/launchd unit + platform creds -- against the portability rule + egress-off. So the
+  standing dispatcher LOOPS THE SUPPORTED one-shot `hermes kanban dispatch` (reclaim stale +
+  promote ready + spawn workers + `--failure-limit` auto-block) instead. (Brandon's call.)
+- NEW tools/hermes_dispatch_loop.py (stdlib, mirrors tools/hermes_bridge.py): interval loop
+  over `hermes kanban dispatch --failure-limit N --json`; parses the v0.16.0 result shape
+  (reclaimed/promoted/spawned[]/auto_blocked/...); logs only ticks that change something;
+  `--once` for tests; HERMES_DISPATCH_INTERVAL (default 60). HERMES_CLI is absolute so the
+  dispatch call has no worker-shell PATH dependency.
+- daemon.py: hermes_dispatcher_spec(root) mirrors hermes_bridge_spec (hygiene=True, HERMES_*
+  env, logs/hermes_dispatcher.log, run/hermes_dispatcher.pid); build_specs(with_hermes=True)
+  now supervises BOTH Hermes children (bridge + dispatcher) under the three-strike
+  supervisor, so one `manage.py daemon start --with-hermes` brings up the whole standing
+  Hermes layer (satisfies H3.1 daemon-child + H3.4 three-strike reuse; the original
+  H3.2/H3.3 custom dispatcher/heartbeat are Hermes-native under the 2026-06-13 bridge arch).
+- tests/test_daemon_hermes.py +12 checks (dispatcher spec shape/hygiene, build_specs
+  inclusion, dispatch-loop argv builder + dispatch_changed/summarize + tick + `--once`);
+  offline suite 18/18, py_compile clean (Windows portable 3.11).
+- ROADMAP: Phase 8 H3 -> [~] (CODE DONE + offline green). LIVE on EVO-X2 (restart
+  --with-hermes + clean the 2 stuck p4 orphans + hands-off delegate -> ok+summary) is the
+  next step, then [x].
+
 ## 2026-06-21 0035 PDT -- EVO-X2 per-host config canonicalized: PARALLEL=1 required for the Hermes worker (Brandon + Claude)
 
 - Tested PARALLEL=1 vs 4 on EVO-X2 (CTX fixed 65536) for the Hermes kanban-worker:

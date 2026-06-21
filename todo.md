@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 1915 PDT by Claude (EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
+Last updated: 2026-06-21 1200 PDT by Claude (Phase 8 H3 standing dispatcher CODED + offline 18/18: NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `hermes kanban dispatch` [not the v0.16.0-DEPRECATED `kanban daemon`/messaging gateway]; daemon.py hermes_dispatcher_spec + build_specs supervise bridge+dispatcher together under `--with-hermes`. H3 -> [~]; LIVE on EVO-X2 [restart --with-hermes + clean 2 p4 orphans + hands-off delegate -> ok+summary] is next -> then [x]. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
@@ -29,7 +29,12 @@ EVO-X2 H2d durability / follow-ups:
   Measured PARALLEL=1 (worker completes ~105s, 3x) vs PARALLEL=4 (worker does NOT complete) -- the
   Hermes 64K context floor is real, so PARALLEL=1 is REQUIRED (not over-cautious). Trade-off: one big
   worker slot over serving concurrency on the agentic anchor node.
-- Phase 8 H3-H6: role-prefix template library, cache_prompt amortization, Tenacity failure semantics.
+- Phase 8 H3: standing dispatcher CODED 2026-06-21 (tools/hermes_dispatch_loop.py +
+  hermes_dispatcher_spec; loops the SUPPORTED `dispatch`, not the deprecated `kanban daemon`/gateway).
+  LIVE on EVO-X2 NEXT: restart --with-hermes + clean the 2 stuck p4 orphans (t_2e5bc9c1/t_aa26e318) +
+  hands-off delegate -> ok+summary -> then H3 [x].
+- Phase 8 H4-H6: role-prefix profiles + cache_prompt (H4), server.py routing verify/close (H5),
+  failure-semantics + swarm + cache measurement (H6). See roadmap Phase 8 + plan merry-forging-rose.
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).
 - Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.
@@ -55,6 +60,21 @@ Housekeeping / decisions:
   its phase/track IDs; do not restate them.
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
+
+## Just finished (2026-06-21 -- Phase 8 H3 standing dispatcher, Claude)
+
+- H3 (CODE + offline): made the H2d chain UNATTENDED. H2d's dispatch pass was run BY HAND
+  (`hermes kanban dispatch`); H3 supervises it as a standing daemon child so delegate ->
+  card -> worker -> mirror needs no operator.
+- RE-VERIFIED the Hermes command surface on EVO-X2 (a plan-review correction): `hermes kanban
+  daemon` is DEPRECATED (-> the messaging `gateway`, which needs an out-of-project systemd unit
+  + platform creds -- against portability/egress). So we LOOP THE SUPPORTED `hermes kanban
+  dispatch` instead (Brandon's call).
+- NEW tools/hermes_dispatch_loop.py (stdlib, mirrors hermes_bridge.py); daemon.py
+  hermes_dispatcher_spec; build_specs(with_hermes) now supervises bridge + dispatcher together.
+  tests/test_daemon_hermes.py +12 checks; offline suite 18/18; py_compile clean.
+- NEXT (live, EVO-X2): restart --with-hermes, clean the 2 stuck p4 orphans, hands-off delegate
+  -> ok+summary -> H3 [x]. Then H4-H6 per the approved plan.
 
 ## Just finished (2026-06-20 PM -- Windows verification pass, Claude)
 
