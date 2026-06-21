@@ -3,19 +3,28 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-20 1510 PDT by Claude (WINDOWS VERIFICATION PASS: Phases 1,2,3,6,7 verified LIVE on Windows 35B/Vulkan; fixed thinking-model handling [sanitizer + distiller], the daemon.py Windows-start bug, and the qdrant-client env gap; messages path now DEFAULT [PERSONA_USE_MESSAGES=1] + per-OS PERSONA_MAX_TOKENS. Pushed a70fe90+cf79270. Offline 18/18. Remaining: host-gated [EVO-X2] + manual.)
+Last updated: 2026-06-20 1915 PDT by Claude (EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
-Both primary surfaces (WSL-Linux + Windows) are now verified for Phases 0-8; origin is at cf79270.
-Completion status lives in `roadmap.md`; full history in `changelog.md`. New-host bring-up:
+Phases 0-8 are now exercised on both primary surfaces AND the EVO-X2 anchor node; Phase 8 H2d is
+PROVEN on EVO-X2. Completion status: `roadmap.md`; history: `changelog.md`; bring-up:
 `docs/host_onboarding.md`.
-What remains is host-gated or a Brandon decision:
 
-Host-gated (EVO-X2 / a real box -- not doable from CPU-WSL):
-- Phase 8 H2d: Hermes worker claims + executes the 35B (GPU) + writes back, egress-off -- THE
-  Phase 8 Exit-Gate evidence. Plus H3-H6 execution, the kernel netns/iptables egress layer
-  (`scripts/egress_baseline.*` applied live), and `doctor.sh` fully green.
+Host-gated -- need root on EVO-X2 (sudo is a hard-deny for the remote agent; Brandon runs these):
+- Kernel egress layer: `scripts/egress_baseline.sh` applied live (SERVE lock) on EVO-X2; config-level
+  egress is already off. Closes the Phase 8 "egress at config AND kernel" gate line.
+- (Optional, cleaner) symlink env_hermes/bin/hermes -> /usr/local/bin so the worker-shell PATH fix
+  doesn't depend on shell_init_files.
+
+EVO-X2 H2d durability / follow-ups (doable over SSH next):
+- Persistent daemon across reboot: promote the systemd --user transient unit to a real
+  ~/.config/systemd/user/persona-daemon.service (linger already on).
+- Codify the worker-shell PATH fix in init_profiles.sh (generate run/hermes_shell_init.sh + set
+  shell_init_files, or use terminal.env_passthrough:[PATH]) so new hosts get it automatically.
+- Canonicalize run/config.daemonic-evox2.toml into the D:\ repo (per-host config convention); consider
+  PARALLEL=4 (worker prompt is ~750 tok, so 16384/slot at CTX=65536 is ample) for worker concurrency.
+- Phase 8 H3-H6: role-prefix template library, cache_prompt amortization, Tenacity failure semantics.
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).
 - Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.

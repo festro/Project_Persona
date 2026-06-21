@@ -14,6 +14,37 @@ Conventions:
 
 ---
 
+## 2026-06-20 1915 PDT -- Phase 8 H2d Exit Gate PROVEN on EVO-X2 (driven over SSH) (Brandon + Claude)
+
+- Brought EVO-X2 (Daemonic-evox2, KDE neon, RADV GFX1151 Vulkan) up to date over SSH and proved
+  the Phase 8 H2d Exit Gate end to end. SSH access fixed first: the `evox2` ~/.ssh/config used the
+  GitHub key + the box had no authorized key for this host -> Brandon added the brandonnet key,
+  config IdentityFile corrected.
+- RE-BASELINE: EVO-X2 was 29 commits behind (0cb85bf); pulled to a18a78f. Same qdrant-client venv
+  gap as Windows -> installed (1.18.0). Offline 18/18; doctor green incl. T1 (env_hermes present,
+  safe_config=pass). Phase 1 exit_gate_live ALL PASS on the real GPU incl. the messages-path default
+  (persona_use_messages=True) + /v1 reasoning_content.
+- PERSISTENCE: a one-shot `ssh ... manage.py up`/`daemon.py` gets SIGHUP/SIGTERM'd when the SSH
+  session closes (nohup+setsid insufficient through the tool's SSH teardown). Fixed by running the
+  daemon as a systemd --user transient service (linger=yes) -> survives SSH close + logout.
+- H2d (the gate): delegate -> bridge creates the kanban card -> `hermes kanban dispatch` spawns the
+  worker -> the 35B runs the kanban-worker agent loop -> kanban_complete with summary -> bridge
+  mirrors ok+summary to /jobs. h2d-001/002/003 all status=ok + summary; unattended dispatcher-spawned
+  workers complete in ~105s.
+- ROOT-CAUSE FIX (why the first dispatcher worker died): the worker's shell tool runs with a CLEAN
+  PATH (/usr/local/bin:...), so its `hermes kanban show/complete` calls hit exit 127 and floundered
+  (one fallback hit a 60s command-deny) until timing out. Fix (no sudo): a terminal shell_init_files
+  entry (run/hermes_shell_init.sh) puts env_hermes/bin on the worker-shell PATH -> workers find
+  `hermes` immediately and complete cleanly. (A /usr/local/bin symlink would also work but needs root.)
+- EVO-X2 H2d setup (runtime, EVO-X2-local): run/config.daemonic-evox2.toml (CTX 65536/PARALLEL 1 --
+  over-cautious; the worker prompt is ~750 tok not 20k, so PARALLEL=4 would allow concurrency),
+  run/hermes.env pins (+ PATH), seeded persona/config.yaml (default-assignee root config), kanban
+  init, .gitignore run/hermes_kanban/.
+- Egress: config-level OFF (no provider keys, browser off, terminal.backend=local, llama on
+  loopback). Kernel nftables layer (scripts/egress_baseline.sh) still owed -- needs root (sudo is a
+  hard-deny for the remote agent). FOLLOW-UPS: codify the PATH fix in init_profiles.sh (or
+  env_passthrough:[PATH]); a persistent ~/.config/systemd/user unit for reboot survival; H3-H6.
+
 ## 2026-06-20 1510 PDT -- Windows verification pass: thinking-model fixes + messages-path default (Brandon + Claude)
 
 - Verified the WSL-built stack LIVE on Windows (Daemonic-PC, 35B/Vulkan): Phases 1, 2, 3,

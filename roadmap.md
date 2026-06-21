@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-20 1510 PDT by Claude (WINDOWS VERIFICATION PASS: Phases 1,2,3,6,7 verified LIVE on the second primary surface [Windows x64, 35B/Vulkan]. Fixed thinking-model handling -- the stack had been validated in WSL on the non-thinking 7B but the 35B thinks: the sanitizer no longer discards real replies, the distiller gets /no_think+strip+budget [Phase 7 distilled 0 facts before], and the MESSAGES PATH is now the DEFAULT [PERSONA_USE_MESSAGES=1] + per-OS PERSONA_MAX_TOKENS. Also fixed the daemon.py Windows-start bug [Phase 3 had never run on Windows] + the qdrant-client env gap. Pushed a70fe90+cf79270; offline 18/18. Remaining host-gated [EVO-X2 Phase 8 H2d + kernel egress] + manual [OpenWebUI click-test]; see docs/host_onboarding.md)
+Last updated: 2026-06-20 1915 PDT by Claude (EVO-X2 H2d EXIT GATE PROVEN: drove EVO-X2 over SSH -- pulled to a18a78f, fixed the same qdrant-client venv gap, re-baselined [offline 18/18, doctor green incl. T1 with env_hermes], brought up the 35B on real Vulkan GPU under a persistent systemd --user daemon, verified Phase 1 + messages-path on GPU, then proved the full UNATTENDED H2d chain: delegate -> bridge -> dispatcher spawns 35B worker -> kanban_complete -> bridge mirrors ok+summary to /jobs [h2d-001/002/003 all ok]. Key fix: worker shell tool uses a clean PATH so `hermes` was exit 127 -> shell_init_files puts env_hermes/bin on PATH. EARLIER 1510: WINDOWS VERIFICATION PASS [Phases 1,2,3,6,7 live; thinking-model fixes; messages-path default; daemon.py + qdrant fixes; pushed a70fe90+cf79270]. Remaining: Phase 8 H3-H6 + kernel egress [needs root] + manual OpenWebUI click-test.)
 
 ## Boundaries (do not duplicate)
 
@@ -84,8 +84,9 @@ follow-ups (need a Brandon decision).
 Execution focus is working UP the 0-8 ladder on the two primary surfaces (Windows +
 AMD Linux via WSL). Phase 8 (Hermes) foundation is started -- the taskboard<->kanban
 bridge (H2) is validated end to end in WSL on a capable model (delegate -> run ->
-mirror reaches status=ok + summary); the EVO-X2 H2d Exit Gate is hardware/migration
-work, now aligned with the Phase 9 migration. See `todo.md`.
+mirror reaches status=ok + summary); the EVO-X2 H2d Exit Gate is now PROVEN (2026-06-20,
+driven over SSH: status=ok+summary on the real 35B GPU via the unattended dispatcher path).
+Phase 8 remaining: H3-H6, the kernel egress layer (root), and doctor revisit. See `todo.md`.
 
 ---
 
@@ -554,7 +555,7 @@ Exit Gate:
 - [x] foreground responsiveness is not disrupted -- LIVE: a request during the window returned
       in 0.011s and reset idle; should_continue() stops consolidate() between conversations
 
-## Phase 8 -- Agentic layer (Hermes Agent)  [~] FOUNDATION STARTED
+## Phase 8 -- Agentic layer (Hermes Agent)  [~] H2d EXIT-GATE PROVEN (2026-06-20; H3-H6 + kernel egress remain)
 
 Goal: Hermes runs as a daemon child pulling background work from the Task Board.
 (Near-term in execution despite the late Phase number; depended on the Phase 1
@@ -600,9 +601,24 @@ single-model migration M6.)
         into knowledge.md + docs/wsl_h2_runbook_20260613_0311.md (default-assignee
         HERMES_HOME=ROOT; 64K ctx gate on main+aux; PERSONA_CTX/PARALLEL slot sizing;
         pin HERMES_KANBAN_HOME).
-  - [ ] H2d: run on EVO-X2 with the real 35B + GPU + egress-off (no sim overrides) ->
-        expect status=ok + summary. THIS IS THE Phase 8 Exit Gate evidence; deferred
-        until the rest of the near-term work is finished (Brandon, 2026-06-14).
+  - [x] H2d: DONE 2026-06-20 on EVO-X2 (real 35B + Vulkan GPU), driven over SSH. The full
+        UNATTENDED chain proven: POST /agent/delegate -> bridge creates the kanban card ->
+        `hermes kanban dispatch` spawns the worker -> the 35B worker runs the kanban-worker
+        agent loop (tool calls) -> kanban_complete with a summary -> bridge mirrors ok+summary
+        back to /jobs. THREE jobs landed status=ok + summary (h2d-001/002/003); dispatcher-
+        spawned workers completed in ~105s (serialized on PARALLEL=1). This is the Phase 8
+        Exit Gate evidence. KEY FIX: the worker's shell tool runs with a CLEAN PATH, so its
+        `hermes kanban ...` calls hit exit 127 and floundered (the first dispatcher worker
+        timed out); fixed by a shell_init_files entry (run/hermes_shell_init.sh) putting
+        env_hermes/bin on the worker-shell PATH -> workers complete with no floundering.
+        EVO-X2 H2d setup (runtime, EVO-X2-local): run/config.daemonic-evox2.toml (CTX 65536/
+        PARALLEL 1 -- over-cautious; the worker prompt is ~750 tok not 20k, so PARALLEL=4 is
+        fine), run/hermes.env pins, seeded persona/config.yaml (default-assignee root config),
+        persona-daemon systemd --user service (survives SSH/logout via linger). Egress: config-
+        level off (no provider keys, browser off, terminal local, llama loopback); kernel
+        nftables layer still owed (needs root). FOLLOW-UPS: codify the PATH fix in
+        init_profiles.sh (or env_passthrough:[PATH]); a persistent ~/.config/systemd/user
+        unit for reboot-survival; raise PARALLEL for worker concurrency.
 - [~] H2e SCAFFOLDED 2026-06-20 (WSL, all that can be done without the 35B/GPU): the
       persona-side H2 bridge now runs as a SUPERVISED DAEMON CHILD. daemon.py: hermes_present()
       + hermes_bridge_spec() (guarded by env_hermes/; launches env_hermes/bin/python
@@ -624,11 +640,16 @@ Exit Gate:
 
 - [~] Hermes runs as a daemon child -- WIRED + LIVE on WSL for the persona-side bridge
       (hermes_bridge_spec under the supervisor); the GPU Hermes worker/dispatcher rides with H2d
-- [ ] it claims a Task Board task and executes it (EVO-X2: Hermes worker + GPU)
-- [ ] it writes results back for the persona to surface (H2d on EVO-X2 35B)
-- [~] egress is contained at both config and kernel level -- config (T1 safe-config) + the daemon
-      env-hygiene runtime layer DONE; the kernel netns/iptables layer still host-applied
-- [ ] `doctor.sh` is fully green
+- [x] it claims a Task Board task and executes it -- DONE 2026-06-20 (EVO-X2 35B+GPU): dispatcher
+      claims the card + spawns the worker, which runs the kanban-worker agent loop on the 35B (H2d)
+- [x] it writes results back for the persona to surface -- DONE 2026-06-20: bridge mirrors the
+      worker's kanban_complete summary to /jobs (h2d-001/002/003 all status=ok + summary)
+- [~] egress is contained at both config and kernel level -- config (T1 safe-config + no provider
+      keys + browser off + terminal local + llama loopback) + the daemon env-hygiene runtime layer
+      DONE; the kernel netns/nftables layer still host-applied (needs root; sudo unavailable to the
+      remote agent)
+- [~] `doctor.sh` is fully green -- EVO-X2 doctor green incl. T1 (env_hermes present); revisit once
+      the kernel egress layer + H3-H6 land
 
 ## Phase 9 -- Decentralized cooperative node mesh  [ ] DESIGN (extended)
 
