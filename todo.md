@@ -25,9 +25,10 @@ EVO-X2 H2d durability / follow-ups:
 - (Optional) reboot survival: a ~/.config/systemd/user/persona-daemon.service unit file (the
   manage.py daemon transient unit survives disconnect/logout but not reboot). Deferred -- needs a
   file outside the project folder.
-- Drop the EVO-X2 per-host override: run/config.daemonic-evox2.toml (CTX 65536/PARALLEL 1) is
-  UNNECESSARY -- the worker prompt is ~750 tok, so the canonical [linux] (32768/4 = 8192/slot) fits
-  it AND keeps 4-way concurrency. Verify the worker completes at 8192/slot, then remove the override.
+- DONE 2026-06-21: run/config.daemonic-evox2.toml CANONICALIZED (committed) at CTX=65536/PARALLEL=1.
+  Measured PARALLEL=1 (worker completes ~105s, 3x) vs PARALLEL=4 (worker does NOT complete) -- the
+  Hermes 64K context floor is real, so PARALLEL=1 is REQUIRED (not over-cautious). Trade-off: one big
+  worker slot over serving concurrency on the agentic anchor node.
 - Phase 8 H3-H6: role-prefix template library, cache_prompt amortization, Tenacity failure semantics.
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).

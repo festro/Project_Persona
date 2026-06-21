@@ -1,0 +1,19 @@
+# Per-host config for EVO-X2 (daemonic-evox2) -- the canonical/anchor node (Phase 9 mesh).
+# Merged over [base]/[runtime]/[linux] by manage.py (host_tag = daemonic-evox2), per the
+# committed-per-host-config convention (cf. run/config.daemonic-pc.toml for the WSL host).
+#
+# PARALLEL=1 is REQUIRED for the Hermes kanban-worker, NOT over-cautious. Measured on EVO-X2
+# (35B / Vulkan) 2026-06-21:
+#   CTX 65536 / PARALLEL 1  = 65536 tokens/slot -> worker completes the agent loop in ~105s
+#                             (proven 3x: jobs h2d-001/002/003 reached status=ok + summary).
+#   CTX 65536 / PARALLEL 4  = 16384 tokens/slot -> worker does NOT complete (died once, then
+#                             ran 6+ min without finishing). The Hermes 64K context floor is
+#                             real in effect, despite small visible prefill counts.
+# So the agentic anchor node trades serving concurrency for one large worker slot. (If this host
+# is ever used purely for chat serving without Hermes, PARALLEL=4 at CTX 32768 is fine.)
+#
+# Kept as a constant per-host file on purpose: the per-node config anchor, aligning with the
+# Phase 9 plan to key node identity off stable system specs.
+[linux]
+PERSONA_CTX = 65536
+PERSONA_PARALLEL = 1

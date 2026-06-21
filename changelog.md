@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-21 0035 PDT -- EVO-X2 per-host config canonicalized: PARALLEL=1 required for the Hermes worker (Brandon + Claude)
+
+- Tested PARALLEL=1 vs 4 on EVO-X2 (CTX fixed 65536) for the Hermes kanban-worker:
+  * PARALLEL=1 -> 65536 tokens/slot -> worker COMPLETES the agent loop (~105s; proven 3x earlier:
+    jobs h2d-001/002/003 reached status=ok + summary).
+  * PARALLEL=4 -> 16384 tokens/slot -> worker does NOT complete (died after one call once, then ran
+    6+ min without finishing on retry).
+  So the earlier hunch that PARALLEL=1 was "over-cautious" (because visible prefill counts were
+  ~750 tok) was WRONG -- the Hermes 64K context floor is real in effect; the agent loop needs the
+  large per-slot context. Reverted EVO-X2 to PARALLEL=1; daemon confirmed back up.
+- run/config.daemonic-evox2.toml COMMITTED as the canonical per-host anchor (like
+  config.daemonic-pc.toml) at CTX=65536/PARALLEL=1, with the measurement recorded inline. Brandon's
+  rationale for keeping a constant per-host file: it is the per-node config anchor and aligns with
+  the Phase 9 plan to key node identity off stable system specs. Trade-off: the agentic anchor node
+  serves one big worker slot over chat concurrency.
+
 ## 2026-06-20 2010 PDT -- Portable persistence: `manage.py daemon` + init_profiles PATH fix (Brandon + Claude)
 
 - Brandon's portability rule: everything must run from INSIDE the project folder; the only exception
