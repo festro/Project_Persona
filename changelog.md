@@ -31,7 +31,9 @@ Conventions:
   do NOT survive an SSH session end on a systemd host -- the process stays in the SSH session's systemd
   cgroup, which is torn down at session end (proven: a setsid marker died though KillUserProcesses=no).
   systemd-run --user is the only unprivileged escape to the persistent user manager.
-- Offline 18/18; `manage.py daemon status/help` verified on Windows + py_compile clean.
+- Offline 18/18; `manage.py daemon status/help` verified on Windows + py_compile clean. VERIFIED
+  LIVE on EVO-X2: `manage.py daemon start` launched the systemd --user unit and the stack PERSISTED
+  across a fresh SSH session (unit active, llama+api up) -- replaces the manual systemd-run.
 
 ## 2026-06-20 1915 PDT -- Phase 8 H2d Exit Gate PROVEN on EVO-X2 (driven over SSH) (Brandon + Claude)
 
