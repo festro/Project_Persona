@@ -14,6 +14,21 @@ Conventions:
 
 ---
 
+## 2026-06-21 2035 PDT -- Phase 8 H6.3 confirmed live + bridge settled-column precedence generalized (Brandon + Claude)
+
+- H6.3 CONFIRMED LIVE on EVO-X2 with the fix deployed: killed the worker on each spawn -> after 2
+  consecutive crashes the dispatcher auto-blocked the card (`auto_blocked=1`) -> the bridge mirrored
+  /jobs status=blocked (attempts=2, block_reason "pid ... not alive"). The failure ceiling now
+  surfaces as recoverable-blocked, not error. The bridge log also confirmed flushing (the H3 fix).
+- GENERALIZED the bridge status precedence (one more bug, same class, surfaced by the now-flushing
+  bridge log): two stale orphan jobs (h2d-005/006) were re-patched to "running" every tick. Cause:
+  their archived cards' latest run outcome was "reclaimed" (-> _RUNNING), which overrode the
+  terminal "archived" column. FIX: tools/hermes_bridge.py derive_update now treats SETTLED columns
+  (blocked/done/archived) as authoritative over the transient run outcome (was a blocked-only
+  special case at 1915). So an archived card settles to ok, a done card to ok, a blocked card to
+  blocked -- regardless of a trailing reclaimed/crashed run. The orphans self-resolved to ok on the
+  next tick after deploy. tests/test_hermes_bridge.py +1 (50 checks); offline suite 18/18.
+
 ## 2026-06-21 1915 PDT -- Phase 8 H6.2/H6.3: failure-semantics validated; bridge auto-block mapping fix (Brandon + Claude)
 
 - Exercised the Hermes-native failure semantics through the now-standing dispatcher (H3) on

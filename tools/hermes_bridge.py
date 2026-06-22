@@ -167,17 +167,20 @@ def derive_update(show_payload: Dict[str, Any]) -> Dict[str, Any]:
     if runs:
         patch["attempts"] = len(runs)
 
-    # Status precedence: normally the latest run OUTCOME wins (ok/error/timeout), falling back
-    # to the column when there is no terminal run yet (running/etc.). EXCEPTION: a card parked
-    # in the literal "blocked" column -- e.g. auto-blocked after `dispatch --failure-limit`
-    # consecutive crashes -- is authoritative and must surface as "blocked" (awaiting attention,
-    # recoverable via `hermes kanban unblock`), NOT the "error" its last crashed run would map to.
-    # (H6.3 2026-06-21: without this an auto-blocked card mirrored to /jobs as error, hiding that
-    # it is parked and recoverable rather than dead.)
-    if str(task.get("status") or "").strip().lower() == "blocked":
-        status = "blocked"
+    # Status precedence: a card sitting in a SETTLED column (blocked/done/archived) is
+    # authoritative -- that column is its final lifecycle state and must win over the latest
+    # run OUTCOME, which is only a transient signal about the last attempt. Otherwise (active
+    # card: triage/todo/ready/running/review) the latest run outcome wins (ok/error/timeout),
+    # falling back to the column. Two bugs this fixes, both found exercising H6 on 2026-06-21:
+    #   * H6.3: an auto-blocked card (column "blocked", last run "crashed") mirrored as "error"
+    #     instead of "blocked" -- hiding that it is parked + recoverable (`hermes kanban unblock`).
+    #   * orphan churn: an archived card whose last run was "reclaimed" (-> running) was re-patched
+    #     to "running" every tick, never settling (column "archived" -> ok was being overridden).
+    _col = str(task.get("status") or "").strip().lower()
+    if _col in ("blocked", "done", "archived"):
+        status = map_hermes_column(_col)
     else:
-        status = map_hermes_status(outcome) or map_hermes_column(task.get("status"))
+        status = map_hermes_status(outcome) or map_hermes_column(_col)
     if status:
         patch["status"] = status
 

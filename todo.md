@@ -70,8 +70,11 @@ Housekeeping / decisions:
 - H6.3 found + FIXED a bridge bug: 2 consecutive worker crashes -> Hermes auto-blocked the card
   (failure-limit=2, `auto_blocked=1`), but the bridge mirrored /jobs as `error` (it preferred the
   crashed run outcome over the blocked column). FIX: tools/hermes_bridge.py derive_update now treats
-  the literal `blocked` column as authoritative -> mirrors `blocked` + block_reason (a parked card
-  is recoverable via unblock, not a dead error). +3 tests (49); offline 18/18. Re-verifying live.
+  the `blocked` column as authoritative -> mirrors `blocked` + block_reason (a parked card is
+  recoverable via unblock, not a dead error). CONFIRMED LIVE (/jobs blocked). Then GENERALIZED to
+  all settled columns (blocked/done/archived authoritative over a transient run outcome), which also
+  fixed two stale orphan jobs (h2d-005/006) churning at `running` (archived card + reclaimed run).
+  50 tests; offline 18/18.
 - H3 DONE + PROVEN LIVE on EVO-X2 (over SSH): made the H2d chain UNATTENDED. H2d's dispatch pass
   was run BY HAND (`hermes kanban dispatch`); H3 supervises it as a standing daemon child so
   delegate -> card -> worker -> mirror needs no operator. THE GATE: a hands-off POST

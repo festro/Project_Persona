@@ -178,6 +178,13 @@ check("derive auto-blocked (crashed run + blocked col) -> blocked", abp.get("sta
 check("derive auto-blocked sets block_reason", abp.get("block_reason") == "worker died again")
 check("derive auto-blocked counts attempts", abp.get("attempts") == 2)
 
+# Settled-terminal columns are authoritative over a transient run outcome. An ARCHIVED card whose
+# last run was "reclaimed" (-> _RUNNING) must settle to "ok", not churn at "running" every tick.
+archived_reclaimed = {"task": {"id": "t_arc", "status": "archived"},
+                      "runs": [{"outcome": "reclaimed"}]}
+check("derive archived(col) over reclaimed(run) -> ok",
+      hb.derive_update(archived_reclaimed).get("status") == "ok")
+
 # Done task with no run outcome still resolves ok via task.status; metadata as JSON string.
 done_no_run = {"task": {"id": "t_z", "status": "done"},
                "latest_summary": "wrapped up", "runs": [{"outcome": None, "summary": "wrapped up",
