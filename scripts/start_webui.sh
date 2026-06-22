@@ -28,13 +28,16 @@ export DATA_DIR="${DATA_DIR:-$AI_ROOT/openwebui}"
 # We do not run Ollama; skip its probe so startup doesn't retry a dead :11434.
 export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
 # Web research (Brandon 2026-06-22): server-side web-search grounding, keyless via DuckDuckGo,
-# toggled per-message in the chat UI. BYPASS_*EMBEDDING* injects scraped results directly so no
-# embedding model is needed. (Outbound web egress -> opt-in per web-search use; the local persona
-# stays offline.) These are initial defaults; with persistent config on, the admin UI can override.
+# toggled per-message in the chat UI. EMBEDDING+RETRIEVAL is ON (bypass=false): scraped pages are
+# chunked and only the RELEVANT chunks are injected (local all-MiniLM-L6-v2, already cached).
+# WHY NOT bypass: bypass injects FULL pages (200 KB+/turn observed) which overflows the 64K context
+# and yields an empty reply by the ~3rd web turn (the bug from chat-export-...; fixed 2026-06-22).
+# (Outbound web egress -> opt-in per web-search use; the local persona stays offline.) Initial
+# defaults; the admin UI can override (Settings -> Admin -> Web Search).
 export ENABLE_WEB_SEARCH="${ENABLE_WEB_SEARCH:-true}"
 export WEB_SEARCH_ENGINE="${WEB_SEARCH_ENGINE:-duckduckgo}"
 export WEB_SEARCH_RESULT_COUNT="${WEB_SEARCH_RESULT_COUNT:-3}"
-export BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL="${BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:-true}"
+export BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL="${BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:-false}"
 
 # WEBUI_HOST defaults to loopback (safe). Set it to a LAN address (0.0.0.0, or the host's
 # 192.168.x.x) to reach the UI from another machine's browser without an SSH tunnel. OpenWebUI

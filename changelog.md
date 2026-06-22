@@ -14,6 +14,20 @@ Conventions:
 
 ---
 
+## 2026-06-22 0640 PDT -- FIX: OpenWebUI web search overflowed the 64K context (empty reply by turn 3) (Brandon + Claude)
+
+- Brandon hit an empty assistant reply after a couple of web-search turns (chat-export json):
+  turn 1 injected 224 KB of scraped web pages, turn 2 +117 KB -> by turn 3 the accumulated context
+  blew past the 35B's 64K window -> generation aborted (done=null, content="").
+- ROOT CAUSE: the web-search setup used BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true (chosen on
+  06-22 to avoid an embedding-model dependency), which injects FULL scraped pages instead of
+  trimming to relevant chunks. FIX: bypass=false -> OpenWebUI chunks the pages and injects only the
+  RELEVANT chunks via the local embedding model (sentence-transformers/all-MiniLM-L6-v2, already
+  cached + loaded -- so no new dependency). start_webui.sh default flipped true -> false; web-search
+  config is NOT persisted in the DB (rag key absent) so the env default applies on restart.
+- Net: in-chat web research (path A) now stays within context across multi-turn conversations. The
+  agentic research path B (the researcher Hermes role) was unaffected -- different code path.
+
 ## 2026-06-22 0600 PDT -- Stack update sweep: OpenWebUI 0.8.8 -> 0.9.6; Hermes/llama.cpp/API-deps flagged (Brandon + Claude)
 
 - Brandon: check the stack for updates + apply as needed (Python excepted). Survey + verdicts:
