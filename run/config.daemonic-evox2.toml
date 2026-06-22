@@ -18,11 +18,15 @@
 PERSONA_CTX = 65536
 PERSONA_PARALLEL = 1
 
-# --swa-full: the 35B's sliding-window-attention partial-cache handling aborts llama-server
-# (ggml_abort "failed to remove sequence", rc=-6; supervisor-recovered) on identical-prompt cache
-# reuse -- diagnosed 2026-06-22, see memory evox2-llama-rc6-instability. Keeping the full SWA cache
-# avoids the partial-invalidation path while retaining prompt caching. EVO-X2 has the RAM for it.
-PERSONA_LLAMA_EXTRA_ARGS = "--swa-full"
+# Per-host extra llama-server flags. (Tried --swa-full for the rc=-6 crash on 2026-06-22, but this
+# model does NOT support swa_full -- llama-server logs "swa_full is not supported by this model, it
+# will be disabled" and the crash persists, so it was a NO-OP. Reverted to empty.) The rc=-6 crash
+# is a llama.cpp seq_rm abort that only fires on a FULLY-CACHED, exactly-identical prompt (rare;
+# auto-recovered by the supervisor; does NOT affect normal multi-turn chat, which never repeats an
+# exact prompt). Reliable-but-costly fix: "--no-cache-prompt" (disables prompt caching -> every
+# request re-prefills -> slower multi-turn chat); proper fix is a llama.cpp update. See memory
+# evox2-llama-rc6-instability.
+PERSONA_LLAMA_EXTRA_ARGS = ""
 
 # Bind the persona API to all interfaces so Daemonic-PC (and other LAN hosts) can reach it WITHOUT
 # an SSH tunnel, at http://192.168.8.114:8000. The API is UNAUTHENTICATED -> this exposes

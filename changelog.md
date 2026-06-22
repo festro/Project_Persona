@@ -14,6 +14,24 @@ Conventions:
 
 ---
 
+## 2026-06-22 0320 PDT -- CORRECTION: --swa-full is a no-op on this model; the rc=-6 crash needs an exact-identical prompt (Brandon + Claude)
+
+- Corrects the 0300 entry's claim that --swa-full fixes the rc=-6 crash. LIVE on EVO-X2,
+  llama-server logs "swa_full is not supported by this model, it will be disabled" -> the flag is a
+  NO-OP, and the identical-prompt repro STILL aborts (same common.cpp:1489 seq_rm signature).
+  Reverted PERSONA_LLAMA_EXTRA_ARGS to "" (kept the manage.py escape-hatch + the LAN bind).
+- REFINED root cause: the abort fires ONLY on a FULLY-CACHED, EXACTLY-IDENTICAL prompt (slot LCP
+  sim=1.000, n_past == n_tokens -> the server backs n_past off by 1 to force >=1 eval -> seq_rm
+  aborts). Normal multi-turn chat never sends two identical consecutive prompts, so it does NOT
+  trigger this; the once-in-4.2h crash came from a natural exact-repeat (worker/sleep-cycle/health
+  probe). The supervisor auto-recovers (~10s) -> a rare, self-healing blip, not a chat-blocking bug.
+- OPTIONS (Brandon's call -- a real tradeoff): (A) leave prompt caching ON [fast multi-turn chat;
+  tolerate the rare auto-recovered crash] -- current state, recommended; (B) "--no-cache-prompt"
+  [no crash; slower multi-turn chat -- every request re-prefills]; (C) update llama.cpp past the
+  seq_rm fix. The LAN bind (0.0.0.0:8000) works either way.
+- The running EVO-X2 llama still carries the ignored --swa-full until the next restart (behaviorally
+  identical to reverted); no restart forced (avoids a needless crash window).
+
 ## 2026-06-22 0300 PDT -- EVO-X2: --swa-full fixes the llama rc=-6 crash; persona API on the LAN (Brandon + Claude)
 
 - ROOT-CAUSED the EVO-X2 35B/Vulkan llama-server rc=-6 (SIGABRT) crashes (flagged at 0215): NOT

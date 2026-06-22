@@ -37,10 +37,12 @@ EVO-X2 H2d durability / follow-ups:
   + roadmap Phase 8). REMAINING: H6.4 empirical cache hit-rate study (deferred -- needs a multi-slot
   or role-batched config; single-slot PARALLEL=1 contends the cache); kernel egress layer (root,
   Brandon); the persona-surfaced swarm bridge feature (delegate -> swarm graph).
-- EVO-X2 llama rc=-6 crash: ROOT-CAUSED 2026-06-22 (NOT memory) -- a llama.cpp prompt-cache/SWA
-  bug aborts (common.cpp "failed to remove sequence") on identical-prompt cache reuse. FIX APPLIED:
-  `--swa-full` via run/config.daemonic-evox2.toml (PERSONA_LLAMA_EXTRA_ARGS). See memory
-  evox2-llama-rc6-instability + changelog 0300. (Supervisor recovers it regardless.)
+- EVO-X2 llama rc=-6 crash: ROOT-CAUSED 2026-06-22 (NOT memory) -- a llama.cpp seq_rm abort that
+  fires ONLY on a fully-cached, exactly-identical prompt; normal multi-turn chat never triggers it;
+  supervisor auto-recovers (~10s). `--swa-full` was a NO-OP (unsupported by this model) -> reverted.
+  DECISION OWED (Brandon): keep caching ON [fast chat, rare recovered crash -- current/recommended]
+  vs `--no-cache-prompt` [no crash, slower multi-turn chat] vs a llama.cpp update. See memory
+  evox2-llama-rc6-instability + changelog 0320.
 - LAN access: persona API bound to 0.0.0.0 on EVO-X2 (PERSONA_API_HOST) -> reachable from
   Daemonic-PC at http://192.168.8.114:8000 (no SSH tunnel). UNAUTHENTICATED -- restrict at the
   firewall if the LAN is untrusted; a host firewall may still need :8000 opened (root, Brandon).
