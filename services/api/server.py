@@ -5,6 +5,7 @@ import uuid
 import asyncio
 import re
 import json
+import logging
 import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Literal, AsyncGenerator, Tuple
@@ -181,6 +182,14 @@ CONVO_PERSIST_ENABLED = os.getenv("CONVO_PERSIST_ENABLED", "1").strip().lower() 
 HISTORY_ENABLED = os.getenv("HISTORY_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
 HISTORY_TOKEN_BUDGET = int(os.getenv("HISTORY_TOKEN_BUDGET", "2048"))
 HISTORY_MIN_RECENT = int(os.getenv("HISTORY_MIN_RECENT", "4"))
+# Caps on the windowed history (2026-06-22). HISTORY_MIN_RECENT keeps the last N turns verbatim
+# REGARDLESS of HISTORY_TOKEN_BUDGET; with no ceiling, a few oversized prior turns (e.g. full web
+# pages a chat UI injected into earlier messages) get dragged in and blow the model context ->
+# llama 400 exceed_context_size -> 500. MAX_TURN clips any single prior turn; HARD_CAP bounds the
+# whole recent block above min_recent. Both apply only to PRIOR-turn context, never the current
+# question. Set either to 0 to disable that cap.
+HISTORY_MAX_TURN_TOKENS = int(os.getenv("HISTORY_MAX_TURN_TOKENS", "1024"))
+HISTORY_HARD_CAP_TOKENS = int(os.getenv("HISTORY_HARD_CAP_TOKENS", "8192"))
 # Legacy event-log path, kept only as a one-time migration source for the board.
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
 
@@ -865,6 +874,40 @@ def resolve_topic(req_topic: Optional[str], text: str) -> str:
 # -----------------------
 # Llama helpers
 # -----------------------
+log = logging.getLogger("persona.api")
+
+
+class ContextOverflowError(Exception):
+    """The llama-server rejected the request: the prompt exceeds its context window
+    (HTTP 400, type=exceed_context_size_error). Surfaced as a clean, actionable 400 by the
+    handler below instead of a generic 500 -- so a too-long thread tells the user to start a
+    new chat rather than the model silently falling back to an 'I can't' answer."""
+
+    def __init__(self, n_prompt_tokens: int = 0, n_ctx: int = 0, message: str = ""):
+        self.n_prompt_tokens = n_prompt_tokens
+        self.n_ctx = n_ctx
+        super().__init__(message or f"request ({n_prompt_tokens} tokens) exceeds context ({n_ctx})")
+
+
+def _raise_for_llama_error(r: httpx.Response) -> None:
+    """Map a llama-server error response to a typed exception. A context-overflow (HTTP 400,
+    type=exceed_context_size_error) becomes ContextOverflowError; anything else falls through
+    to httpx's raise_for_status()."""
+    if r.status_code < 400:
+        return
+    err: Dict[str, Any] = {}
+    try:
+        body = r.json()
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            err = body["error"]
+    except Exception:  # noqa: BLE001
+        err = {}
+    msg = str(err.get("message", "")) if err else ""
+    if err.get("type") == "exceed_context_size_error" or "exceeds the available context size" in msg:
+        raise ContextOverflowError(int(err.get("n_prompt_tokens") or 0), int(err.get("n_ctx") or 0), msg)
+    r.raise_for_status()
+
+
 async def query_llama(url: str, prompt: str, tokens: int, temperature: float, timeout_s: float,
                      extra: Optional[Dict[str, Any]] = None):
     payload: Dict[str, Any] = {"prompt": prompt, "n_predict": tokens, "temperature": temperature}
@@ -872,7 +915,7 @@ async def query_llama(url: str, prompt: str, tokens: int, temperature: float, ti
         payload.update(extra)
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_s)) as client:
         r = await client.post(url, json=payload)
-        r.raise_for_status()
+        _raise_for_llama_error(r)
         data = r.json()
     content = (data.get("content") or "").strip()
     tokens_generated = int(data.get("tokens_predicted") or 0)
@@ -901,7 +944,7 @@ async def query_llama_messages(url: str, messages: List[Dict[str, str]], max_tok
         payload.update(extra)
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_s)) as client:
         r = await client.post(url, json=payload)
-        r.raise_for_status()
+        _raise_for_llama_error(r)
         data = r.json()
     choice = (data.get("choices") or [{}])[0]
     msg = choice.get("message") or {}
@@ -1416,8 +1459,23 @@ async def agent_run(payload: dict):
         _job_set(task_id, {"status": "timeout", "finished_at": int(time.time())})
         return result
 
+@app.exception_handler(ContextOverflowError)
+async def context_overflow_handler(request: Request, exc: ContextOverflowError):
+    log.warning("context overflow on %s: %s prompt tokens vs %s ctx",
+                request.url.path, exc.n_prompt_tokens, exc.n_ctx)
+    over = f" ({exc.n_prompt_tokens} tokens > {exc.n_ctx} limit)" if exc.n_ctx else ""
+    msg = ("This conversation is too long for the model's context window" + over
+           + ". Start a new chat, or turn off / narrow web search for this thread.")
+    return JSONResponse(status_code=400,
+                        content={"error": {"message": msg, "type": "context_length_exceeded",
+                                           "code": "context_length_exceeded"}})
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Log it -- otherwise an unhandled error surfaces to the caller as a bare
+    # "internal_server_error" with the real cause invisible (it cost a long debug once).
+    log.exception("unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"error": "internal_server_error", "detail": repr(exc)})
 
 PERSONA_CONCURRENCY = int(os.getenv("PERSONA_CONCURRENCY", "4"))
@@ -1548,7 +1606,9 @@ async def chat(req: ChatRequest):
     if HISTORY_ENABLED and _convo_ok and conversation_id:
         prior = convo.get_turns(conversation_id)
         if prior:
-            history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT)
+            history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT,
+                                       max_turn_tokens=HISTORY_MAX_TURN_TOKENS or None,
+                                       hard_cap_tokens=HISTORY_HARD_CAP_TOKENS or None)
     _persist_turn(conversation_id, "user", req.text, profile=profile, topic=topic)
 
     rag_docs: List[str] = []
@@ -1853,7 +1913,9 @@ def _v1_prepare_conversation(req: OA_ChatCompletionsReq, profile: str, topic: st
                                    tokens=estimate_tokens(content))
                 prior = convo.get_turns(cid)
             if HISTORY_ENABLED and prior:
-                history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT)
+                history = win.window_turns(prior, HISTORY_TOKEN_BUDGET, min_recent=HISTORY_MIN_RECENT,
+                                           max_turn_tokens=HISTORY_MAX_TURN_TOKENS or None,
+                                           hard_cap_tokens=HISTORY_HARD_CAP_TOKENS or None)
         except Exception:  # noqa: BLE001
             history = None
     _persist_turn(cid, "user", latest_user, profile=profile, topic=topic)

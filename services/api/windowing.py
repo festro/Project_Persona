@@ -27,6 +27,24 @@ def _tok(turn: Dict[str, Any]) -> int:
     return estimate_tokens(turn.get("content", ""))
 
 
+def _truncate_turn(turn: Dict[str, Any], max_tokens: int) -> Dict[str, Any]:
+    """Return `turn` unchanged, or a shallow copy whose content is clipped to ~max_tokens
+    (head+tail kept, a marker in between). Bounds any single historical turn so one oversized
+    turn -- e.g. a full web page a chat UI injected into an earlier message -- cannot dominate
+    or blow the model's context window. Only ever applied to PRIOR-turn context, never the
+    current question being answered, so the live input is never clipped."""
+    if max_tokens <= 0 or _tok(turn) <= max_tokens:
+        return turn
+    body = turn.get("content") or ""
+    max_chars = max_tokens * 4  # ~4 chars/token, matches estimate_tokens
+    half = max(1, max_chars // 2)
+    clipped = body[:half].rstrip() + "\n...[earlier turn truncated to fit context]...\n" + body[-half:].lstrip()
+    out = dict(turn)
+    out["content"] = clipped
+    out["tokens"] = estimate_tokens(clipped)
+    return out
+
+
 def _snippet(turn: Dict[str, Any], max_chars: int = 160) -> str:
     role = turn.get("role", "?")
     if turn.get("distilled") and turn.get("summary"):
@@ -49,6 +67,8 @@ def _default_summary(older: List[Dict[str, Any]], max_chars: int = 800) -> str:
 
 def window_turns(turns: List[Dict[str, Any]], budget_tokens: int, *,
                  min_recent: int = 2,
+                 max_turn_tokens: Optional[int] = None,
+                 hard_cap_tokens: Optional[int] = None,
                  summarize: Optional[Callable[[List[Dict[str, Any]]], str]] = None) -> Dict[str, Any]:
     """Split chronological `turns` into recent (verbatim) + older (summarized).
 
@@ -56,6 +76,12 @@ def window_turns(turns: List[Dict[str, Any]], budget_tokens: int, *,
     budget_tokens (but always keeps at least min_recent). Everything older is summarized
     via `summarize` if given, else a built-in truncating heuristic. Returns
     {recent: [...chronological], older: [...chronological], summary: str}.
+
+    `max_turn_tokens` clips any single recent turn (head+tail) so one oversized prior turn
+    cannot dominate. `hard_cap_tokens` is an ABSOLUTE ceiling on the recent block that
+    `min_recent` may NOT override -- without it, min_recent forces the last N turns in
+    regardless of size and a few huge turns blow the model context. Both default None
+    (disabled) -> behaviour identical to the pre-cap version.
     """
     if not turns:
         return {"recent": [], "older": [], "summary": ""}
@@ -64,8 +90,12 @@ def window_turns(turns: List[Dict[str, Any]], budget_tokens: int, *,
     older: List[Dict[str, Any]] = []
     for i in range(len(turns) - 1, -1, -1):
         t = turns[i]
+        if max_turn_tokens:
+            t = _truncate_turn(t, max_turn_tokens)
         tok = _tok(t)
-        if recent_rev and used + tok > budget_tokens and len(recent_rev) >= min_recent:
+        over_hard = hard_cap_tokens is not None and used + tok > hard_cap_tokens
+        over_budget = used + tok > budget_tokens and len(recent_rev) >= min_recent
+        if recent_rev and (over_hard or over_budget):
             older = turns[:i + 1]
             break
         recent_rev.append(t)

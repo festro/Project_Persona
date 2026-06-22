@@ -363,6 +363,13 @@ Goal: a thin client over the API with durable conversation history.
       (/health status:true) and WIRED -- OpenWebUI's startup GET /v1/models hit the API
       200. OWED: a human browser click-test (interactive admin signup) -- the only Phase 2
       step not doable headless.
+      UPDATE 2026-06-22: live on EVO-X2 (0.9.6), LAN-bound, keyless DuckDuckGo web search ON
+      (per-message toggle). Web-search-on-64K overflow FIXED: the persona persisted full web pages
+      (injected into user turns while BYPASS was true) to conversations.db, and window_turns'
+      HISTORY_MIN_RECENT floor dragged them into every request -> 112K-token overflow -> 500 ->
+      model's "I can't browse" fallback. Fixed in windowing.py (max_turn_tokens/hard_cap_tokens caps;
+      poisoned threads auto-recover) + a graceful ContextOverflowError -> 400 context_length_exceeded.
+      See changelog 2026-06-22 0725.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

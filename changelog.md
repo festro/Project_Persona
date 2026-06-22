@@ -14,6 +14,42 @@ Conventions:
 
 ---
 
+## 2026-06-22 0725 PDT -- FIX: web search STILL overflowed (9 sources -> "I can't browse") -- conversations.db poison + window_turns min_recent bug (Brandon + Claude)
+
+- Brandon re-tested: the UI showed "9 sources" mid-stream, then finished with "no sources" and a
+  canned "I cannot browse the live web" answer. The 0640 BYPASS fix was correct but INSUFFICIENT.
+- LOG TRACE (logs/webui.log + logs/persona.log, read-only): web search worked end-to-end (ddgs ->
+  scrape 9 pages -> chunk -> embed 138 small chunks ~250 tok each -> stored in a per-search Chroma
+  collection); retrieval is correctly trimmed (TOP_K=3, RAG_FULL_CONTEXT=false). THEN llama-server
+  rejected the request: `E srv send_error: request (112357 tokens) exceeds the available context
+  size (65536 tokens)` -- a ~15x retry storm at a CONSTANT 112,357 tokens. The persona API's
+  unhandled `raise_for_status` bubbled to the global handler -> bare `500 internal_server_error`
+  (UNLOGGED on our side; OpenWebUI discarded the detail), so OpenWebUI dropped the sources and the
+  model emitted its offline fallback.
+- ROOT CAUSE (two compounding bugs, NOT the current search):
+  * conversations.db POISON: while BYPASS was true (earlier 06-22), OpenWebUI injected FULL web
+    pages INTO the user messages; the persona persisted those as turns. owui-0081a8.. has five
+    21-33K-token user turns; owui-b3aa05.. one 56,712-token turn (the 224 KB page from the export).
+  * windowing.py `window_turns` honored HISTORY_MIN_RECENT=4 by keeping the last 4 turns VERBATIM
+    regardless of HISTORY_TOKEN_BUDGET (2048) -- and with no absolute ceiling, those 4 baked-in
+    pages (~110K tok) were dragged into every new request on the thread -> hard overflow. Brandon's
+    "9 sources" test was a follow-up on a poisoned thread: the search added top-3, but the history
+    alone already blew the window.
+- FIX (services/api/windowing.py + server.py):
+  * window_turns gains `max_turn_tokens` (clips any single PRIOR turn, head+tail kept) and
+    `hard_cap_tokens` (absolute ceiling min_recent may NOT exceed). Defaults None -> legacy
+    behavior. server.py passes HISTORY_MAX_TURN_TOKENS=1024 / HISTORY_HARD_CAP_TOKENS=8192 at both
+    /chat + /v1 call sites. Only PRIOR-turn context is clipped; the live question is never touched
+    (it is handled separately via _v1_latest_user_text). Poisoned threads AUTO-RECOVER -- the giant
+    old turns just fall out of the window; no conversations.db surgery needed.
+  * Graceful overflow: new ContextOverflowError + _raise_for_llama_error map llama's HTTP 400
+    `exceed_context_size_error` to a clean 400 `{error:{message,type:context_length_exceeded}}` so
+    a too-long thread tells the user to start a new chat instead of the model hallucinating an
+    "I can't" reply. The global exception handler now LOGS (log.exception) -- the bare 500 with the
+    real cause invisible cost a long debug.
+- TESTS: tests/test_windowing.py +6 checks incl. the exact regression (5x 32K turns + min_recent=4
+  -> recent bounded under the hard cap). 22/22 local; py_compile clean.
+
 ## 2026-06-22 0640 PDT -- FIX: OpenWebUI web search overflowed the 64K context (empty reply by turn 3) (Brandon + Claude)
 
 - Brandon hit an empty assistant reply after a couple of web-search turns (chat-export json):

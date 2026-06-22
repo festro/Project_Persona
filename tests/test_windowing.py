@@ -59,10 +59,35 @@ def main():
     check("summary non-empty when older exist", bool(win["summary"]))
     check("summary mentions an older turn", "mid q" in win["summary"] or "oldest" in win["summary"])
 
-    # min_recent is honored even if it blows the budget
+    # min_recent is honored even if it blows the budget (no caps -> legacy behavior)
     big = [turn("user", "a" * 400), turn("assistant", "b" * 400), turn("user", "c" * 400)]
     win2 = w.window_turns(big, budget_tokens=1, min_recent=2)
     check("min_recent kept despite tiny budget", len(win2["recent"]) >= 2)
+
+    # max_turn_tokens clips a single oversized turn instead of dropping it (head+tail kept)
+    giant = [turn("user", "x" * 240000)]  # ~60k tokens
+    wt = w.window_turns(giant, budget_tokens=2048, min_recent=4,
+                        max_turn_tokens=1024, hard_cap_tokens=8192)
+    check("giant single turn kept (truncated, not dropped)", len(wt["recent"]) == 1)
+    check("giant turn clipped to ~max_turn_tokens", w._tok(wt["recent"][0]) <= 1100)
+    check("truncation marker present", "truncated to fit context" in wt["recent"][0]["content"])
+
+    # REGRESSION (2026-06-22): five huge prior turns + min_recent=4 must NOT blow the window.
+    # This is the conversations.db poison case -- full web pages baked into earlier user turns.
+    poison = [turn("user", "p" * 130000) for _ in range(5)]  # ~32k tokens each
+    wp = w.window_turns(poison, budget_tokens=2048, min_recent=4,
+                        max_turn_tokens=1024, hard_cap_tokens=8192)
+    check("poisoned history bounded under hard cap",
+          sum(w._tok(t) for t in wp["recent"]) <= 8192)
+    check("poisoned recent turns each clipped",
+          all(w._tok(t) <= 1100 for t in wp["recent"]))
+
+    # hard_cap_tokens overrides min_recent even with per-turn truncation disabled
+    big4 = [turn("user", "q", tokens=5000) for _ in range(4)]
+    whc = w.window_turns(big4, budget_tokens=2048, min_recent=4,
+                         max_turn_tokens=0, hard_cap_tokens=8192)
+    check("hard cap overrides min_recent",
+          sum(w._tok(t) for t in whc["recent"]) <= 8192 and len(whc["recent"]) < 4)
 
     # distilled older turns contribute their stored summary
     older_distilled = [turn("user", "raw text", distilled=1, summary="user asked about X")]
