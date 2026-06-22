@@ -51,8 +51,9 @@ EVO-X2 H2d durability / follow-ups:
 - Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.
 
 Manual (only Brandon):
-- Phase 2 OpenWebUI browser click-test at http://127.0.0.1:3000 (interactive admin signup) ->
-  Phase 2 [x] (`manage.py up` / `python daemon.py` to bring the stack up).
+- Phase 2 OpenWebUI browser click-test: OpenWebUI is now LIVE on EVO-X2 (systemd --user unit
+  persona-webui, LAN-bound) -> open http://192.168.8.114:3000 from Daemonic-PC, do the one-time
+  admin signup, pick model `project_persona`, chat. That flips Phase 2 -> [x]. (changelog 0455.)
 - Phase 4 Godot client + Phase 5 audio engines/device (the host-side halves of the optional phases).
 
 Housekeeping / decisions:

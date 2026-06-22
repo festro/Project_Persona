@@ -14,6 +14,21 @@ Conventions:
 
 ---
 
+## 2026-06-22 0455 PDT -- OpenWebUI LIVE on EVO-X2, reachable from Daemonic-PC over the LAN (Brandon + Claude)
+
+- Installed open-webui==0.8.8 into env_webui on EVO-X2 (Python 3.12.3; heavy dep tree incl.
+  torch/transformers/chromadb -- the cuda wheels are unused on the AMD/Vulkan box, harmless). Run
+  as a systemd --user unit `persona-webui` (WEBUI_HOST=0.0.0.0:3000, ENABLE_OLLAMA_API=false,
+  OPENAI_API_BASE_URL=http://127.0.0.1:8000/v1, WEBUI_DATA_DIR=openwebui), lingered -> survives SSH
+  disconnect like the persona-daemon. Manage: systemctl --user start/stop/status persona-webui.
+- VERIFIED: UI responds HTTP 200; reachable from Daemonic-PC at http://192.168.8.114:3000 (a LAN
+  browser at 192.168.8.100 already loaded it); the persona API exposes model `project_persona` via
+  /v1/models so it appears in OpenWebUI's picker. Chat works immediately over /v1; OpenWebUI's
+  RAG/embedding model lazy-downloads on first document use (chat is unaffected).
+- OWED (human, Brandon): the one-time OpenWebUI admin signup at http://192.168.8.114:3000 (first
+  account = admin), then pick `project_persona` and chat. That closes the Phase 2 OpenWebUI
+  click-test (now on the anchor node, not the Windows box).
+
 ## 2026-06-22 0400 PDT -- OpenWebUI on EVO-X2 (LAN): start_webui.sh host-configurable + AI_ROOT fix (Brandon + Claude)
 
 - Brandon wants to chat via a browser UI (not curl/API). OpenWebUI was the project's Phase 2 choice
