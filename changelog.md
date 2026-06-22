@@ -14,6 +14,23 @@ Conventions:
 
 ---
 
+## 2026-06-22 0510 PDT -- Web research path A: OpenWebUI web search (DuckDuckGo) live + DATA_DIR persistence fix (Brandon + Claude)
+
+- Brandon wants web/research capability (decided: A now -- in-chat web search; B next -- agentic
+  research worker). PATH A done: OpenWebUI server-side web search enabled (keyless DuckDuckGo,
+  per-message toggle in the chat; BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true so no embedding
+  model is needed). Verified live on the open-webui process env: ENABLE_WEB_SEARCH=true,
+  WEB_SEARCH_ENGINE=duckduckgo. (Defaults baked into start_webui.sh -> reproducible; web-search
+  config was never persisted in the DB, so the env applies; admin UI can still override.)
+- PERSISTENCE FIX: OpenWebUI 0.8.8 reads DATA_DIR, not WEBUI_DATA_DIR -- the DB/accounts/chats had
+  been living inside env_webui/.../open_webui/data (a venv rebuild would wipe them). Migrated that
+  data dir -> $AI_ROOT/openwebui (copied, original preserved) and set DATA_DIR in start_webui.sh.
+  Verified the migrated DB keeps the account + chat (users=1, chats=1) and is now the live DB.
+- EGRESS NOTE: web search is the first deliberate outbound-web path; scoped to explicit
+  web-search use in the chat. The local persona (and Hermes workers) stay offline. OWED (human):
+  Brandon's functional click-test -- toggle web search (globe icon) in a chat and ask a current
+  question. NEXT: path B -- the agentic researcher-web Hermes role.
+
 ## 2026-06-22 0455 PDT -- OpenWebUI LIVE on EVO-X2, reachable from Daemonic-PC over the LAN (Brandon + Claude)
 
 - Installed open-webui==0.8.8 into env_webui on EVO-X2 (Python 3.12.3; heavy dep tree incl.
