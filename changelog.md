@@ -14,6 +14,21 @@ Conventions:
 
 ---
 
+## 2026-06-22 0400 PDT -- OpenWebUI on EVO-X2 (LAN): start_webui.sh host-configurable + AI_ROOT fix (Brandon + Claude)
+
+- Brandon wants to chat via a browser UI (not curl/API). OpenWebUI was the project's Phase 2 choice
+  but was only ever installed on the old WSL clone -- NOT on EVO-X2 (env_webui absent) -- and
+  Daemonic-PC has no Docker. So: install OpenWebUI on EVO-X2 and serve it on the LAN.
+- scripts/start_webui.sh: fixed the stale AI_ROOT default (was $HOME/Live/AIStack/... ->
+  $HOME/Git/Project_Persona) and made the bind configurable -- WEBUI_HOST (default 127.0.0.1) +
+  WEBUI_PORT (default 3000). Set WEBUI_HOST=0.0.0.0 to reach the UI from another machine's browser
+  without an SSH tunnel. (OpenWebUI has its own admin/account auth -- first visit = signup -- so a
+  LAN bind is less exposed than the raw persona API.) bash -n clean.
+- NEXT (EVO-X2-local): create env_webui + pip install open-webui==0.8.8; run it as a systemd --user
+  unit (persona-webui) bound to 0.0.0.0:3000 with OPENAI_API_BASE_URL=http://127.0.0.1:8000/v1;
+  Brandon opens http://192.168.8.114:3000 and does the one-time admin signup. (Closes the Phase 2
+  OpenWebUI click-test, now on the anchor node.)
+
 ## 2026-06-22 0320 PDT -- CORRECTION: --swa-full is a no-op on this model; the rc=-6 crash needs an exact-identical prompt (Brandon + Claude)
 
 - Corrects the 0300 entry's claim that --swa-full fixes the rc=-6 crash. LIVE on EVO-X2,

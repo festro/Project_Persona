@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AI_ROOT="${AI_ROOT:-$HOME/Live/AIStack/Project_Persona}"
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}"
 VENV="$AI_ROOT/env_webui"
 
 if [ ! -x "$VENV/bin/python" ]; then
@@ -24,8 +24,15 @@ export OPENAI_API_BASE_URL="${OPENAI_API_BASE_URL:-http://127.0.0.1:8000/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-local-anything}"
 export WEBUI_DATA_DIR="${WEBUI_DATA_DIR:-$AI_ROOT/openwebui}"
 
-echo "Starting OpenWebUI on http://127.0.0.1:3000"
+# WEBUI_HOST defaults to loopback (safe). Set it to a LAN address (0.0.0.0, or the host's
+# 192.168.x.x) to reach the UI from another machine's browser without an SSH tunnel. OpenWebUI
+# has its own account/auth (first visit = admin signup), so a LAN bind is less exposed than the
+# raw persona API; still keep it to a trusted network.
+WEBUI_HOST="${WEBUI_HOST:-127.0.0.1}"
+WEBUI_PORT="${WEBUI_PORT:-3000}"
+
+echo "Starting OpenWebUI on http://${WEBUI_HOST}:${WEBUI_PORT}"
 echo "  OPENAI_API_BASE_URL=$OPENAI_API_BASE_URL"
 echo "  WEBUI_DATA_DIR=$WEBUI_DATA_DIR"
 
-exec open-webui serve --host 127.0.0.1 --port 3000
+exec open-webui serve --host "$WEBUI_HOST" --port "$WEBUI_PORT"
