@@ -146,8 +146,10 @@ env/bin/python daemon.py                    # Ctrl-C / SIGTERM for a clean shutd
 ```
 
 Phase opt-ins on the daemon (off by default):
-- `daemon.py --with-hermes`  (or `HERMES_DAEMON_ENABLED=1`) -- supervise the Hermes H2 bridge
-  (needs `env_hermes/`; launched with secrets stripped from its env). Phase 8.
+- `daemon.py --with-hermes`  (or `HERMES_DAEMON_ENABLED=1`) -- supervise the standing Hermes layer:
+  the H2 bridge + the H3 dispatcher loop (tools/hermes_dispatch_loop.py, loops the supported
+  `hermes kanban dispatch`). Needs `env_hermes/`; both children launched with cloud secrets
+  stripped. Makes delegate -> worker -> mirror fully unattended. Phase 8.
 - `daemon.py --with-voice`   (or `VOICE_DAEMON_ENABLED=1`)  -- supervise Whisper STT / Piper TTS
   IF their binaries+models are installed (host-side; `docs/voice_pipeline.md`). Phase 5.
 
@@ -155,9 +157,16 @@ Phase opt-ins on the daemon (off by default):
 
 ## 8. Optional surfaces
 
-- OpenWebUI (Phase 2 thin client): `python3 -m venv env_webui && env_webui/bin/pip install
-  open-webui==0.8.8`, then `AI_ROOT="$PWD" bash scripts/start_webui.sh` -> http://127.0.0.1:3000
-  (points `OPENAI_API_BASE_URL` at the API `/v1`). Stop with `scripts/stop_webui.sh`.
+- OpenWebUI (Phase 2 browser chat UI): `python3 -m venv env_webui && env_webui/bin/pip install
+  open-webui==0.9.6`, then `AI_ROOT="$PWD" bash scripts/start_webui.sh` -> http://127.0.0.1:3000
+  (points `OPENAI_API_BASE_URL` at the API `/v1`; model id `project_persona`; first visit = admin
+  signup). The script defaults DATA_DIR=$AI_ROOT/openwebui (accounts/chats persist in the project),
+  ENABLE_OLLAMA_API=false, and keyless DuckDuckGo web search ON (per-message toggle in the chat).
+  Set WEBUI_HOST=0.0.0.0 to reach it on the LAN. On EVO-X2 it runs as a systemd --user unit
+  (persona-webui), like the persona-daemon.
+- Agentic web research: the `researcher` role is web-enabled (keyless ddgs -- install with
+  `env_hermes/bin/python -m pip install -U ddgs`); `POST /agent/delegate {"role":"researcher",...}`
+  and the worker searches the web when current facts help. Every other role stays egress-off.
 - Memory inspection while the API holds the (single-writer) Qdrant store:
   `GET /memory/collections`, `GET /memory/search?collection=..&q=..`, `POST /memory/ingest_inbox`.
   `scripts/ingest_inbox.py` auto-routes through the API when it's up, direct when it's down.

@@ -14,6 +14,25 @@ Conventions:
 
 ---
 
+## 2026-06-22 0600 PDT -- Stack update sweep: OpenWebUI 0.8.8 -> 0.9.6; Hermes/llama.cpp/API-deps flagged (Brandon + Claude)
+
+- Brandon: check the stack for updates + apply as needed (Python excepted). Survey + verdicts:
+  * OpenWebUI 0.8.8 -> 0.9.6 (latest): UPDATED. Backed up openwebui/webui.db first
+    (webui.db.bak-pre096); `env_webui/bin/pip install -U open-webui==0.9.6`; restarted the
+    persona-webui unit. VERIFIED: v0.9.6 banner, account+chats survived the 0.8->0.9 DB migration
+    (users=1, chats=1), DATA_DIR + ENABLE_WEB_SEARCH=true/duckduckgo intact (env var names
+    unchanged; PersistentConfig -> ConfigVar internally), LAN reachable (http 200). start_webui.sh
+    install hint bumped 0.8.8 -> 0.9.6.
+  * API env (env/): MANY packages outdated (fastapi, chromadb 0.6->1.5, huggingface_hub 0.36->1.20,
+    numpy, cuda/nvidia wheels [unused on AMD/Vulkan]). NOT mass-updated -- the stack is validated
+    against these versions and major jumps (hf_hub 1.x, chromadb 1.x) are breaking; no security
+    need. Leave pinned; update deliberately if a specific need arises.
+  * Hermes: pinned @9b1e0d6f is ~1501 commits behind upstream. NOT updated -- the entire H1-H6
+    agent layer was validated against this pin; updating is a deliberate re-validation effort.
+  * llama.cpp build 45b455e: far behind. NOT rebuilt here -- a rebuild is heavy and could fix the
+    rc=-6 cache bug (Brandon's Option C) but needs re-validation; left on the table.
+  * ddgs 9.14.4: current (just installed for the researcher web tool). Python: excluded per Brandon.
+
 ## 2026-06-22 0535 PDT -- Web research path B: agentic researcher role with keyless web search (Brandon + Claude)
 
 - PATH B done + PROVEN LIVE on EVO-X2: the RESEARCHER role now does autonomous, multi-step web

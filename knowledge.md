@@ -63,8 +63,11 @@ prompt selection) rather than by routing to separate model servers. The earlier
 multi-server split (persona 8080 + reasoning 8081 + coder 8082) is retired.
 
 Request path: client -> FastAPI companion API (port 8000) -> unified
-llama-server (port 8090). The API exposes OpenAI-compatible endpoints; a
-front-end (OpenWebUI, currently dormant) connects through them.
+llama-server (port 8090). The API exposes OpenAI-compatible endpoints; the
+OpenWebUI front-end connects through them -- LIVE on the EVO-X2 anchor (a
+systemd --user unit, LAN-reachable, with optional keyless web search). On EVO-X2
+the API + UI can bind the LAN (PERSONA_API_HOST / WEBUI_HOST) for access from
+other machines without an SSH tunnel. See handoff_persona_20260622_0610.md.
 
 API surface (verified against `services/api/server.py` 2026-06-05). The working
 path is `/chat` (sync persona reply with RAG and optional in-band reasoning) and
@@ -228,13 +231,18 @@ config to the profile dir. The config was migrated in place to schema version 28
 (additive; safe-config preserved). Egress is off via four independent layers:
 `tools.disabled` + egress tools being API-key-gated (no provider keys set) +
 `terminal.backend: local` + `browser.allow_private_urls: false` (+ coarse
-`agent.disabled_toolsets`). See changelog 2026-06-12 2311.
+`agent.disabled_toolsets`). See changelog 2026-06-12 2311. EXCEPTION (2026-06-22,
+Brandon): the `researcher` role profile is deliberately web-ENABLED (web_search /
+web_extract / web_crawl on, keyless DuckDuckGo via `ddgs`) for agentic web research.
+Egress is now ROLE-SCOPED, not blanket -- every OTHER profile (default persona +
+critic/summarizer/coder/librarian) stays egress-off. The kernel egress baseline
+(scripts/egress_baseline.sh, root) is still owed.
 
 ## Operational notes
 
 Ports: companion API 8000, unified llama-server 8090 (moved from 8080 on
 2026-05-19 to avoid a host-port collision with an unrelated co-tenant
-container), OpenWebUI 3000 (dormant).
+container), OpenWebUI 3000 (LIVE on EVO-X2; LAN-bindable via WEBUI_HOST).
 
 Process liveness (2026-06-14; changelog 1407): a recorded pid is not trusted
 alone -- in WSL it could read dead while /health was still up, so `status` once

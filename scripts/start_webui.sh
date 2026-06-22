@@ -10,7 +10,7 @@ if [ ! -x "$VENV/bin/python" ]; then
   echo "  python3 -m venv ~/AI/env_webui"
   echo "  source ~/AI/env_webui/bin/activate"
   echo "  pip install -U pip wheel"
-  echo "  pip install open-webui==0.8.8"
+  echo "  pip install open-webui==0.9.6   # + 'pip install -U ddgs' for the researcher web tool"
   exit 1
 fi
 
