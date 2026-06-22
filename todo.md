@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-21 1225 PDT by Claude (Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
+Last updated: 2026-06-21 1915 PDT by Claude (Phase 8 H6.2/H6.3 validated on EVO-X2: H6.2 reclaim+recovery PROVEN [killed worker mid-run -> dispatch loop reclaimed + re-dispatched -> /jobs ok, attempts=2]; H6.3 found+fixed a bridge mis-map [an auto-blocked card mirrored as `error` not `blocked` -- derive_update now treats the literal `blocked` column as authoritative], offline 18/18, re-verifying live. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
@@ -62,8 +62,16 @@ Housekeeping / decisions:
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Just finished (2026-06-21 -- Phase 8 H3 standing dispatcher PROVEN LIVE, Claude)
+## Just finished (2026-06-21 -- Phase 8 H3 + H6.2/H6.3, Claude)
 
+- H6.2 PROVEN LIVE (reclaim + recovery): killed the spawned worker mid-run (SIGKILL); the
+  standing dispatch loop logged `crashed=1 spawned=[...]`, reclaimed the stale claim, re-dispatched
+  in one tick (attempts 1->2), and the re-run completed -> /jobs ok. Hands-off recovery.
+- H6.3 found + FIXED a bridge bug: 2 consecutive worker crashes -> Hermes auto-blocked the card
+  (failure-limit=2, `auto_blocked=1`), but the bridge mirrored /jobs as `error` (it preferred the
+  crashed run outcome over the blocked column). FIX: tools/hermes_bridge.py derive_update now treats
+  the literal `blocked` column as authoritative -> mirrors `blocked` + block_reason (a parked card
+  is recoverable via unblock, not a dead error). +3 tests (49); offline 18/18. Re-verifying live.
 - H3 DONE + PROVEN LIVE on EVO-X2 (over SSH): made the H2d chain UNATTENDED. H2d's dispatch pass
   was run BY HAND (`hermes kanban dispatch`); H3 supervises it as a standing daemon child so
   delegate -> card -> worker -> mirror needs no operator. THE GATE: a hands-off POST

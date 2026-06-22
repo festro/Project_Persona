@@ -155,8 +155,9 @@ check("mirror block_reason from run summary", "review-required" in (d2.get("bloc
 
 check("ok rows are terminal (mirror skips them)", "d1" not in hb.mirror_outcomes(board, runner=fake.runner))
 
-# Real wrapped show payload: task fields under "task", runs at top level.
-fail_json = {"task": {"id": "t_x", "status": "blocked"},
+# Real wrapped show payload: task fields under "task", runs at top level. A gave_up worker
+# leaves the card running (gave_up is a deliberate terminal outcome, not a column).
+fail_json = {"task": {"id": "t_x", "status": "running"},
              "runs": [{"outcome": "gave_up", "error": "AWS key missing"}]}
 patch = hb.derive_update(fail_json)
 check("derive gave_up -> error", patch.get("status") == "error")
@@ -165,6 +166,17 @@ check("derive gave_up error field", patch.get("error") == "AWS key missing")
 
 to_json = {"task": {"id": "t_y", "status": "running"}, "runs": [{"outcome": "timed_out"}]}
 check("derive timed_out -> timeout", hb.derive_update(to_json).get("status") == "timeout")
+
+# H6.3 regression: a card auto-blocked after `dispatch --failure-limit` consecutive crashes is
+# PARKED in the "blocked" column with a crashed latest run. The bridge must surface "blocked"
+# (recoverable via `hermes kanban unblock`), NOT the "error" the crashed run alone would map to.
+autoblocked = {"task": {"id": "t_ab", "status": "blocked"},
+               "runs": [{"outcome": "crashed", "error": "worker died"},
+                        {"outcome": "crashed", "error": "worker died again"}]}
+abp = hb.derive_update(autoblocked)
+check("derive auto-blocked (crashed run + blocked col) -> blocked", abp.get("status") == "blocked")
+check("derive auto-blocked sets block_reason", abp.get("block_reason") == "worker died again")
+check("derive auto-blocked counts attempts", abp.get("attempts") == 2)
 
 # Done task with no run outcome still resolves ok via task.status; metadata as JSON string.
 done_no_run = {"task": {"id": "t_z", "status": "done"},

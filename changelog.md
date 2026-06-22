@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-21 1915 PDT -- Phase 8 H6.2/H6.3: failure-semantics validated; bridge auto-block mapping fix (Brandon + Claude)
+
+- Exercised the Hermes-native failure semantics through the now-standing dispatcher (H3) on
+  EVO-X2, driven over SSH. (The daemon + Hermes children had persisted ~7h since the H3
+  checkpoint -- further durability proof.)
+- H6.2 PROVEN (reclaim + recovery): delegated a task, killed the spawned worker mid-run
+  (SIGKILL, card t_5dfab12a). The dispatch loop logged `crashed=1 spawned=[t_5dfab12a]` -- it
+  reclaimed the stale claim and re-dispatched in ONE tick; attempts 1->2; the re-run completed
+  -> /jobs ok, attempts=2. Reclaim of a dead worker + automatic re-dispatch + recovery, hands-off.
+- H6.3 surfaced a BRIDGE BUG (then fixed it): killed the worker on every spawn -> after 2
+  consecutive crashes the dispatcher auto-blocked the card (`crashed=1 auto_blocked=1`,
+  failure-limit=2) -- Hermes' native ceiling works. BUT /jobs showed "error", not "blocked":
+  tools/hermes_bridge.py derive_update preferred the latest run OUTCOME (crashed->error) over the
+  card COLUMN (blocked). An auto-blocked card is PARKED + recoverable (`hermes kanban unblock`),
+  not a dead error. FIX: the literal "blocked" column is now authoritative over a crashed/
+  timed_out run -> the bridge mirrors "blocked" + block_reason. (gave_up still -> error;
+  failure-limit only auto-blocks on spawn_failed/timed_out/crashed, never gave_up -- so the old
+  test's blocked-col + gave_up payload was unrealistic and was made realistic.)
+  tests/test_hermes_bridge.py +3 (49 checks); offline suite 18/18.
+- Re-verifying live on EVO-X2 after deploy (auto-block -> /jobs blocked).
+
 ## 2026-06-21 1225 PDT -- Phase 8 H3 PROVEN LIVE on EVO-X2: hands-off delegate -> ok+summary (Brandon + Claude)
 
 - Brought the standing Hermes layer up on EVO-X2 (driven over SSH) and proved H3 end to end

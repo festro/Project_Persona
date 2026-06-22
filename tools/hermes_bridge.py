@@ -167,7 +167,17 @@ def derive_update(show_payload: Dict[str, Any]) -> Dict[str, Any]:
     if runs:
         patch["attempts"] = len(runs)
 
-    status = map_hermes_status(outcome) or map_hermes_column(task.get("status"))
+    # Status precedence: normally the latest run OUTCOME wins (ok/error/timeout), falling back
+    # to the column when there is no terminal run yet (running/etc.). EXCEPTION: a card parked
+    # in the literal "blocked" column -- e.g. auto-blocked after `dispatch --failure-limit`
+    # consecutive crashes -- is authoritative and must surface as "blocked" (awaiting attention,
+    # recoverable via `hermes kanban unblock`), NOT the "error" its last crashed run would map to.
+    # (H6.3 2026-06-21: without this an auto-blocked card mirrored to /jobs as error, hiding that
+    # it is parked and recoverable rather than dead.)
+    if str(task.get("status") or "").strip().lower() == "blocked":
+        status = "blocked"
+    else:
+        status = map_hermes_status(outcome) or map_hermes_column(task.get("status"))
     if status:
         patch["status"] = status
 
