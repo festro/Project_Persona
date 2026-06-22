@@ -37,10 +37,13 @@ EVO-X2 H2d durability / follow-ups:
   + roadmap Phase 8). REMAINING: H6.4 empirical cache hit-rate study (deferred -- needs a multi-slot
   or role-batched config; single-slot PARALLEL=1 contends the cache); kernel egress layer (root,
   Brandon); the persona-surfaced swarm bridge feature (delegate -> swarm graph).
-- FLAG (operational, needs Brandon): the EVO-X2 35B/Vulkan llama-server exited rc=-6 (SIGABRT)
-  after ~4.2h uptime, then again ~56s after restart (Phase 3 supervisor recovered both; now
-  stable). Investigate the crash cause (memory/Vulkan/model) -- recurring rc=-6 could exhaust the
-  3-strike budget and take the stack down.
+- EVO-X2 llama rc=-6 crash: ROOT-CAUSED 2026-06-22 (NOT memory) -- a llama.cpp prompt-cache/SWA
+  bug aborts (common.cpp "failed to remove sequence") on identical-prompt cache reuse. FIX APPLIED:
+  `--swa-full` via run/config.daemonic-evox2.toml (PERSONA_LLAMA_EXTRA_ARGS). See memory
+  evox2-llama-rc6-instability + changelog 0300. (Supervisor recovers it regardless.)
+- LAN access: persona API bound to 0.0.0.0 on EVO-X2 (PERSONA_API_HOST) -> reachable from
+  Daemonic-PC at http://192.168.8.114:8000 (no SSH tunnel). UNAUTHENTICATED -- restrict at the
+  firewall if the LAN is untrusted; a host firewall may still need :8000 opened (root, Brandon).
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).
 - Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.

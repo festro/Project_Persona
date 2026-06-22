@@ -17,3 +17,15 @@
 [linux]
 PERSONA_CTX = 65536
 PERSONA_PARALLEL = 1
+
+# --swa-full: the 35B's sliding-window-attention partial-cache handling aborts llama-server
+# (ggml_abort "failed to remove sequence", rc=-6; supervisor-recovered) on identical-prompt cache
+# reuse -- diagnosed 2026-06-22, see memory evox2-llama-rc6-instability. Keeping the full SWA cache
+# avoids the partial-invalidation path while retaining prompt caching. EVO-X2 has the RAM for it.
+PERSONA_LLAMA_EXTRA_ARGS = "--swa-full"
+
+# Bind the persona API to all interfaces so Daemonic-PC (and other LAN hosts) can reach it WITHOUT
+# an SSH tunnel, at http://192.168.8.114:8000. The API is UNAUTHENTICATED -> this exposes
+# chat/delegate/memory to the LAN; tighten to the LAN-only IP ("192.168.8.114") or a firewall rule
+# if the network is untrusted. llama (:8090) stays loopback (clients hit the API, not raw llama).
+PERSONA_API_HOST = "0.0.0.0"

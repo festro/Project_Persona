@@ -14,6 +14,26 @@ Conventions:
 
 ---
 
+## 2026-06-22 0300 PDT -- EVO-X2: --swa-full fixes the llama rc=-6 crash; persona API on the LAN (Brandon + Claude)
+
+- ROOT-CAUSED the EVO-X2 35B/Vulkan llama-server rc=-6 (SIGABRT) crashes (flagged at 0215): NOT
+  memory (24 GB RAM / 63 GB VRAM free). It is a llama.cpp prompt-cache/SWA bug -- on an identical
+  prompt reuse (slot LCP sim=1.000) the server backs n_past 110->109 to force re-eval, then
+  common.cpp:1489 "failed to remove sequence 0 with p0=109" -> ggml_abort. The log blames SWA
+  partial-cache handling (cites a llama.cpp PR). An identical back-to-back request reproduces it.
+- FIX: `--swa-full` on the EVO-X2 llama launch (keeps the full SWA cache -> avoids the partial-
+  invalidation path; retains prompt caching; EVO-X2 has the RAM). Added a generic per-host escape
+  hatch PERSONA_LLAMA_EXTRA_ARGS to manage.py llama_argv (space-separated extra flags, shlex-split,
+  appended); set "--swa-full" in run/config.daemonic-evox2.toml.
+- LAN ACCESS (Brandon's ask -- reach the stack from Daemonic-PC without SSH): manage.py api_argv
+  host is now PERSONA_API_HOST (default 127.0.0.1, UNCHANGED for other hosts); set "0.0.0.0" on
+  EVO-X2 so the persona API is reachable at http://192.168.8.114:8000. SECURITY: the persona API is
+  UNAUTHENTICATED -> a LAN bind exposes chat/delegate/memory to the local network; tighten to the
+  LAN-only IP or a firewall rule (root) if untrusted. llama (:8090) stays loopback (clients hit the
+  API). A host firewall may still need :8000 opened (ufw not queryable without root).
+- Offline 18/18; py_compile clean. Live verify on EVO-X2: --swa-full in the llama cmdline, API on
+  0.0.0.0:8000, identical-prompt repro no longer crashes.
+
 ## 2026-06-22 0215 PDT -- Phase 8 H4 confirmed live + H5 verified + H6.4 cache measurement (inconclusive) (Brandon + Claude)
 
 - H4 CONFIRMED LIVE on EVO-X2: ran init_profiles.sh -> the 5 role profiles materialized

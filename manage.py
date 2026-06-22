@@ -506,6 +506,13 @@ def llama_argv(root, cfg):
         extra_env["LD_LIBRARY_PATH"] = (
             lib + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
         )
+    # Per-host escape hatch for extra llama-server flags (space-separated). Used on EVO-X2 to set
+    # --swa-full -- the 35B's sliding-window-attention partial-cache handling otherwise aborts
+    # (ggml_abort at common.cpp "failed to remove sequence", rc=-6) on identical-prompt cache reuse.
+    extra = str(cfg.get("PERSONA_LLAMA_EXTRA_ARGS", "")).strip()
+    if extra:
+        argv += shlex.split(extra)
+        info(f"llama extra args: {extra}")
     return argv, extra_env
 
 
@@ -555,7 +562,12 @@ def api_argv(root, cfg):
         "-m", "uvicorn",
         "server:app",
         "--app-dir", str(root / "services" / "api"),
-        "--host", "127.0.0.1",
+        # PERSONA_API_HOST defaults to loopback (the safe egress-off posture). Set it to a LAN
+        # address (e.g. 0.0.0.0 or the host's 192.168.x.x) in a per-host config to reach the API
+        # from another machine WITHOUT an SSH tunnel. NOTE: the persona API is UNAUTHENTICATED, so
+        # a LAN bind exposes chat/delegate/memory to the local network -- restrict at the firewall
+        # (or bind only the LAN interface IP) if the network is not trusted.
+        "--host", str(cfg.get("PERSONA_API_HOST", "127.0.0.1")),
         "--port", "8000",
     ]
     return argv, api_env(root, cfg)
