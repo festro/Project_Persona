@@ -14,6 +14,30 @@ Conventions:
 
 ---
 
+## 2026-06-22 0535 PDT -- Web research path B: agentic researcher role with keyless web search (Brandon + Claude)
+
+- PATH B done + PROVEN LIVE on EVO-X2: the RESEARCHER role now does autonomous, multi-step web
+  research (the "like-Claude" path). Delegated role=researcher "find the latest stable Python 3
+  version with source" -> the 35B worker ran a 12-tool-call agent loop, web_search'd via DuckDuckGo
+  (ddgs, keyless), and returned a CURRENT web-sourced answer ("3.14.6, June 2026, from
+  python.org/downloads") -> mirrored ok to /jobs.
+- Hermes' `web` toolset supports ~7 search backends and is NOT locked to the paid Nous Tool Gateway.
+  Used the keyless DuckDuckGo (ddgs) provider -- installed `ddgs` into env_hermes
+  (env_hermes/bin/python -m pip install -U ddgs). NOTE: ddgs is search-only (snippets + URLs, no
+  deep page scrape); deep page-reading would need a scraper or the browser toolset + Chromium later.
+- SCOPING (Brandon's call): web-enabled the MAIN researcher role, but web is an available TOOL, not
+  a hard requirement -- the worker searches when current/external facts help, else answers from
+  knowledge. init_profiles.sh codifies it: an idempotent step removes web_search/web_extract/
+  web_crawl from researcher/config.yaml (browser_* stay disabled -- no Chromium) + a researcher
+  .hermes.md note that web is optional. Every OTHER profile (default persona + critic/summarizer/
+  coder/librarian) stays fully egress-off.
+- EGRESS: a deliberate, ROLE-SCOPED reversal of the safe-config (outbound DuckDuckGo for the
+  researcher worker only). The local persona chat + all other roles remain offline; config-level
+  egress containment is now role-scoped rather than blanket. (Kernel egress baseline still
+  owed/root.)
+- Both web paths now live: A = in-chat OpenWebUI web search (RAG-style grounding); B = agentic
+  multi-step research via POST /agent/delegate role=researcher.
+
 ## 2026-06-22 0510 PDT -- Web research path A: OpenWebUI web search (DuckDuckGo) live + DATA_DIR persistence fix (Brandon + Claude)
 
 - Brandon wants web/research capability (decided: A now -- in-chat web search; B next -- agentic

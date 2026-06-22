@@ -168,8 +168,10 @@ EOF
 # Role rules -- Researcher
 - Think step by step on hard sub-problems before answering.
 - Be thorough, but finish with a concise summary of findings.
+- You have a web_search tool: use it when current or external facts would help. It is OPTIONAL --
+  answer from your own knowledge when the web is not needed or is unavailable.
 - You run in an isolated workspace; do NOT expect host repository files.
-- Complete the task (kanban_complete) with that summary.
+- Complete the task (kanban_complete) with that summary, citing any sources you used.
 EOF
       ;;
     critic)
@@ -245,6 +247,17 @@ for p in "$PROFILES_DIR"/*; do
   [ -f "$p/SOUL.md" ] || echo -e "# SOUL\n(define identity, personality, and communication style here)\n" > "$p/SOUL.md"
   [ -f "$p/.hermes.md" ] || echo -e "# Hard rules\n(define hard rules and output format here)\n" > "$p/.hermes.md"
 done
+
+# Web research (Brandon 2026-06-22): the RESEARCHER role is web-ENABLED -- it keeps the web_search /
+# web_extract / web_crawl tools (every other profile stays egress-off). Web is an available TOOL,
+# NOT required: the worker searches when current/external facts help, else answers from knowledge.
+# Keyless via the DuckDuckGo (ddgs) backend, which must be installed in the Hermes venv:
+#   env_hermes/bin/python -m pip install -U ddgs        (search-only: snippets+URLs, no deep scrape)
+# Idempotent: removes only the three web_* deny lines from researcher/config.yaml if present.
+if [ -f "$PROFILES_DIR/researcher/config.yaml" ]; then
+  sed -i '/^[[:space:]]*-[[:space:]]*web_search[[:space:]]*$/d;/^[[:space:]]*-[[:space:]]*web_extract[[:space:]]*$/d;/^[[:space:]]*-[[:space:]]*web_crawl[[:space:]]*$/d' "$PROFILES_DIR/researcher/config.yaml"
+  echo "==> researcher role: web search enabled (keyless ddgs); ensure 'ddgs' is in env_hermes"
+fi
 
 cat > "$PERSONA_ROOT/README.md" <<EOF
 # Persona Profiles
