@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-21 1915 PDT by Claude (Phase 8 H6.2/H6.3 validated on EVO-X2: H6.2 reclaim+recovery PROVEN [killed worker mid-run -> dispatch loop reclaimed + re-dispatched -> /jobs ok, attempts=2]; H6.3 found+fixed a bridge mis-map [an auto-blocked card mirrored as `error` not `blocked` -- derive_update now treats the literal `blocked` column as authoritative], offline 18/18, re-verifying live. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
+Last updated: 2026-06-21 2115 PDT by Claude (Phase 8 H6.1/H6.2/H6.3 VALIDATED on EVO-X2 over SSH. H6.1: `hermes kanban swarm` fan-out -> verifier -> synthesizer ran end to end on the standing dispatcher [serialized PARALLEL=1] -> synthesizer produced the combined paragraph. H6.2: reclaim+recovery PROVEN [killed worker mid-run -> reclaim + re-dispatch -> /jobs ok, attempts=2]. H6.3: failure-limit auto-block -> /jobs blocked, after fixing TWO bridge bugs [auto-blocked mirrored as error; archived-orphan churn at running] -> derive_update now treats settled columns blocked/done/archived as authoritative. 50 bridge tests; offline 18/18. H4-H6.4 next. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
@@ -62,8 +62,15 @@ Housekeeping / decisions:
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Just finished (2026-06-21 -- Phase 8 H3 + H6.2/H6.3, Claude)
+## Just finished (2026-06-21 -- Phase 8 H3 + H6.1/H6.2/H6.3, Claude)
 
+- H6.1 PROVEN (swarm): `hermes kanban swarm` built a 2-worker -> verifier -> synthesizer graph; the
+  standing dispatcher ran it serialized (PARALLEL=1) honoring deps -> workers done -> verifier ->
+  synthesizer wrote the combined paragraph. Substrate works. (Gotcha: `--worker PROFILE:TITLE:SKILL`
+  is colon-delimited -> colons in the title mis-parse as a skill -> use colon-free titles.)
+  FOLLOW-UP: swarm cards aren't created via /agent/delegate, so they don't surface on /jobs yet --
+  a persona-surfaced swarm (delegate -> bridge builds a swarm + mirrors the synthesizer) is a later
+  bridge feature.
 - H6.2 PROVEN LIVE (reclaim + recovery): killed the spawned worker mid-run (SIGKILL); the
   standing dispatch loop logged `crashed=1 spawned=[...]`, reclaimed the stale claim, re-dispatched
   in one tick (attempts 1->2), and the re-run completed -> /jobs ok. Hands-off recovery.

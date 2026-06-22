@@ -14,6 +14,24 @@ Conventions:
 
 ---
 
+## 2026-06-21 2115 PDT -- Phase 8 H6.1: swarm fan-out -> verifier -> synthesizer PROVEN on EVO-X2 (Brandon + Claude)
+
+- Proved the Hermes swarm substrate end to end on the standing dispatcher (driven over SSH).
+  `hermes kanban swarm` built a graph (2 parallel workers -> verifier -> synthesizer); the
+  dispatcher ran it serialized on PARALLEL=1 honoring the dependencies: both workers completed
+  -> the verifier ran -> the synthesizer combined them into one paragraph (draft saved in the
+  synthesizer's workspace). The fan-out -> verifier -> synthesizer orchestrator (H6.1 / the
+  "research-grade query" path) works on the anchor node.
+- GOTCHA (recorded): `--worker PROFILE:TITLE[:SKILL,...]` is colon-delimited, so a worker TITLE
+  containing ':' is mis-parsed -- the tail becomes a bogus SKILL ("Unknown skill" -> the worker
+  crashes -> auto-blocked). Use colon-free worker titles. (The first attempt blocked exactly this
+  way -- a clean re-confirmation of the auto-block ceiling; the colon-free retry completed.)
+- INTEGRATION NOTE (follow-up): swarm cards are created directly on the kanban board, NOT via
+  POST /agent/delegate, so they have no persona /jobs rows and are not surfaced on /jobs yet. A
+  persona-surfaced swarm (delegate -> bridge builds a swarm graph + mirrors the synthesizer result)
+  is a bridge feature for later; H6.1 here proves the substrate. No code change (Hermes-native +
+  existing bridge); validation only. Cleaned up the swarm + H6.2/H6.3 test cards (archived).
+
 ## 2026-06-21 2035 PDT -- Phase 8 H6.3 confirmed live + bridge settled-column precedence generalized (Brandon + Claude)
 
 - H6.3 CONFIRMED LIVE on EVO-X2 with the fix deployed: killed the worker on each spawn -> after 2
