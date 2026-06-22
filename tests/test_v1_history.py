@@ -110,6 +110,32 @@ def main():
     check("prior turns empty on first turn",
           server._v1_prior_turns([msg("system", "S"), msg("user", "only")]) == [])
 
+    # --- _v1_injected_context: capture client-injected RAG/web <context> ------
+    # OpenWebUI grounds web-search turns by prepending a system message built from RAG_TEMPLATE;
+    # the persona drops client system messages, so without this the web results are lost and the
+    # model answers "I can't browse the web". (Regression for the 2026-06-22 web-search bug.)
+    rag_sys = ("### Task:\nRespond using the provided context.\n\n"
+               "<context>\nDOC: AI news -- model X released today.\n</context>")
+    web_msgs = [msg("system", rag_sys), msg("user", "search the web for the latest AI news")]
+    ctx = server._v1_injected_context(web_msgs)
+    check("injected <context> extracted", "model X released today" in ctx)
+    check("RAG_TEMPLATE instructions stripped (only <context> kept)", "### Task" not in ctx)
+    check("plain system prompt is NOT treated as context",
+          server._v1_injected_context([msg("system", "You are a helpful bot."), msg("user", "hi")]) == "")
+    check("no system message -> empty context",
+          server._v1_injected_context([msg("user", "hi")]) == "")
+    # the extracted context must actually reach the model prompt as authoritative grounding
+    built = server.build_persona_messages("search the web for the latest AI news", [],
+                                          profile="default", topic="chat", external_context=ctx)
+    user_msg = built[-1]["content"]
+    check("external context grounded into the user prompt", "model X released today" in user_msg)
+    check("grounding framed as authoritative (not stale memory)",
+          "do not claim" in user_msg.lower() and "authoritative" in user_msg.lower())
+    p_built = server.build_persona_prompt("q", [], profile="default", topic="chat", external_context=ctx)
+    check("external context grounded into the raw prompt too", "model X released today" in p_built)
+    check("no external context -> prompt unchanged (no grounding block)",
+          "Web/search results" not in server.build_persona_prompt("q", [], profile="default", topic="chat"))
+
     # --- _v1_prepare_conversation: warm thread, no double-seed --------------
     t1 = req([msg("system", "S"), msg("user", "warm thread start")])
     cid1, hist1 = server._v1_prepare_conversation(t1, "default", "chat")

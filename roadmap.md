@@ -369,7 +369,11 @@ Goal: a thin client over the API with durable conversation history.
       HISTORY_MIN_RECENT floor dragged them into every request -> 112K-token overflow -> 500 ->
       model's "I can't browse" fallback. Fixed in windowing.py (max_turn_tokens/hard_cap_tokens caps;
       poisoned threads auto-recover) + a graceful ContextOverflowError -> 400 context_length_exceeded.
-      See changelog 2026-06-22 0725.
+      THEN (0815) the request fit but the model still said "I can't browse": OpenWebUI injects the
+      retrieved web data as a SYSTEM message (<context>...</context>) and the persona /v1 path dropped
+      client system messages. Fixed: _v1_injected_context extracts <context> -> persona_generate
+      external_context (grounded as authoritative). Web-search saga = THREE bugs (BYPASS full-page /
+      conversations.db poison+windowing / system-context drop). See changelog 2026-06-22 0640/0725/0815.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

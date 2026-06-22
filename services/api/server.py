@@ -190,6 +190,15 @@ HISTORY_MIN_RECENT = int(os.getenv("HISTORY_MIN_RECENT", "4"))
 # question. Set either to 0 to disable that cap.
 HISTORY_MAX_TURN_TOKENS = int(os.getenv("HISTORY_MAX_TURN_TOKENS", "1024"))
 HISTORY_HARD_CAP_TOKENS = int(os.getenv("HISTORY_HARD_CAP_TOKENS", "8192"))
+# Client-injected RAG/web context (2026-06-22). OpenWebUI (and other OpenAI-compatible RAG
+# clients) inject retrieved web-search / file context as a LEADING system message built from a
+# template -> "... <context>...</context>". The persona owns its OWN identity system prompt and
+# drops client system messages (_v1_prior_turns), so without capturing this the injected web
+# results are lost and the model answers blind ("I can't browse the live web"). We extract the
+# <context> payload and ground the model in it. Capped so a large injection can't reintroduce a
+# context overflow. Set EXTERNAL_CONTEXT_ENABLED=0 to restore the drop-everything behavior.
+EXTERNAL_CONTEXT_ENABLED = os.getenv("EXTERNAL_CONTEXT_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+EXTERNAL_CONTEXT_MAX_CHARS = int(os.getenv("EXTERNAL_CONTEXT_MAX_CHARS", "24000"))
 # Legacy event-log path, kept only as a one-time migration source for the board.
 JOBS_PERSIST_PATH = os.getenv("JOBS_PERSIST_PATH", os.path.join(AI_ROOT, "run", "jobs.jsonl"))
 
@@ -1040,6 +1049,7 @@ def build_persona_prompt(
     thinking_mode: Optional[str] = None,
     history_text: str = "",
     tasks_block: str = "",
+    external_context: str = "",
 ) -> str:
     soul_md = hermes_md = ""
     if PROFILE_WRAPPERS_ENABLED:
@@ -1072,6 +1082,13 @@ def build_persona_prompt(
     if history_text:
         prompt += history_text + "\n\n"
     prompt += f"User:\n{user_text}\n\n"
+    if external_context:
+        prompt += (
+            "Web/search results and documents retrieved for THIS query (CURRENT, provided by the "
+            "client -- treat as authoritative for recent facts and USE them to answer; do not claim "
+            "you cannot browse the web):\n"
+            f"{external_context}\n\n"
+        )
     if tasks_block:
         prompt += (
             "Live task board (current; you MAY share these with the user):\n"
@@ -1097,6 +1114,7 @@ def build_persona_messages(
     reasoning_notes: str = "",
     history_messages: Optional[List[Dict[str, str]]] = None,
     tasks_block: str = "",
+    external_context: str = "",
 ) -> List[Dict[str, str]]:
     """T2.4 messages form of build_persona_prompt (system/user split).
 
@@ -1129,6 +1147,13 @@ def build_persona_messages(
 
     rag_block = format_rag_context(rag_docs)
     user = f"Topic: {topic}\n\nUser:\n{user_text}\n\n"
+    if external_context:
+        user += (
+            "Web/search results and documents retrieved for THIS query (CURRENT, provided by the "
+            "client -- treat as authoritative for recent facts and USE them to answer; do not claim "
+            "you cannot browse the web):\n"
+            f"{external_context}\n\n"
+        )
     if tasks_block:
         user += (
             "Live task board (current; you MAY share these with the user):\n"
@@ -1161,6 +1186,7 @@ async def persona_generate(
     sampling_extra: Dict[str, Any],
     history: Optional[Dict[str, Any]] = None,
     tasks_block: str = "",
+    external_context: str = "",
 ) -> Tuple[str, str, Dict[str, Any]]:
     """Generate a persona reply; returns (reasoning, answer, stats).
 
@@ -1173,7 +1199,7 @@ async def persona_generate(
         history_messages = win.render_history_messages(history) if history else None
         messages = build_persona_messages(
             user_text, rag_docs, profile=profile, topic=topic, reasoning_notes=reasoning_notes,
-            history_messages=history_messages, tasks_block=tasks_block,
+            history_messages=history_messages, tasks_block=tasks_block, external_context=external_context,
         )
         enable_thinking = resolve_think(topic, thinking_mode, user_text) == "think"
         async with persona_sem:
@@ -1190,7 +1216,7 @@ async def persona_generate(
         user_text, rag_docs, profile=profile, topic=topic,
         reasoning_notes=reasoning_notes, thinking_mode=thinking_mode,
         history_text=(win.render_history_text(history) if history else ""),
-        tasks_block=tasks_block,
+        tasks_block=tasks_block, external_context=external_context,
     )
     async with persona_sem:
         raw_reply, stats = await query_llama(
@@ -1865,6 +1891,33 @@ def _v1_latest_user_text(messages: List[OA_Message]) -> str:
     return _messages_to_text(messages)
 
 
+def _v1_injected_context(messages: List["OA_Message"]) -> str:
+    """Extract retrieved context a RAG client injected as a leading SYSTEM message.
+
+    OpenWebUI (and other OpenAI-compatible RAG clients) ground a turn by prepending a system
+    message built from RAG_TEMPLATE -> "...### Task...<context>{sources}</context>". The persona
+    owns its OWN identity system prompt and drops client system messages (_v1_prior_turns), so
+    web-search / file results would otherwise be lost and the model answers blind. Pull the
+    <context> payload(s); return "" when none is present (a plain system prompt is NOT treated as
+    context). Capped to EXTERNAL_CONTEXT_MAX_CHARS so an oversized injection can't reintroduce a
+    context overflow (the head -- highest-ranked chunks -- is kept)."""
+    if not EXTERNAL_CONTEXT_ENABLED:
+        return ""
+    blob = "\n\n".join(
+        (m.content or "") for m in messages
+        if m.role == "system" and (m.content or "").strip()
+    )
+    if not blob:
+        return ""
+    found = re.findall(r"<context>\s*(.*?)\s*</context>", blob, flags=re.DOTALL | re.IGNORECASE)
+    ctx = "\n\n".join(c.strip() for c in found if c.strip())
+    if not ctx:
+        return ""
+    if len(ctx) > EXTERNAL_CONTEXT_MAX_CHARS:
+        ctx = ctx[:EXTERNAL_CONTEXT_MAX_CHARS].rstrip() + "\n...[context truncated]..."
+    return ctx
+
+
 def _v1_prior_turns(messages: List[OA_Message]) -> List[Tuple[str, str]]:
     """The user/assistant turns BEFORE the trailing user message (system dropped -- the
     persona owns its system prompt). Used to seed a cold thread from the client's array
@@ -1925,6 +1978,7 @@ def _v1_prepare_conversation(req: OA_ChatCompletionsReq, profile: str, topic: st
 @app.post("/v1/chat/completions")
 async def v1_chat_completions(req: OA_ChatCompletionsReq):
     user_text = _v1_latest_user_text(req.messages)
+    external_context = _v1_injected_context(req.messages)
     topic = resolve_topic(req.topic, user_text)
     profile = (req.profile or DEFAULT_PROFILE).strip()
     ensure_profile_files(profile)
@@ -1945,6 +1999,7 @@ async def v1_chat_completions(req: OA_ChatCompletionsReq):
         thinking_mode=req.thinking_mode, temperature=temperature,
         max_tokens=max_tokens, sampling_extra=sampling_extra,
         history=history, tasks_block=tasks_block_for(user_text),
+        external_context=external_context,
     )
     preserve = resolve_preserve_thinking(req.preserve_thinking)
     reply = finalize_persona_reply(answer, preserve)

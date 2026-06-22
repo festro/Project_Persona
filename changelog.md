@@ -14,6 +14,31 @@ Conventions:
 
 ---
 
+## 2026-06-22 0815 PDT -- FIX: web search "I can't browse" -- persona dropped OpenWebUI's <context> system message (Brandon + Claude)
+
+- After the 0725 overflow fix, web search STOPPED overflowing (request fits, no 500) but the model
+  STILL answered "I cannot browse the live web." A third, distinct bug.
+- ROOT CAUSE: OpenWebUI grounds a web-search turn by PREPENDING a system message built from
+  RAG_TEMPLATE -> "### Task: Respond using the provided context ... <context>{retrieved chunks}
+  </context>" (open_webui utils/middleware.py:982 add_or_update_system_message -> messages[0]). The
+  persona's /v1 path DROPS all client system messages (_v1_prior_turns: "the persona owns its system
+  prompt") and answers only the trailing USER message -- which OpenWebUI leaves BARE ("search the
+  web for the latest news about AI", 43 chars, confirmed in conversations.db). So the retrieved web
+  data was discarded and the model answered from training -> "I can't browse". This is ALSO why
+  flipping BYPASS shifted the symptom: BYPASS=true injected full pages into the USER message (kept,
+  but overflowed -> the 0640/0725 bugs); BYPASS=false/retrieval injects into the SYSTEM message
+  (dropped -> this bug).
+- FIX (services/api/server.py): new _v1_injected_context extracts the <context>...</context>
+  payload from client system messages (EXTERNAL_CONTEXT_*; ONLY <context> is taken so the template's
+  citation instructions are stripped; "" when absent so a plain system prompt is NOT mistaken for
+  context; capped at 24000 chars so it can't reintroduce overflow). persona_generate /
+  build_persona_prompt / build_persona_messages gain `external_context`, grounded as a CURRENT +
+  AUTHORITATIVE block ("USE them to answer; do not claim you cannot browse the web") -- deliberately
+  NOT under the existing "stale memory snippets, may be irrelevant" label, which would tell the
+  model to distrust live results. /chat (native) path unaffected (defaults to "").
+- TESTS: tests/test_v1_history.py +8 (extract <context>, strip template instructions, empty when
+  absent, no system msg -> empty, reaches the model prompt framed as authoritative). offline 18/18.
+
 ## 2026-06-22 0725 PDT -- FIX: web search STILL overflowed (9 sources -> "I can't browse") -- conversations.db poison + window_turns min_recent bug (Brandon + Claude)
 
 - Brandon re-tested: the UI showed "9 sources" mid-stream, then finished with "no sources" and a
