@@ -14,6 +14,38 @@ Conventions:
 
 ---
 
+## 2026-06-22 0215 PDT -- Phase 8 H4 confirmed live + H5 verified + H6.4 cache measurement (inconclusive) (Brandon + Claude)
+
+- H4 CONFIRMED LIVE on EVO-X2: ran init_profiles.sh -> the 5 role profiles materialized
+  (`hermes profile list` shows researcher/critic/summarizer/coder/librarian); POST /agent/delegate
+  {"role":"researcher"} -> the worker spawned under `-p researcher` -> completed ok, and the reply
+  was research-flavored ("triangulation -- corroborating across independent sources"), confirming
+  the role SOUL.md prefix shaped behavior.
+- H5 (server.py routing) CLOSED by verification + reconciliation:
+  * H5.2 trivial/non-trivial classification already exists (classify_triviality +
+    THINKING_AUTO_GATE + topic routing + Phase 6 sorting_line).
+  * H5.3 persona surfacing PROVEN LIVE: GET /tasks surfaces the board incl. the role-delegated job
+    (assignee=researcher) + the H6.2/6.3 jobs; a /chat task query injected the live board
+    (debug.tasks injected=true, 557 chars) and the persona narrated the real states (H6.3 blocked,
+    H4/H2d ok).
+  * H5.1 auto-delegate (chat -> Task Board) NOT built -- SUPERSEDED by the bridge-arch EXPLICIT
+    role-delegation model (H4 /agent/delegate role). Auto-delegating chat queries is undesirable
+    for a companion persona; explicit delegation is the clean path. (Reconciliation, no code.)
+- H6.4 cache-amortization measurement INCONCLUSIVE (deferred): cache_prompt is ON (H4), but a
+  clean prefix-reuse measurement was not obtainable -- on PARALLEL=1 the single llama slot is
+  shared/contended, AND the llama-server was UNSTABLE during the window (below). A 2-request probe
+  showed cache_n=0 / full prompt_n on both, but the server was crashing/restarting at the time, so
+  the data is unreliable. CONCLUSION: role-prefix KV-locality is gated on slot capacity + server
+  stability; on the single-slot anchor the role profiles' value is specialized behavior +
+  safe-config isolation, with cache-locality a latent optimization for a multi-slot / role-batched
+  future (Phase 9 scaling). Empirical 50-task hit-rate study deferred.
+- LLAMA STABILITY FINDING (operational -- flag for Brandon): the EVO-X2 llama-server (35B/Vulkan)
+  exited rc=-6 (SIGABRT) after ~4.2h uptime, then again ~56s after the restart; the Phase 3
+  supervisor caught BOTH and relaunched (start #3 now stable, serving) -- crash-recovery PROVEN,
+  but the repeated rc=-6 is a real stability concern (memory/Vulkan?) to investigate separately
+  from the H-series. Incidental: over the ~4h idle the sleep cycle ran (consolidation_done: 1
+  conversation, 2 facts, 6 links) -- Phase 7 working live on the anchor node.
+
 ## 2026-06-21 2145 PDT -- Phase 8 H4: role-prefix template library + role delegation (Brandon + Claude)
 
 - H4 adds a role-prefix template library as specialized Hermes ASSIGNEE PROFILES (the bridge-arch

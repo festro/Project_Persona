@@ -5,7 +5,7 @@ basic functionality to extended functionality. Each Phase locks to a functional
 state: it has an Exit Gate (a concrete, testable checklist) that must be green
 before the next Phase starts.
 
-Last updated: 2026-06-21 1225 PDT by Claude (Phase 8 H3 PROVEN LIVE on EVO-X2 -- the standing dispatcher made the H2d chain UNATTENDED: a hands-off POST /agent/delegate [NO manual dispatch] -> bridge card t_97ebe628 -> the supervised dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s, attempts=1]. `manage.py daemon start --with-hermes` supervises llama/api/bridge/dispatcher, persistent across SSH sessions. Code: NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [NOT the deprecated `kanban daemon`/messaging gateway] + daemon hermes_dispatcher_spec + a bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN: drove EVO-X2 over SSH -- pulled to a18a78f, fixed the same qdrant-client venv gap, re-baselined [offline 18/18, doctor green incl. T1 with env_hermes], brought up the 35B on real Vulkan GPU under a persistent systemd --user daemon, verified Phase 1 + messages-path on GPU, then proved the full UNATTENDED H2d chain: delegate -> bridge -> dispatcher spawns 35B worker -> kanban_complete -> bridge mirrors ok+summary to /jobs [h2d-001/002/003 all ok]. Key fix: worker shell tool uses a clean PATH so `hermes` was exit 127 -> shell_init_files puts env_hermes/bin on PATH. EARLIER 1510: WINDOWS VERIFICATION PASS [Phases 1,2,3,6,7 live; thinking-model fixes; messages-path default; daemon.py + qdrant fixes; pushed a70fe90+cf79270]. Remaining: Phase 8 H3-H6 + kernel egress [needs root] + manual OpenWebUI click-test.)
+Last updated: 2026-06-22 0215 PDT by Claude (Phase 8 H3 + H4 + H5 + H6.1/6.2/6.3 all PROVEN LIVE on EVO-X2 over SSH; H6.4 deferred. H3: standing dispatcher (tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch`, not the deprecated `kanban daemon`/gateway) makes the H2d chain UNATTENDED -> hands-off delegate -> ok+summary. H6.2 reclaim+recovery, H6.3 failure-limit->blocked (fixed 2 bridge bugs: auto-blocked->error + archived-orphan churn), H6.1 swarm fan-out->verifier->synthesizer. H4: 5 role-prefix Hermes profiles + /agent/delegate `role` (role=researcher -> worker under `-p researcher`). H5: classifier + task-surfacing verified live; H5.1 auto-delegate superseded by explicit delegation. H6.4: cache_prompt ON but clean amortization measurement blocked by PARALLEL=1 single-slot contention + a llama rc=-6 instability (supervisor-recovered) -> deferred. FLAG: investigate the EVO-X2 35B/Vulkan rc=-6 crashes. Full detail: changelog.md. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN: drove EVO-X2 over SSH -- pulled to a18a78f, fixed the same qdrant-client venv gap, re-baselined [offline 18/18, doctor green incl. T1 with env_hermes], brought up the 35B on real Vulkan GPU under a persistent systemd --user daemon, verified Phase 1 + messages-path on GPU, then proved the full UNATTENDED H2d chain: delegate -> bridge -> dispatcher spawns 35B worker -> kanban_complete -> bridge mirrors ok+summary to /jobs [h2d-001/002/003 all ok]. Key fix: worker shell tool uses a clean PATH so `hermes` was exit 127 -> shell_init_files puts env_hermes/bin on PATH. EARLIER 1510: WINDOWS VERIFICATION PASS [Phases 1,2,3,6,7 live; thinking-model fixes; messages-path default; daemon.py + qdrant fixes; pushed a70fe90+cf79270]. Remaining: Phase 8 H3-H6 + kernel egress [needs root] + manual OpenWebUI click-test.)
 
 ## Boundaries (do not duplicate)
 
@@ -555,7 +555,7 @@ Exit Gate:
 - [x] foreground responsiveness is not disrupted -- LIVE: a request during the window returned
       in 0.011s and reset idle; should_continue() stops consolidate() between conversations
 
-## Phase 8 -- Agentic layer (Hermes Agent)  [~] H2d + H3 PROVEN on EVO-X2 (2026-06-20/21); H4-H6 + kernel egress remain
+## Phase 8 -- Agentic layer (Hermes Agent)  [~] H2d/H3/H4/H5/H6.1-6.3 PROVEN on EVO-X2 (2026-06-20/22); H6.4 (cache, deferred) + kernel egress (root) remain
 
 Goal: Hermes runs as a daemon child pulling background work from the Task Board.
 (Near-term in execution despite the late Phase number; depended on the Phase 1
@@ -642,7 +642,7 @@ single-model migration M6.)
       (spawned=[t_97ebe628]) -> kanban_complete -> bridge mirrored ok+summary to /jobs (~100s,
       attempts=1); daemon + both Hermes children persist across fresh SSH sessions. Also fixed
       the bridge log (flush=True) so the standing child is observable.
-- [~] H4-H6 (GPU-bound -> EVO-X2). DONE 2026-06-21:
+- [~] H4-H6 (GPU-bound -> EVO-X2). H3 + H4 + H5 + H6.1/6.2/6.3 DONE 2026-06-21/22; H6.4 deferred:
   - [x] H6.2 reclaim + recovery PROVEN live (killed worker mid-run -> dispatch loop reclaimed +
         re-dispatched in one tick -> /jobs ok, attempts=2).
   - [x] H6.3 failure-limit -> auto-block -> /jobs blocked PROVEN live (2 consecutive crashes ->
@@ -655,11 +655,19 @@ single-model migration M6.)
   - [x] H4 role-prefix template library: init_profiles.sh scaffolds 5 Hermes assignee profiles
         (researcher/critic/summarizer/coder/librarian = stable SOUL.md + .hermes.md prefixes,
         T1 safe-config inherited); POST /agent/delegate `role` -> assignee. cache_prompt defaults
-        ON in llama.cpp, so role-prefix prefill already amortizes. (live profile materialization
-        + role smoke owed)
-  - [ ] H5 server.py routing verify/close (classify_triviality/THINKING_AUTO_GATE + topic routing
-        + sorting_line + task-surfacing largely exist -- verify they cover H5.1-H5.3).
-  - [ ] H6.4 cache-amortization measurement (prompt-cache hit rate over a same-role batch).
+        ON in llama.cpp. PROVEN LIVE 2026-06-22: delegate role=researcher -> worker ran under
+        `-p researcher` -> ok, research-flavored reply.
+  - [x] H5 server.py routing verify/close: H5.2 classifier (classify_triviality/THINKING_AUTO_GATE
+        + topic routing + sorting_line) and H5.3 surfacing (GET /tasks + in-chat injection, proven
+        live -- persona narrated the real board) already exist. H5.1 auto-delegate SUPERSEDED by
+        the explicit role-delegation model (H4) -- auto-delegating chat queries is undesirable for
+        a companion persona; explicit /agent/delegate is the clean path.
+  - [~] H6.4 cache-amortization measurement: cache_prompt is ON, but a clean prefix-reuse
+        measurement was not obtainable -- PARALLEL=1 single-slot contention + llama-server
+        instability during the window (rc=-6 crashes, supervisor-recovered). Role-prefix
+        KV-locality is gated on slot capacity + server stability; empirical 50-task hit-rate study
+        DEFERRED to a multi-slot / role-batched config (Phase 9 scaling). FOLLOW-UP: investigate
+        the 35B/Vulkan rc=-6 crashes on EVO-X2.
 - [~] Runtime egress containment: DAEMON ENV HYGIENE DONE 2026-06-20 -- daemon.py sanitize_env()
       + ChildSpec.hygiene strip cloud/egress secrets (OPENAI/ANTHROPIC/AWS_*/AZURE_*/GOOGLE_*/
       LANGSMITH_* + a keyed list) from a supervised agent's env at launch; the hermes-bridge child
@@ -679,8 +687,9 @@ Exit Gate:
       keys + browser off + terminal local + llama loopback) + the daemon env-hygiene runtime layer
       DONE; the kernel netns/nftables layer still host-applied (needs root; sudo unavailable to the
       remote agent)
-- [~] `doctor.sh` is fully green -- EVO-X2 doctor green incl. T1 (env_hermes present); revisit once
-      the kernel egress layer + H3-H6 land
+- [~] `doctor.sh` is fully green -- EVO-X2 doctor green incl. T1 (env_hermes present). H3-H6 have
+      landed (H6.4 cache-measurement deferred); still gated on the kernel egress layer (root) and a
+      doctor revisit for the new standing dispatcher + role profiles + the llama rc=-6 stability item
 
 ## Phase 9 -- Decentralized cooperative node mesh  [ ] DESIGN (extended)
 

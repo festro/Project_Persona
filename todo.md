@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-21 2145 PDT by Claude (Phase 8 H4 CODE done: init_profiles.sh scaffolds 5 role-prefix Hermes assignee profiles [researcher/critic/summarizer/coder/librarian -- stable SOUL.md+.hermes.md prefixes, T1 safe-config inherited]; POST /agent/delegate `role` -> assignee; cache_prompt defaults ON so role-prefix prefill amortizes. Offline 18/18; live profile-materialize + role smoke owed. EARLIER today, all PROVEN LIVE on EVO-X2 [detail in changelog]: H3 standing dispatcher [unattended delegate->ok+summary] + H6.1 swarm + H6.2 reclaim + H6.3 failure-limit->blocked [+2 bridge bug fixes]. H5 + H6.4 remain. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
+Last updated: 2026-06-22 0215 PDT by Claude (Phase 8 H3-H6 LANDED on EVO-X2 over SSH [detail: changelog.md]. PROVEN LIVE: H3 standing dispatcher [unattended delegate->ok+summary]; H6.2 reclaim+recovery; H6.3 failure-limit->blocked [+2 bridge bug fixes]; H6.1 swarm fan-out->verifier->synthesizer; H4 five role-prefix profiles + /agent/delegate `role` [role=researcher -> worker under `-p researcher`]; H5 classifier+surfacing verified [H5.1 auto-delegate superseded by explicit delegation]. H6.4 cache measurement DEFERRED: PARALLEL=1 single-slot contention + a llama rc=-6 instability [supervisor-recovered]. OPEN: investigate the EVO-X2 35B/Vulkan rc=-6 crashes; kernel egress [root, Brandon]; H6.4 cache study on a multi-slot config. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
@@ -33,9 +33,14 @@ EVO-X2 H2d durability / follow-ups:
   (tools/hermes_dispatch_loop.py + hermes_dispatcher_spec); `--with-hermes` runs the unattended
   chain delegate -> card -> dispatch-loop spawns 35B worker -> mirror ok+summary (~100s). See
   roadmap Phase 8 / changelog 1225.
-- Phase 8 H4-H6 (NEXT, GPU-bound -> EVO-X2): role-prefix profiles + cache_prompt (H4), server.py
-  routing verify/close (H5), failure-semantics + swarm + cache measurement (H6). See roadmap
-  Phase 8 + plan merry-forging-rose.
+- Phase 8 H3-H6: H3 + H4 + H5 + H6.1/6.2/6.3 all PROVEN LIVE on EVO-X2 (see changelog 06-21/06-22
+  + roadmap Phase 8). REMAINING: H6.4 empirical cache hit-rate study (deferred -- needs a multi-slot
+  or role-batched config; single-slot PARALLEL=1 contends the cache); kernel egress layer (root,
+  Brandon); the persona-surfaced swarm bridge feature (delegate -> swarm graph).
+- FLAG (operational, needs Brandon): the EVO-X2 35B/Vulkan llama-server exited rc=-6 (SIGABRT)
+  after ~4.2h uptime, then again ~56s after restart (Phase 3 supervisor recovered both; now
+  stable). Investigate the crash cause (memory/Vulkan/model) -- recurring rc=-6 could exhaust the
+  3-strike budget and take the stack down.
 - Egress baseline live-apply: SERVE lock on a real Linux box; Windows -Apply/-Remove in an admin
   shell (read-only paths already verified).
 - Provisioner: Windows-side live-confirm of the `up` first-run path + a vision-model serving smoke.
@@ -62,8 +67,19 @@ Housekeeping / decisions:
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Just finished (2026-06-21 -- Phase 8 H3 + H6.1/H6.2/H6.3 + H4, Claude)
+## Just finished (2026-06-21/22 -- Phase 8 H3 + H4 + H5 + H6.1-6.3; H6.4 deferred, Claude)
 
+- H5 (routing) verified + reconciled: H5.2 classifier (classify_triviality/THINKING_AUTO_GATE +
+  topic routing + sorting_line) and H5.3 surfacing both already exist -- GET /tasks + an in-chat
+  task query (debug.tasks injected=true, persona narrated the live board) PROVEN LIVE. H5.1
+  auto-delegate NOT built (superseded by the explicit H4 role-delegation; auto-delegating chat is
+  undesirable for a companion persona). No code.
+- H6.4 cache measurement INCONCLUSIVE/DEFERRED: cache_prompt is ON, but PARALLEL=1 single-slot
+  contention + a concurrent llama rc=-6 instability blocked a clean prefix-reuse measurement.
+  Role-prefix KV-locality is gated on slot capacity; 50-task hit-rate study deferred (Phase 9
+  scaling). LLAMA rc=-6 FLAGGED (above) for investigation; the Phase 3 supervisor recovered it.
+- H4 confirmed LIVE: ran init_profiles.sh on EVO-X2 -> 5 role profiles materialized; delegate
+  role=researcher -> worker ran under `-p researcher` -> ok (research-flavored reply).
 - H4 (role-prefix library, CODE done): init_profiles.sh scaffolds 5 specialized Hermes assignee
   profiles (researcher/critic/summarizer/coder/librarian) -- each a stable SOUL.md + .hermes.md
   prefix (KV-cache locality) inheriting the T1 safe-config. POST /agent/delegate gains `role` ->
