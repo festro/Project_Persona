@@ -1734,6 +1734,25 @@ async def get_job(job_id: str):
 # timeout|blocked). See docs/h2_bridge_design_20260613_0204.md.
 DELEGATE_DEFAULT_ASSIGNEE = os.getenv("DELEGATE_DEFAULT_ASSIGNEE", "default")
 DELEGATE_DEFAULT_TENANT = os.getenv("DELEGATE_DEFAULT_TENANT", "persona")
+# Phase 8 H4: role-prefix template library. Each role is a Hermes assignee PROFILE
+# (persona/profiles/<role>/, scaffolded by init_profiles.sh) carrying a stable per-role
+# system prefix (SOUL.md + .hermes.md) -> KV-cache locality across same-role tasks
+# (llama-server cache_prompt defaults on). POST /agent/delegate {"role": "<role>"} maps to
+# assignee=<role>; the bridge passes --assignee to `hermes kanban create`, so the dispatcher
+# spawns the worker under that profile (`hermes -p <role>`). `assignee` stays the raw escape
+# hatch for any other profile name.
+DELEGATE_ROLES = ("researcher", "critic", "summarizer", "coder", "librarian")
+
+
+def resolve_delegate_assignee(payload: dict) -> Tuple[Optional[str], Optional[str]]:
+    """(assignee, error). A `role` must be a known role -> assignee=role; else `assignee`
+    (any value) or the default. Returns (None, error_code) on an unknown role."""
+    role = str(payload.get("role") or "").strip().lower()
+    if role:
+        if role not in DELEGATE_ROLES:
+            return None, "unknown_role"
+        return role, None
+    return str(payload.get("assignee") or DELEGATE_DEFAULT_ASSIGNEE), None
 
 
 @app.post("/agent/delegate")
@@ -1741,6 +1760,10 @@ async def agent_delegate(payload: dict):
     title = str(payload.get("title") or "").strip()
     if not title:
         return JSONResponse(status_code=400, content={"error": "title_required"})
+    assignee, err = resolve_delegate_assignee(payload)
+    if err:
+        return JSONResponse(status_code=400, content={
+            "error": err, "role": payload.get("role"), "known_roles": list(DELEGATE_ROLES)})
     job_id = str(payload.get("job_id") or payload.get("task_id") or f"delegate-{uuid.uuid4().hex[:12]}")
     existing = taskboard.task_get(job_id)
     if existing is not None:
@@ -1750,7 +1773,7 @@ async def agent_delegate(payload: dict):
         "kind": "hermes_delegate",
         "title": title,
         "body": str(payload.get("body") or ""),
-        "assignee": str(payload.get("assignee") or DELEGATE_DEFAULT_ASSIGNEE),
+        "assignee": assignee,
         "tenant": str(payload.get("tenant") or DELEGATE_DEFAULT_TENANT),
         "priority": int(payload.get("priority", 2)),
         "delegated_at": int(time.time()),

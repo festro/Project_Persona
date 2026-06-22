@@ -642,11 +642,24 @@ single-model migration M6.)
       (spawned=[t_97ebe628]) -> kanban_complete -> bridge mirrored ok+summary to /jobs (~100s,
       attempts=1); daemon + both Hermes children persist across fresh SSH sessions. Also fixed
       the bridge log (flush=True) so the standing child is observable.
-- [ ] H4-H6 (GPU-bound -> EVO-X2): H4 role-prefix template library + cache_prompt
-      amortization (role -> Hermes assignee profile); H5 server.py routing verify/close
-      (classifier + task-surfacing largely exist); H6 validation -- failure semantics
-      (reclaim/re-dispatch, `--failure-limit` -> blocked), `swarm` fan-out -> verifier ->
-      synthesizer (serializes on PARALLEL=1), and cache-amortization measurement.
+- [~] H4-H6 (GPU-bound -> EVO-X2). DONE 2026-06-21:
+  - [x] H6.2 reclaim + recovery PROVEN live (killed worker mid-run -> dispatch loop reclaimed +
+        re-dispatched in one tick -> /jobs ok, attempts=2).
+  - [x] H6.3 failure-limit -> auto-block -> /jobs blocked PROVEN live (2 consecutive crashes ->
+        auto_blocked=1). Surfaced + fixed two bridge mis-maps (auto-blocked mirrored as error;
+        archived-orphan churn at running) -> derive_update treats settled columns
+        (blocked/done/archived) as authoritative over a transient run outcome.
+  - [x] H6.1 swarm fan-out -> verifier -> synthesizer PROVEN live (serialized on PARALLEL=1;
+        synthesizer produced the combined output). Surfacing swarms via /agent/delegate is a
+        later bridge feature (swarm cards are created directly, no /jobs row yet).
+  - [x] H4 role-prefix template library: init_profiles.sh scaffolds 5 Hermes assignee profiles
+        (researcher/critic/summarizer/coder/librarian = stable SOUL.md + .hermes.md prefixes,
+        T1 safe-config inherited); POST /agent/delegate `role` -> assignee. cache_prompt defaults
+        ON in llama.cpp, so role-prefix prefill already amortizes. (live profile materialization
+        + role smoke owed)
+  - [ ] H5 server.py routing verify/close (classify_triviality/THINKING_AUTO_GATE + topic routing
+        + sorting_line + task-surfacing largely exist -- verify they cover H5.1-H5.3).
+  - [ ] H6.4 cache-amortization measurement (prompt-cache hit rate over a same-role batch).
 - [~] Runtime egress containment: DAEMON ENV HYGIENE DONE 2026-06-20 -- daemon.py sanitize_env()
       + ChildSpec.hygiene strip cloud/egress secrets (OPENAI/ANTHROPIC/AWS_*/AZURE_*/GOOGLE_*/
       LANGSMITH_* + a keyed list) from a supervised agent's env at launch; the hermes-bridge child

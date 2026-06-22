@@ -3,7 +3,7 @@
 Short-term shared memory. See `roadmap.md` for the phased feature/completion
 tracker, `knowledge.md` for project scope, and `changelog.md` for history.
 
-Last updated: 2026-06-21 2115 PDT by Claude (Phase 8 H6.1/H6.2/H6.3 VALIDATED on EVO-X2 over SSH. H6.1: `hermes kanban swarm` fan-out -> verifier -> synthesizer ran end to end on the standing dispatcher [serialized PARALLEL=1] -> synthesizer produced the combined paragraph. H6.2: reclaim+recovery PROVEN [killed worker mid-run -> reclaim + re-dispatch -> /jobs ok, attempts=2]. H6.3: failure-limit auto-block -> /jobs blocked, after fixing TWO bridge bugs [auto-blocked mirrored as error; archived-orphan churn at running] -> derive_update now treats settled columns blocked/done/archived as authoritative. 50 bridge tests; offline 18/18. H4-H6.4 next. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
+Last updated: 2026-06-21 2145 PDT by Claude (Phase 8 H4 CODE done: init_profiles.sh scaffolds 5 role-prefix Hermes assignee profiles [researcher/critic/summarizer/coder/librarian -- stable SOUL.md+.hermes.md prefixes, T1 safe-config inherited]; POST /agent/delegate `role` -> assignee; cache_prompt defaults ON so role-prefix prefill amortizes. Offline 18/18; live profile-materialize + role smoke owed. EARLIER today, all PROVEN LIVE on EVO-X2 [detail in changelog]: H3 standing dispatcher [unattended delegate->ok+summary] + H6.1 swarm + H6.2 reclaim + H6.3 failure-limit->blocked [+2 bridge bug fixes]. H5 + H6.4 remain. EARLIER 1225: Phase 8 H3 PROVEN LIVE on EVO-X2: `--with-hermes` supervises FOUR children [llama/api/bridge/dispatcher]; a hands-off POST /agent/delegate [no manual dispatch] -> bridge card -> the standing dispatch loop spawned the 35B worker -> kanban_complete -> bridge mirrored ok+summary to /jobs [~100s]; persistent across SSH. NEW tools/hermes_dispatch_loop.py loops the SUPPORTED `dispatch` [not the DEPRECATED `kanban daemon`/gateway] + daemon hermes_dispatcher_spec + bridge-log flush fix; offline 18/18. H3 -> [x]; H4-H6 next. EARLIER 06-20 1915: EVO-X2 H2d EXIT GATE PROVEN over SSH: pulled to a18a78f, fixed the qdrant-client venv gap, 35B on Vulkan GPU under a persistent systemd --user daemon, Phase 1 + messages-path verified on GPU, and the full UNATTENDED H2d chain delegate->dispatch->worker->mirror landed status=ok+summary [h2d-001/002/003]. Key fix: shell_init_files puts env_hermes/bin on the worker-shell PATH. EARLIER 1510: Windows pass + thinking-model fixes, pushed a70fe90+cf79270.)
 
 ## Next up
 
@@ -62,8 +62,13 @@ Housekeeping / decisions:
 - Keep it ASCII (see `WORKFLOW.md`).
 - Whoever edits this file: bump the "Last updated" stamp and put your name on it.
 
-## Just finished (2026-06-21 -- Phase 8 H3 + H6.1/H6.2/H6.3, Claude)
+## Just finished (2026-06-21 -- Phase 8 H3 + H6.1/H6.2/H6.3 + H4, Claude)
 
+- H4 (role-prefix library, CODE done): init_profiles.sh scaffolds 5 specialized Hermes assignee
+  profiles (researcher/critic/summarizer/coder/librarian) -- each a stable SOUL.md + .hermes.md
+  prefix (KV-cache locality) inheriting the T1 safe-config. POST /agent/delegate gains `role` ->
+  assignee (unknown role -> 400). cache_prompt defaults ON in llama.cpp, so prefill already
+  amortizes. +8 tests; offline 18/18. LIVE owed: run init_profiles.sh on EVO-X2 + role smoke.
 - H6.1 PROVEN (swarm): `hermes kanban swarm` built a 2-worker -> verifier -> synthesizer graph; the
   standing dispatcher ran it serialized (PARALLEL=1) honoring deps -> workers done -> verifier ->
   synthesizer wrote the combined paragraph. Substrate works. (Gotcha: `--worker PROFILE:TITLE:SKILL`

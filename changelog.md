@@ -14,6 +14,26 @@ Conventions:
 
 ---
 
+## 2026-06-21 2145 PDT -- Phase 8 H4: role-prefix template library + role delegation (Brandon + Claude)
+
+- H4 adds a role-prefix template library as specialized Hermes ASSIGNEE PROFILES (the bridge-arch
+  realization of the 2026-05-10 "swarm_roles" idea). init_profiles.sh now scaffolds five roles
+  under persona/profiles/<role>/ -- researcher, critic, summarizer, coder, librarian -- each a
+  STABLE per-role system prefix (SOUL.md + .hermes.md) so same-role tasks share a prefix for
+  KV-cache locality. Every role inherits the T1 safe-config via write_hermes_config (egress off,
+  model pinned, shell-init PATH); scaffold-only (never overwrites existing files).
+- POST /agent/delegate gains a `role` param (server.py resolve_delegate_assignee): a known role
+  maps to assignee=<role> -> the bridge passes --assignee to `hermes kanban create` -> the
+  dispatcher spawns the worker under that profile (`hermes -p <role>`). `assignee` stays the raw
+  escape hatch; an unknown role -> 400 unknown_role + known_roles list. tests/test_api_offline.py
+  +8 (role mapping + resolve_delegate_assignee helper).
+- cache_prompt (H4.2): VERIFIED llama.cpp common_params.cache_prompt defaults to TRUE
+  (llama_cpp/common/common.h:523) and start_llama does not pass --no-cache-prompt, so prompt
+  caching is already on for both the persona and worker request paths -- the role-prefix prefill
+  amortizes with no per-request change. (H6.4 will measure the hit rate.)
+- Offline suite 18/18; py_compile + bash -n clean. LIVE on EVO-X2 (run init_profiles.sh ->
+  profiles materialize; delegate role=researcher -> worker under `-p researcher` -> ok) next.
+
 ## 2026-06-21 2115 PDT -- Phase 8 H6.1: swarm fan-out -> verifier -> synthesizer PROVEN on EVO-X2 (Brandon + Claude)
 
 - Proved the Hermes swarm substrate end to end on the standing dispatcher (driven over SSH).

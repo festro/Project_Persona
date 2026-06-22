@@ -239,6 +239,22 @@ check("/agent/delegate without title -> 400", r.status_code == 400)
 r = client.post("/agent/delegate", json={"job_id": "delgA", "title": "dup"})
 check("/agent/delegate duplicate job_id -> 409", r.status_code == 409)
 
+# H4: role-prefix routing -- a known role maps to the assignee profile; an unknown role is rejected.
+r = client.post("/agent/delegate", json={"job_id": "delgRole", "title": "Research X", "role": "researcher"})
+check("/agent/delegate role=researcher -> assignee=researcher",
+      r.json().get("status") == "delegated" and r.json()["job"].get("assignee") == "researcher")
+r = client.post("/agent/delegate", json={"job_id": "delgBadRole", "title": "X", "role": "wizard"})
+check("/agent/delegate unknown role -> 400 unknown_role",
+      r.status_code == 400 and r.json().get("error") == "unknown_role")
+check("/agent/delegate unknown role lists known_roles", "researcher" in (r.json().get("known_roles") or []))
+check("resolve_delegate_assignee role wins", server.resolve_delegate_assignee({"role": "coder"}) == ("coder", None))
+check("resolve_delegate_assignee unknown role -> error",
+      server.resolve_delegate_assignee({"role": "nope"})[1] == "unknown_role")
+check("resolve_delegate_assignee assignee escape hatch",
+      server.resolve_delegate_assignee({"assignee": "custom"}) == ("custom", None))
+check("resolve_delegate_assignee default when neither",
+      server.resolve_delegate_assignee({}) == (server.DELEGATE_DEFAULT_ASSIGNEE, None))
+
 # New bridge statuses (delegated/blocked) round-trip through /jobs additively.
 tb.task_set("delgB", {"status": "blocked", "kind": "hermes_delegate",
                       "block_reason": "review-required: confirm scope"})
