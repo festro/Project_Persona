@@ -1957,6 +1957,48 @@ async def memory_intake(req: dict):
     return res
 
 
+@app.get("/memory/facts")
+async def memory_facts(profile: Optional[str] = None, source: Optional[str] = None, limit: int = 1000):
+    """List stored facts (kind=fact) with their point ids, for review/export before a targeted
+    forget. Optional `source` filter (e.g. 'distiller'). project_doc/self-knowledge is excluded."""
+    if not _rag_ok:
+        return {"ok": False, "error": "rag_unavailable"}
+    coll = _collection_name(profile or DEFAULT_PROFILE)
+    out = []
+    try:
+        for p in _store.export_points(coll):
+            meta = p.get("meta") or {}
+            if meta.get("kind") != "fact":
+                continue
+            if source and meta.get("source") != source:
+                continue
+            out.append({
+                "id": str(p["id"]), "text": p.get("document", ""),
+                "source": meta.get("source"), "type": meta.get("type"), "ts": meta.get("ts"),
+            })
+            if len(out) >= max(1, int(limit)):
+                break
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": repr(e)}
+    return {"ok": True, "collection": coll, "count": len(out), "facts": out}
+
+
+@app.post("/memory/forget")
+async def memory_forget(req: dict):
+    """Delete specific memory points by id (the reversible-purge primitive). Body:
+    {"ids": [...], "profile"?: str}. Caller is expected to have exported them first."""
+    ids = [str(i) for i in (req or {}).get("ids") or [] if str(i).strip()]
+    if not ids:
+        return {"ok": False, "error": "no_ids"}
+    coll = _collection_name(str((req or {}).get("profile") or DEFAULT_PROFILE))
+    try:
+        deleted = _store.delete(coll, ids)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": repr(e)}
+    publish_event("memory_forget", {"collection": coll, "deleted": deleted})
+    return {"ok": True, "collection": coll, "deleted": deleted}
+
+
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: str):
     job = taskboard.task_get(job_id)
