@@ -387,6 +387,11 @@ Goal: a thin client over the API with durable conversation history.
       don't refuse). See changelog 2026-06-27. FIX 2026-06-28: the patch used setdefault() which the
       browser's explicit web_search:false defeated (only manual-toggle searched); now ORs the flag
       with the default + the patch self-heals on upgrade. See changelog 2026-06-28 0115.
+      INLINE-URL FETCH 2026-06-28 0200: pasted links are now READ (OpenWebUI's web_search only
+      keyword-searches, never visits URLs in the message) -- scripts/webui_patches/persona_inline_urls.py
+      + a middleware hook fetch them via /process/web and skip the keyword search that turn. Plus the
+      persona DEFAULT response style is now fuller/well-developed (was "1 short paragraph"), still
+      deferring to explicit brevity/format; PERSONA_MAX_TOKENS 192->800. See changelog 2026-06-28 0200.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

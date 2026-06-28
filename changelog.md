@@ -14,6 +14,36 @@ Conventions:
 
 ---
 
+## 2026-06-28 0200 PDT -- Inline-URL fetch (read pasted links) + fuller default response style (Brandon + Claude)
+
+- INLINE-URL FETCH (Brandon: "I provided a link... it never visited it, decided to search instead").
+  CONFIRMED from data/conversations.db: his turns were `explain this repo "https://github.com/
+  starmynd-org/infinite-brain-os"` and `how does it compare to "https://github.com/festro/
+  Project_Persona"?` (curly-quoted), and the log showed ZERO page fetches -- only ddgs keyword
+  searches the model invented ("Project_Persona GitHub repository architecture review"), landing on
+  lookalike repos. ROOT: OpenWebUI's web_search = generate_queries + search engine; it never visits
+  URLs in the message. FIX: NEW scripts/webui_patches/persona_inline_urls.py -- extract_urls() pulls
+  http(s) URLs from the latest user message (strips curly/smart quotes + trailing punctuation +
+  markdown wrappers), fetch_inline_urls() loads each via OpenWebUI's own /process/web loader and
+  attaches them as web_search-type sources (the proven get_sources_from_items path). start_webui.sh
+  copies the helper into open_webui/utils and inserts a marker-guarded call into middleware.py just
+  BEFORE the web_search dispatch; if any link is fetched it sets features.web_search=False so the
+  keyword search is skipped that turn (read the link, don't search). Idempotent + safe-failing
+  (try/except, helper re-copied each start so updates deploy). NEW tests/test_inline_urls.py (13
+  checks: curly quotes, trailing punctuation, markdown parens, multi/dup/limit, negatives).
+- FULLER DEFAULT RESPONSES (Brandon: "short concise responses feel a little shorthanded"). The terse
+  default came from BOTH persona/profiles/default/SOUL.md ("1 short paragraph + Next actions") and
+  server.py build_persona_prompt/messages ("Output format DEFAULT: one short paragraph..."). Both
+  reworded to DEFAULT to a thorough, well-developed answer (reasoning + relevant angles + examples,
+  a few short paragraphs, headings/lists where they help, Next actions when follow-up makes sense) --
+  while STILL deferring to an explicit "be brief / one-liner / bullets / table / no next actions"
+  request (the adaptive override now explicitly includes making it short). Also raised
+  PERSONA_MAX_TOKENS default 192 -> 800 so no-max clients (the probe, scripts) and longer answers are
+  not clipped (the browser already sent its own higher max -- 435-token replies seen -- so the prompt,
+  not the cap, was the lever; the cap bump is for robustness). The model still stops when done.
+- offline suite 19/19 (+test_inline_urls); bash -n + both embedded PYPATCH/PYPATCH2 py_compile clean;
+  server.py py_compile clean. Deploy + sentinel (the two-link comparison) verified live below.
+
 ## 2026-06-28 0115 PDT -- FIX: context-based web search never auto-fired from the browser (setdefault vs explicit web_search:false) (Brandon + Claude)
 
 - SYMPTOM (Brandon): web search still only ran when the chat toggle was MANUALLY switched on; the

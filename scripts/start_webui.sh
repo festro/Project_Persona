@@ -116,6 +116,53 @@ except Exception as e:
     print("[start_webui] web-search default: patch skipped:", e)
 PYPATCH
 
+# Inline-URL fetch (Brandon 2026-06-28): when the user pastes a link, READ that page
+# instead of letting web_search paraphrase it into keyword queries (which landed on
+# lookalike repos). Two idempotent steps: (1) copy the helper module into open_webui/utils
+# so the import resolves; (2) insert a marker-guarded call into middleware.py just before
+# the web_search dispatch -- if links are fetched it flips features.web_search off so the
+# keyword search is skipped for that turn. Safe-failing: the call is wrapped in try/except.
+AI_ROOT="${AI_ROOT:-$HOME/Git/Project_Persona}" PERSONA_SRC="$AI_ROOT/scripts/webui_patches/persona_inline_urls.py" \
+python - <<'PYPATCH2'
+import os, shutil
+try:
+    import open_webui
+    utils_dir = os.path.join(os.path.dirname(open_webui.__file__), "utils")
+    src = os.environ["PERSONA_SRC"]
+    dst = os.path.join(utils_dir, "persona_inline_urls.py")
+    shutil.copyfile(src, dst)  # redeploy each start so helper updates land
+    print("[start_webui] inline-url: helper module copied")
+
+    mw = os.path.join(utils_dir, "middleware.py")
+    txt = open(mw, encoding="utf-8").read()
+    if "PROJECT_PERSONA: fetch inline URLs" in txt:
+        print("[start_webui] inline-url: middleware already patched")
+    else:
+        lines = txt.splitlines(keepends=True)
+        anchor = "if 'web_search' in features and features['web_search']:"
+        for i, l in enumerate(lines):
+            if l.strip() == anchor:
+                ind = l[: len(l) - len(l.lstrip())]
+                block = [
+                    "# PROJECT_PERSONA: fetch inline URLs directly (read pasted links, don't keyword-search them)",
+                    "if features.get('web_search') and metadata.get('params', {}).get('function_calling') != 'native':",
+                    "    try:",
+                    "        from open_webui.utils.persona_inline_urls import fetch_inline_urls as _persona_fetch_inline_urls",
+                    "        if await _persona_fetch_inline_urls(request, form_data, extra_params, user):",
+                    "            features['web_search'] = False  # links fetched; skip the keyword search this turn",
+                    "    except Exception as _persona_e:",
+                    "        log.warning('persona inline-url hook failed: %s', _persona_e)",
+                ]
+                lines.insert(i, "".join(ind + b + "\n" for b in block))
+                open(mw, "w", encoding="utf-8").write("".join(lines))
+                print("[start_webui] inline-url: middleware PATCHED")
+                break
+        else:
+            print("[start_webui] inline-url: anchor not found; pasted links unchanged")
+except Exception as e:
+    print("[start_webui] inline-url: patch skipped:", e)
+PYPATCH2
+
 echo "Starting OpenWebUI on http://${WEBUI_HOST}:${WEBUI_PORT}"
 echo "  OPENAI_API_BASE_URL=$OPENAI_API_BASE_URL  DATA_DIR=$DATA_DIR  web_search=$ENABLE_WEB_SEARCH/$WEB_SEARCH_ENGINE  web_search_default=$PERSONA_WEB_SEARCH_DEFAULT"
 

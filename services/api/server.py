@@ -124,7 +124,10 @@ RAG_KINDS_FOR_SCIENCE = {
 
 RAG_FILTER_BAD_MEMORIES = os.getenv("RAG_FILTER_BAD_MEMORIES", "1") == "1"
 
-PERSONA_MAX_TOKENS = int(os.getenv("PERSONA_MAX_TOKENS", "192"))
+# Default response cap when the client does not send its own max_tokens. 192 clipped
+# fuller answers (and made no-max clients like the probe look terse); 800 gives room for
+# a developed reply without inviting runaway generation. The model still stops when done.
+PERSONA_MAX_TOKENS = int(os.getenv("PERSONA_MAX_TOKENS", "800"))
 PERSONA_TIMEOUT_S = float(os.getenv("PERSONA_TIMEOUT_S", "120"))
 
 PROFILE_WRAPPERS_ENABLED = os.getenv("PROFILE_WRAPPERS_ENABLED", "1") == "1"
@@ -1065,13 +1068,17 @@ def build_persona_prompt(
             "Hermes rules (hard rules + output format — must follow):\n"
             f"{hermes_md or '(.hermes.md missing)'}\n\n"
             "Output format:\n"
-            "- DEFAULT (when the user does NOT specify a format): one short paragraph,\n"
-            "  then a 'Next actions:' section with 2-4 '*' bullets. Do not put 'Next\n"
-            "  actions:' in a bullet, do not repeat bullets, write nothing after them.\n"
-            "- BUT if the user asks for a specific format, structure, or length (bullet\n"
-            "  points, pros/cons with headings, a table, a step-by-step list, a longer\n"
-            "  write-up, or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their\n"
-            "  explicit instruction overrides the default, and 'Next actions:' is optional.\n"
+            "- DEFAULT (when the user does NOT specify a length/format): give a thorough,\n"
+            "  well-developed answer. Explain the reasoning, cover the relevant angles, and\n"
+            "  give examples or context where they help -- a few short paragraphs, with\n"
+            "  headings or lists when they aid clarity. Favor substance over brevity, but no\n"
+            "  filler or padding. Close with a 'Next actions:' section of 2-4 '*' bullets when\n"
+            "  follow-up makes sense (omit it when it would not). Do not put 'Next actions:' in\n"
+            "  a bullet, do not repeat bullets, write nothing after them.\n"
+            "- BUT if the user asks for a specific format, structure, or length (be brief, a\n"
+            "  one-liner, bullet points, pros/cons with headings, a table, a step-by-step list,\n"
+            "  or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their explicit\n"
+            "  instruction overrides the default, including making it short.\n"
             "- Do NOT refuse unless the user asks for something unsafe/illegal.\n"
             "- Never mention internal memory retrieval.\n"
             "- Memory snippets below may be stale; use ONLY if directly relevant.\n\n"
@@ -1134,13 +1141,17 @@ def build_persona_messages(
             "Hermes rules (hard rules + output format - must follow):\n"
             f"{hermes_md or '(.hermes.md missing)'}\n\n"
             "Output format:\n"
-            "- DEFAULT (when the user does NOT specify a format): one short paragraph,\n"
-            "  then a 'Next actions:' section with 2-4 '*' bullets. Do not put 'Next\n"
-            "  actions:' in a bullet, do not repeat bullets, write nothing after them.\n"
-            "- BUT if the user asks for a specific format, structure, or length (bullet\n"
-            "  points, pros/cons with headings, a table, a step-by-step list, a longer\n"
-            "  write-up, or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their\n"
-            "  explicit instruction overrides the default, and 'Next actions:' is optional.\n"
+            "- DEFAULT (when the user does NOT specify a length/format): give a thorough,\n"
+            "  well-developed answer. Explain the reasoning, cover the relevant angles, and\n"
+            "  give examples or context where they help -- a few short paragraphs, with\n"
+            "  headings or lists when they aid clarity. Favor substance over brevity, but no\n"
+            "  filler or padding. Close with a 'Next actions:' section of 2-4 '*' bullets when\n"
+            "  follow-up makes sense (omit it when it would not). Do not put 'Next actions:' in\n"
+            "  a bullet, do not repeat bullets, write nothing after them.\n"
+            "- BUT if the user asks for a specific format, structure, or length (be brief, a\n"
+            "  one-liner, bullet points, pros/cons with headings, a table, a step-by-step list,\n"
+            "  or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their explicit\n"
+            "  instruction overrides the default, including making it short.\n"
             "- Do NOT refuse unless the user asks for something unsafe/illegal.\n"
             "- Never mention internal memory retrieval.\n"
             "- Memory snippets below may be stale; use ONLY if directly relevant."
