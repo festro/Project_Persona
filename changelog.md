@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-28 0015 PDT -- tools/webui_probe.py: headless end-to-end smoke testing of the full OpenWebUI pipeline (Brandon + Claude)
+
+- Brandon: automate the debug loop over SSH (push a question -> get a response -> validate) instead
+  of manual UI testing. The persona API (:8000) can be probed directly but BYPASSES OpenWebUI, so it
+  cannot exercise web search (which lives in OpenWebUI's chat middleware). tools/webui_probe.py drives
+  OpenWebUI's /api/chat/completions (:3000) -> the WHOLE pipeline runs (web-search necessity check ->
+  search -> scrape -> embed -> retrieve -> inject -> persona -> reply).
+- Auth: mints the same HS256 JWT OpenWebUI issues, signed with the gitignored .webui_secret_key (read
+  at runtime, never printed/committed; ENABLE_API_KEYS is off so the JWT path is used). User id is
+  auto-detected from openwebui/webui.db. Flags: --web/--no-web (force the toggle), --expect-sources /
+  --expect-contains / --expect-absent (assertions -> exit code 0 pass / 1 fail), --json, --model.
+- PROVEN: a "what did Anthropic announce recently?" probe returned real current facts (Claude Code
+  v2.1.195, Opus 4.8, the Mythos-class export-control story) with sources attached in ~44s -- i.e.
+  the 06-27 web-search tuning is working; the earlier generic-SEO result was a bad-source draw.
+- Run it with the webui venv (has PyJWT): `env_webui/bin/python tools/webui_probe.py --web "..."`.
+
 ## 2026-06-27 2355 PDT -- Web search tuning: deeper retrieval + more sources, default-on (context-based), helpfulness nudge (Brandon + Claude)
 
 - Symptom: a "latest AI news" query returned generic evergreen SEO pages (a Quetext "AI Trends 2026"
