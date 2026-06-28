@@ -24,6 +24,7 @@ import sorting_line as sl
 import sleep_cycle as sc
 import avatar_state as av
 import self_knowledge as skn
+import memory_intake as mi
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -1394,6 +1395,50 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
     return {"enabled": True, "facts_extracted": len(facts), "facts_stored": stored, "tokens": stats.get("tokens_generated", 0)}
 
 
+# Structured memory intake (prototype, task B). Unlike distill_and_store_facts (plain-text
+# facts), this extracts TYPED records (type/entities/date/source/confidence) validated against
+# a schema before embedding, and surfaces the nearest existing facts so contradictions are
+# visible (informational -- it does NOT auto-delete). Demonstrable via POST /memory/intake;
+# the default distiller path is unchanged.
+MEMORY_INTAKE_MAX_TOKENS = int(os.getenv("MEMORY_INTAKE_MAX_TOKENS", "320"))
+
+
+async def structured_intake(user_text: str, assistant_text: str = "", *, profile: str, topic: str) -> Dict[str, Any]:
+    if not (_rag_ok and _embedder is not None):
+        return {"ok": False, "error": "rag_unavailable"}
+    today = time.strftime("%Y-%m-%d")
+    prompt = mi.build_intake_prompt(user_text, assistant_text, today=today)
+    try:
+        out, stats = await query_llama(
+            PERSONA_URL, prompt, tokens=MEMORY_INTAKE_MAX_TOKENS, temperature=0.2,
+            timeout_s=MEMORY_DISTILL_TIMEOUT_S, extra={"top_p": 0.9, "repeat_penalty": 1.10},
+        )
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"intake_call_failed: {repr(e)}"}
+
+    raws, perr = mi.parse_intake(out)
+    if perr:
+        return {"ok": False, "error": perr, "raw": (out or "")[:400]}
+
+    records, stored = [], 0
+    for raw in raws:
+        rec, errs = mi.validate_record(raw)
+        if rec is None:
+            records.append({"skipped": True, "errors": errs, "raw": raw})
+            continue
+        # Contradiction visibility: nearest existing facts BEFORE we add this one.
+        related = memory_query(rec.statement, k=3, kind_filter={"fact"}, profile=profile)
+        memory_add(mi.record_to_text(rec), mi.record_to_meta(rec, profile=profile, topic=topic), profile=profile)
+        stored += 1
+        records.append({
+            "statement": rec.statement, "type": rec.type, "entities": rec.entities,
+            "date": rec.date, "confidence": rec.confidence,
+            "warnings": errs, "related_existing": related,
+        })
+    return {"ok": True, "extracted": len(raws), "stored": stored, "records": records,
+            "tokens": stats.get("tokens_generated", 0)}
+
+
 # -----------------------
 # FastAPI
 # -----------------------
@@ -1889,6 +1934,22 @@ async def memory_ingest_self(profile: Optional[str] = None):
     res = ingest_self_knowledge(profile)
     if res.get("ok"):
         publish_event("ingest_complete", {"kind": SELF_KNOWLEDGE_KIND, "stored": res.get("stored"), "purged": res.get("purged")})
+    return res
+
+
+@app.post("/memory/intake")
+async def memory_intake(req: dict):
+    """Structured memory intake (prototype): extract TYPED, schema-validated memory records
+    from text and embed them, returning each record + nearest existing facts (contradiction
+    visibility). Body: {"text": str, "reply"?: str, "profile"?: str, "topic"?: str}."""
+    text = str((req or {}).get("text") or "").strip()
+    if not text:
+        return {"ok": False, "error": "missing_text"}
+    profile = str((req or {}).get("profile") or DEFAULT_PROFILE).strip()
+    topic = resolve_topic((req or {}).get("topic"), text)
+    res = await structured_intake(text, str((req or {}).get("reply") or ""), profile=profile, topic=topic)
+    if res.get("ok"):
+        publish_event("ingest_complete", {"kind": "fact", "structured": True, "stored": res.get("stored")})
     return res
 
 

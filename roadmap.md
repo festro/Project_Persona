@@ -395,6 +395,12 @@ Goal: a thin client over the API with durable conversation history.
       NECESSITY-CHECK TUNED 2026-06-28 0240: OpenWebUI's stock query-gen prompt is search-biased and
       fired failed searches on general-knowledge turns; start_webui.sh now exports a less-eager
       QUERY_GENERATION_PROMPT_TEMPLATE (search only for current/external facts). See changelog 0240.
+      SELF-KNOWLEDGE 2026-06-28 0320: the project's own docs are chunked + embedded under kind
+      project_doc (services/api/self_knowledge.py + POST /memory/ingest_self) so the persona reasons
+      about its OWN architecture from fact (proven: it now cites daemon.py/Hermes/Qdrant/EVO-X2).
+      STRUCTURED INTAKE prototype 0350: services/api/memory_intake.py + POST /memory/intake -- typed,
+      schema-validated memory records (type/entities/date/confidence) with contradiction visibility;
+      default distiller unchanged. See changelog 0320 + 0350.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

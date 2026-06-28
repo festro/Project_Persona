@@ -14,6 +14,30 @@ Conventions:
 
 ---
 
+## 2026-06-28 0350 PDT -- Structured memory intake (prototype): typed, schema-validated memories (Brandon + Claude)
+
+- Task B from the IBOS-integration assessment (the one proposal with real merit): Persona's memory
+  write path distills facts to PLAIN TEXT and embeds them -- no typed validation (dates/entities/
+  source) and no contradiction awareness. This prototype adds a schema-first intake layer.
+- NEW services/api/memory_intake.py (stdlib-only, unit-testable): a MemoryRecord schema (statement,
+  type in a closed vocab preference|identity|fact|event|task|relationship|skill|project|other,
+  entities[], date[ISO/YYYY-MM|null], source, confidence[0-1]); validate_record() coerces a raw dict
+  to a safe typed record (only `statement` is required; unknown type -> other + warning; non-ISO date
+  -> null; confidence clamped; string entities split/de-duped; bullets+whitespace cleaned; statement
+  capped 200); build_intake_prompt()/parse_intake() mirror the distiller's robust JSON handling
+  (strip <think>, extract object-or-array, accept {"memories":[...]}, legacy {"facts":[...]}, or a
+  bare list; string items -> {statement}). record_to_text() leads with the statement (+entities for
+  recall); record_to_meta() carries the structure as flat scalar point-metadata (so memories become
+  filterable, not just semantically searchable).
+- server.py: structured_intake() runs the model -> parse -> validate -> embed, and for each record
+  surfaces the nearest existing facts (memory_query k=3) as `related_existing` so CONTRADICTIONS are
+  VISIBLE -- informational only, it does NOT auto-delete. NEW `POST /memory/intake`
+  {text, reply?, profile?, topic?}. The default distiller path is UNCHANGED (this is an opt-in,
+  demonstrable surface, not a swap-in).
+- NEW tests/test_memory_intake.py (24 checks: schema coercion across types/dates/confidence/entities,
+  statement cleaning, parser robustness incl. <think>/prose/legacy/garbage, end-to-end parse->validate).
+  offline 21/21.
+
 ## 2026-06-28 0320 PDT -- Self-knowledge in RAG: the persona can reason about its own architecture (Brandon + Claude)
 
 - WHY: in the IBOS-vs-Persona comparison the model assessed OTHER projects from fetched pages well but
