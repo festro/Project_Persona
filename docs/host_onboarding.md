@@ -185,6 +185,12 @@ Phase opt-ins on the daemon (off by default):
   -> Hermes claims + executes the 35B + writes back, egress-off) is gathered HERE, not on CPU-WSL.
 - Apply the kernel egress layer here (`scripts/egress_baseline.sh apply`) for the Phase 8 "egress
   contained at config + kernel level" gate; combine with the daemon env-hygiene runtime layer.
+- Reboot survival: the stack auto-starts on boot via two persistent `systemd --user` units
+  (`persona-daemon.service`, `persona-webui.service`) installed at `~/.config/systemd/user/`,
+  `enable`d to `default.target`, with user linger on. Reference copies + the install/refresh
+  procedure are in `scripts/systemd/` (those files live outside the repo on the node, so a
+  `git pull` does not touch them). Earlier they were transient `systemd-run` units that survived
+  logout but NOT a reboot.
 
 ---
 

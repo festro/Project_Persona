@@ -14,6 +14,32 @@ Conventions:
 
 ---
 
+## 2026-06-28 0045 PDT -- Reboot survival made automatic (persistent systemd --user units) + debug-loop validation pass (Brandon + Claude)
+
+- REBOOT SURVIVAL (was owed since the ~02:09 reboot last session that took the stack down): the EVO-X2
+  stack now auto-starts on boot. Replaced the two TRANSIENT `systemd-run --user` units (survive logout
+  via linger, but NOT reboot) with persistent `~/.config/systemd/user/` units, `enable`d to
+  `default.target`; with user linger=yes the user manager reaches default.target at boot and pulls both
+  up. No reboot needed to cut over.
+  * `persona-daemon.service` -- daemon.py --with-hermes (llama :8090 + api :8000 + Hermes), append logs.
+  * `persona-webui.service`  -- bash scripts/start_webui.sh (OpenWebUI :3000, WEBUI_HOST=0.0.0.0,
+    After=persona-daemon), Restart=on-failure.
+- Cutover gotcha: a running transient unit SHADOWS the on-disk file ("Unit ... is transient or
+  generated" -> is-enabled=transient). Must `systemctl --user stop` the transient units BEFORE
+  `daemon-reload` + `enable`; only then do the default.target.wants symlinks get created. Did the full
+  cutover live: stop transient -> enable -> start from disk -> daemon healthy ~8s (api+llama 200),
+  webui ~12s (200). Confirmed FragmentPath now points at ~/.config/systemd/user, UnitFileState=enabled,
+  web-search middleware patch re-applied on webui start.
+- Reference copies + install/refresh procedure committed at `scripts/systemd/` (the live files sit
+  outside the repo, so a `git pull` never touches them). docs/host_onboarding.md section 9 documents it.
+- DEBUG-LOOP VALIDATION (tools/webui_probe.py, through the new persistent units), 5/5 OK: [resume]
+  --no-web "one productivity tip" -> kept Next actions (default style), 8s; [A] --web "latest Anthropic
+  Claude model releases" -> sources=1, real current facts (Fable 5 flagship, Opus 4.8), 37s; [B] --no-web
+  "TCP vs UDP as a markdown table, no next actions" -> clean table, NA suppressed (explicit format wins),
+  9s; [C] no-flag "what is a semaphore (one sentence)" -> sources=0 (context gating SKIPPED search), 15s;
+  [D] no-flag "who won the most recent F1 GP?" -> sources=1 (context gating TRIGGERED search), 39s.
+  Context-based gating now confirmed in BOTH directions (casual->no search, current->search).
+
 ## 2026-06-28 0015 PDT -- tools/webui_probe.py: headless end-to-end smoke testing of the full OpenWebUI pipeline (Brandon + Claude)
 
 - Brandon: automate the debug loop over SSH (push a question -> get a response -> validate) instead

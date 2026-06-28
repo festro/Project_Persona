@@ -639,8 +639,10 @@ single-model migration M6.)
         persona-daemon systemd --user service (survives SSH/logout via linger). Egress: config-
         level off (no provider keys, browser off, terminal local, llama loopback); kernel
         nftables layer still owed (needs root). FOLLOW-UPS: codify the PATH fix in
-        init_profiles.sh (or env_passthrough:[PATH]); a persistent ~/.config/systemd/user
-        unit for reboot-survival; raise PARALLEL for worker concurrency.
+        init_profiles.sh (or env_passthrough:[PATH]); raise PARALLEL for worker concurrency.
+        REBOOT-SURVIVAL DONE 2026-06-28: persistent ~/.config/systemd/user/{persona-daemon,
+        persona-webui}.service enabled to default.target (linger -> auto-start on boot); refs +
+        steps in scripts/systemd/, doc host_onboarding.md s9.
 - [~] H2e SCAFFOLDED 2026-06-20 (WSL, all that can be done without the 35B/GPU): the
       persona-side H2 bridge now runs as a SUPERVISED DAEMON CHILD. daemon.py: hermes_present()
       + hermes_bridge_spec() (guarded by env_hermes/; launches env_hermes/bin/python

@@ -1,0 +1,17 @@
+[Unit]
+Description=Project_Persona daemon (llama-server + persona API + Hermes), supervised by daemon.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/festro33/Git/Project_Persona
+ExecStart=/home/festro33/Git/Project_Persona/env/bin/python /home/festro33/Git/Project_Persona/daemon.py --with-hermes
+StandardOutput=append:/home/festro33/Git/Project_Persona/logs/daemon.log
+StandardError=append:/home/festro33/Git/Project_Persona/logs/daemon.log
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target

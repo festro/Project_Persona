@@ -1,0 +1,19 @@
+[Unit]
+Description=Project_Persona OpenWebUI (:3000)
+After=network-online.target persona-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/festro33/Git/Project_Persona
+Environment=AI_ROOT=/home/festro33/Git/Project_Persona
+Environment=WEBUI_HOST=0.0.0.0
+ExecStart=/usr/bin/bash /home/festro33/Git/Project_Persona/scripts/start_webui.sh
+StandardOutput=append:/home/festro33/Git/Project_Persona/logs/webui.log
+StandardError=append:/home/festro33/Git/Project_Persona/logs/webui.log
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
