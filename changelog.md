@@ -14,6 +14,32 @@ Conventions:
 
 ---
 
+## 2026-06-27 2355 PDT -- Web search tuning: deeper retrieval + more sources, default-on (context-based), helpfulness nudge (Brandon + Claude)
+
+- Symptom: a "latest AI news" query returned generic evergreen SEO pages (a Quetext "AI Trends 2026"
+  listicle posted in March, an "AI World Journal" report, nav/boilerplate, a "confirm you're human"
+  bot-wall) -- no actual weekly headlines -- so the model HONESTLY declined to fabricate. Confirmed
+  it is content quality + too-shallow retrieval, NOT a plumbing bug: the model quoted the results
+  (so context reached it), no overflow, no 500. (A standalone vector query showed the same generic
+  chunks were the best matches -- the scrape itself drew weak sources for this query.)
+- TUNING (scripts/start_webui.sh): WEB_SEARCH_RESULT_COUNT 3 -> 5 (scrape more sources); RAG_TOP_K
+  3 -> 6 (OpenWebUI retrieval depth -- a page splits into 100s of chunks so top-3 missed the
+  substance and surfaced boilerplate; 6 feeds the model more, ~250-tok chunks stay within context).
+- DEFAULT-ON / CONTEXT-BASED web search (Brandon ask: "default it on, or better, on when the question
+  needs online resources"). OpenWebUI gates web search on the per-message form_data.features.web_search
+  with NO server-side default. start_webui.sh now idempotently patches ONE line so it defaults from
+  PERSONA_WEB_SEARCH_DEFAULT (=1) -> OpenWebUI's ENABLE_SEARCH_QUERY_GENERATION necessity check (already
+  on) runs each turn and SEARCHES ONLY when the question needs current info (returns no queries
+  otherwise -> normal reply, no search). The user's explicit toggle still wins; PERSONA_WEB_SEARCH_
+  DEFAULT=0 reverts. Trade-off: the necessity check is one extra 35B task-model call per message
+  (~seconds). The patch is safe-failing (no-ops if the OpenWebUI anchor line ever moves) + idempotent
+  (marker comment) + re-applied each webui start (survives a pip upgrade).
+- HELPFULNESS NUDGE (services/api/server.py external_context grounding, both prompt builders): when
+  results are thin / generic / only partly relevant, summarize what IS useful and note what could not
+  be found, rather than refusing outright.
+- offline 18/18. The agentic `researcher` role (path B) remains the better tool for deep multi-step
+  research vs the in-chat one-shot search.
+
 ## 2026-06-22 1850 PDT -- Web search WORKS (the REAL root cause: BYPASS_RETRIEVAL_ACCESS_CONTROL) + adaptive output format (Brandon + Claude)
 
 - WEB SEARCH ROOT CAUSE (the actual one, under the 0640/0725/0815 layers): OpenWebUI's

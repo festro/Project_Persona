@@ -36,7 +36,13 @@ export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
 # defaults; the admin UI can override (Settings -> Admin -> Web Search).
 export ENABLE_WEB_SEARCH="${ENABLE_WEB_SEARCH:-true}"
 export WEB_SEARCH_ENGINE="${WEB_SEARCH_ENGINE:-duckduckgo}"
-export WEB_SEARCH_RESULT_COUNT="${WEB_SEARCH_RESULT_COUNT:-3}"
+export WEB_SEARCH_RESULT_COUNT="${WEB_SEARCH_RESULT_COUNT:-5}"
+# RAG_TOP_K = OpenWebUI's retrieval depth (how many chunks of the scraped+embedded pages get
+# injected). Default 3 was too few for web search -- a page splits into 100s of chunks, so top-3
+# often missed the substantive ones and surfaced nav/boilerplate (Brandon hit a "generic AI-trends
+# SEO page" result 2026-06-27). 6 gives the model more to work with; small chunks (~250 tok) keep
+# it well within context.
+export RAG_TOP_K="${RAG_TOP_K:-6}"
 export BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL="${BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:-false}"
 # CRITICAL (2026-06-22): the actual reason web search returned "I can't browse". OpenWebUI's
 # retrieval/utils.py get_sources_from_items routes by item type; a web-search result is attached as
@@ -53,6 +59,12 @@ export BYPASS_RETRIEVAL_ACCESS_CONTROL="${BYPASS_RETRIEVAL_ACCESS_CONTROL:-true}
 # persona's /v1 path captures it as authoritative grounding (server.py _v1_injected_context) while
 # the persisted user turn stays clean.
 export RAG_SYSTEM_CONTEXT="${RAG_SYSTEM_CONTEXT:-true}"
+# Context-based web search (Brandon 2026-06-27): default the per-message web_search toggle ON so
+# OpenWebUI's ENABLE_SEARCH_QUERY_GENERATION necessity check runs every turn and SEARCHES ONLY
+# when the question needs current info (it returns no queries otherwise -> no search, normal reply).
+# Set PERSONA_WEB_SEARCH_DEFAULT=0 to revert to manual-toggle-only. Trade-off: the necessity check
+# is one extra task-model (35B) call per message (~a few seconds) -- the cost of auto-deciding.
+export PERSONA_WEB_SEARCH_DEFAULT="${PERSONA_WEB_SEARCH_DEFAULT:-1}"
 
 # WEBUI_HOST defaults to loopback (safe). Set it to a LAN address (0.0.0.0, or the host's
 # 192.168.x.x) to reach the UI from another machine's browser without an SSH tunnel. OpenWebUI
@@ -61,7 +73,35 @@ export RAG_SYSTEM_CONTEXT="${RAG_SYSTEM_CONTEXT:-true}"
 WEBUI_HOST="${WEBUI_HOST:-127.0.0.1}"
 WEBUI_PORT="${WEBUI_PORT:-3000}"
 
+# Idempotently teach OpenWebUI to honor PERSONA_WEB_SEARCH_DEFAULT. OpenWebUI gates web search on
+# the per-message form_data.features.web_search with NO server-side default, so we inject ONE line
+# that defaults it from the env (the user's explicit toggle still wins; runtime-toggleable via the
+# env, no re-patch). Safe-failing: if the anchor moves on an upgrade the patch no-ops and the manual
+# toggle is unchanged. The marker comment keeps it from applying twice.
+python - <<'PYPATCH'
+import os
+try:
+    import open_webui
+    mw = os.path.join(os.path.dirname(open_webui.__file__), "utils", "middleware.py")
+    src = open(mw, encoding="utf-8").read()
+    if "PROJECT_PERSONA: default web search" in src:
+        print("[start_webui] web-search default: already patched")
+    else:
+        lines = src.splitlines(keepends=True)
+        for i, l in enumerate(lines):
+            if l.strip() == "features = form_data.pop('features', None) or {}":
+                indent = l[: len(l) - len(l.lstrip())]
+                lines.insert(i + 1, indent + "features.setdefault('web_search', os.getenv('PERSONA_WEB_SEARCH_DEFAULT', '1') == '1')  # PROJECT_PERSONA: default web search (context-based via ENABLE_SEARCH_QUERY_GENERATION)\n")
+                open(mw, "w", encoding="utf-8").write("".join(lines))
+                print("[start_webui] web-search default: PATCHED (env PERSONA_WEB_SEARCH_DEFAULT)")
+                break
+        else:
+            print("[start_webui] web-search default: anchor not found; manual toggle unchanged")
+except Exception as e:
+    print("[start_webui] web-search default: patch skipped:", e)
+PYPATCH
+
 echo "Starting OpenWebUI on http://${WEBUI_HOST}:${WEBUI_PORT}"
-echo "  OPENAI_API_BASE_URL=$OPENAI_API_BASE_URL  DATA_DIR=$DATA_DIR  web_search=$ENABLE_WEB_SEARCH/$WEB_SEARCH_ENGINE"
+echo "  OPENAI_API_BASE_URL=$OPENAI_API_BASE_URL  DATA_DIR=$DATA_DIR  web_search=$ENABLE_WEB_SEARCH/$WEB_SEARCH_ENGINE  web_search_default=$PERSONA_WEB_SEARCH_DEFAULT"
 
 exec open-webui serve --host "$WEBUI_HOST" --port "$WEBUI_PORT"

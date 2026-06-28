@@ -380,6 +380,11 @@ Goal: a thin client over the API with durable conversation history.
       facts). Output format also made ADAPTIVE (defers to explicit per-message format requests). Saga =
       FOUR layers (BYPASS full-page / conversations.db poison+windowing / system-context drop /
       access-control gate). See changelog 2026-06-22 0640/0725/0815/1850.
+      TUNING 2026-06-27: deeper retrieval (WEB_SEARCH_RESULT_COUNT 3->5, RAG_TOP_K 3->6) after a
+      "latest news" query drew generic SEO pages; web search now DEFAULTS ON / context-based
+      (PERSONA_WEB_SEARCH_DEFAULT=1 + an idempotent OpenWebUI patch -> the necessity check searches
+      only when the question needs current info); + a persona helpfulness nudge (use thin results,
+      don't refuse). See changelog 2026-06-27.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

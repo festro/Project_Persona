@@ -257,7 +257,13 @@ grounds as authoritative (the `/v1` path otherwise drops client system messages,
 the stored user turn clean). `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL` stays false
 (retrieve top-k chunks, do NOT inject full pages -> avoids the 64K overflow). The
 windowing caps (`HISTORY_MAX_TURN_TOKENS`/`HISTORY_HARD_CAP_TOKENS`) + a graceful
-`ContextOverflowError`->400 backstop the overflow path. See changelog 2026-06-22.
+`ContextOverflowError`->400 backstop the overflow path. Retrieval depth: `WEB_SEARCH_RESULT_COUNT=5`
+(sources scraped) + `RAG_TOP_K=6` (chunks injected) -- top-3 was too shallow for web pages that
+split into 100s of chunks. Default-on / context-based: `PERSONA_WEB_SEARCH_DEFAULT=1` +
+start_webui.sh's idempotent one-line OpenWebUI patch default the per-message `web_search` toggle, so
+the `ENABLE_SEARCH_QUERY_GENERATION` necessity check runs each turn and actually searches ONLY when
+the question needs current info (costs one extra task-model call/turn; set =0 to revert to manual).
+See changelog 2026-06-22 + 2026-06-27.
 
 Persona output format (2026-06-22): a DEFAULT, not a mandate. `SOUL.md` +
 `build_persona_prompt`/`build_persona_messages` ask for one short paragraph + a "Next

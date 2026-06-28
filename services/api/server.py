@@ -1087,7 +1087,8 @@ def build_persona_prompt(
         prompt += (
             "Web/search results and documents retrieved for THIS query (CURRENT, provided by the "
             "client -- treat as authoritative for recent facts and USE them to answer; do not claim "
-            "you cannot browse the web):\n"
+            "you cannot browse the web. If the results are thin, generic, or only partly relevant, "
+            "summarize what IS useful and note what you could not find -- do NOT refuse outright):\n"
             f"{external_context}\n\n"
         )
     if tasks_block:
@@ -1153,7 +1154,8 @@ def build_persona_messages(
         user += (
             "Web/search results and documents retrieved for THIS query (CURRENT, provided by the "
             "client -- treat as authoritative for recent facts and USE them to answer; do not claim "
-            "you cannot browse the web):\n"
+            "you cannot browse the web. If the results are thin, generic, or only partly relevant, "
+            "summarize what IS useful and note what you could not find -- do NOT refuse outright):\n"
             f"{external_context}\n\n"
         )
     if tasks_block:
