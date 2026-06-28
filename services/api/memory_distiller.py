@@ -6,13 +6,23 @@ from typing import List, Tuple, Any
 # This template uses Python .format(), so any literal { } must be escaped as {{ }}.
 DISTILL_PROMPT = """You are a memory distiller for a local persona system.
 
-Given the user's message and the assistant's reply, extract 1–3 ATOMIC FACTS that are:
-- stable over time (preferences, identity, system configuration, ongoing projects)
+Extract 1–3 ATOMIC FACTS **about the USER** that are:
+- stable over time (their preferences, identity, situation, ongoing projects)
+- something the USER actually stated, asked for, confirmed, or revealed about themselves
 - useful for future context
 - NOT ephemeral (avoid one-off questions like "what can you do?")
 - NOT instructions to the assistant
 - NOT long explanations
 - NOT formatted with bullets
+
+CRITICAL — provenance. The assistant's reply is NOT a source of user facts:
+- Do NOT store the ASSISTANT's own suggestions, proposals, opinions, analysis, or plans as
+  facts — even when stated confidently. Only what the USER expressed counts.
+- If the user merely asked the assistant to explain, compare, summarize, or propose something,
+  that is NOT a user preference. Do NOT infer the user "wants", "values", "proposed", or
+  "is interested in" whatever the assistant put forward.
+- Use the assistant reply ONLY to disambiguate what the user said — never as the fact itself.
+- When in doubt about whether the user actually holds a view, leave it out.
 
 Output MUST be strict JSON only, in this exact schema:
 
@@ -23,7 +33,7 @@ Rules:
 - each fact <= 140 characters
 - no duplicates
 - no "Next actions" or list-like phrasing
-- if no good facts exist, output {{"facts":[]}}
+- if no good USER facts exist, output {{"facts":[]}}
 
 User message:
 {user}

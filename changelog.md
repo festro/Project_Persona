@@ -14,6 +14,37 @@ Conventions:
 
 ---
 
+## 2026-06-28 0430 PDT -- Fix the "doubling-down" echo chamber: distiller provenance + necessity-check introspection guard (Brandon + Claude)
+
+- SYMPTOM (Brandon, from a live round): asked "refresh/check the RAG and see if your proposition still
+  stands", the persona DOUBLED DOWN ("Yes, and it's now stronger"). Diagnosed from data/conversations.db
+  + logs -- THREE compounding causes, the first being the root:
+  1) DISTILLER FEEDBACK LOOP (echo chamber): distill_and_store_facts extracts facts from (user_text,
+     assistant_text), and it stored the ASSISTANT's OWN IBOS proposals as USER facts -- e.g. "The user
+     proposed using Doctrine Cards, Namespaces, Intake Schemas..." (Brandon never proposed these), "User
+     wants structured memory via namespaces", "User values stable personality through doctrine cards".
+     Those fabricated preferences then retrieve on every related turn and reinforce the proposal -> the
+     model "defends the user's goals". 2) NECESSITY-CHECK MISFIRE: "check the RAG" (introspective) fired
+     a WEB SEARCH for "Project Persona ... github latest updates" -> look-alike persona projects
+     (PersonAi, Kallamo, ...) the model used as "market validation". 3) Sycophantic consistency: the
+     2512-token essay sits in the context window; "does it still stand?" -> it defends.
+- NB self-knowledge (task A) is working -- the COUNTER-facts ARE retrievable (knowledge.md "Profile
+  structure" = SOUL.md doctrine cards already exist; roadmap Phase 1 RAG_PER_PROFILE = namespacing
+  already exists; Phase 8 Hermes = agentic workflows already exist) -- but they were outweighed by the
+  three forces above.
+- FIX 1 (root) services/api/memory_distiller.py: rewrote DISTILL_PROMPT with a PROVENANCE section --
+  extract only facts the USER stated/confirmed about THEMSELVES; explicitly do NOT store the assistant's
+  suggestions/proposals/opinions/plans as facts, and do NOT infer the user "wants/values/proposed"
+  whatever the assistant put forward; the assistant reply is only for disambiguation. Stops new echo
+  pollution at the source.
+- FIX 2 scripts/start_webui.sh: QUERY_GENERATION_PROMPT_TEMPLATE now returns {"queries":[]} for
+  INTROSPECTIVE / self-referential questions (about THIS assistant's own memory/RAG/architecture/
+  capabilities/earlier proposals, or a request to re-check/refresh/reconsider something already
+  discussed) -- answered from internal memory + context, never the web.
+- OUTSTANDING: the already-stored fabricated "user wants IBOS" facts persist and keep reinforcing;
+  a targeted purge is offered (not auto-run -- deleting from the live memory store is destructive).
+  offline 21/21; bash -n + py_compile clean.
+
 ## 2026-06-28 0350 PDT -- Structured memory intake (prototype): typed, schema-validated memories (Brandon + Claude)
 
 - Task B from the IBOS-integration assessment (the one proposal with real merit): Persona's memory

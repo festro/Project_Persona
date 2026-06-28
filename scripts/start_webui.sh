@@ -84,6 +84,7 @@ Decide whether answering the user's latest message needs a web search, then retu
 - If a search is warranted, respond as { "queries": ["query1", "query2"] } with 1-3 distinct, concise queries.
 - If no search is warranted (general knowledge / reasoning, or the needed facts are already in the chat history), return { "queries": [] }.
 - When in doubt on a general or conceptual question, prefer { "queries": [] } -- do NOT search "just in case".
+- INTROSPECTIVE / SELF-REFERENTIAL questions return { "queries": [] }: anything about THIS assistant itself -- its own memory, RAG, architecture, design, capabilities, or earlier answers/proposals -- or a request to re-check, refresh, reconsider, or confirm something already discussed in this conversation. These are answered from internal memory + chat context, NOT the web (a web search would pull in unrelated look-alike projects).
 - Today's date is: {{CURRENT_DATE}}.
 
 ### Output:

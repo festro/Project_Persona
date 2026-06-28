@@ -401,6 +401,10 @@ Goal: a thin client over the API with durable conversation history.
       STRUCTURED INTAKE prototype 0350: services/api/memory_intake.py + POST /memory/intake -- typed,
       schema-validated memory records (type/entities/date/confidence) with contradiction visibility;
       default distiller unchanged. See changelog 0320 + 0350.
+      ECHO-CHAMBER FIX 0430: the distiller was storing the assistant's OWN proposals as USER facts
+      (-> the model "defended the user's goals" and doubled down). memory_distiller.py DISTILL_PROMPT
+      now has a provenance section (only user-stated facts); necessity check skips introspective/
+      self-referential questions. Owed: purge the already-stored fabricated facts. See changelog 0430.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant
