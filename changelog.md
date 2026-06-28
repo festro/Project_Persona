@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-28 0320 PDT -- Self-knowledge in RAG: the persona can reason about its own architecture (Brandon + Claude)
+
+- WHY: in the IBOS-vs-Persona comparison the model assessed OTHER projects from fetched pages well but
+  reasoned about ITSELF from the outside (the festro/Project_Persona README lacks the daemon/Hermes/
+  profiles/memory-pipeline internals), so it understated what Persona already has and "proposed"
+  existing features. Fix: feed Persona its own docs.
+- NEW services/api/self_knowledge.py: a stdlib-only markdown chunker. chunk_markdown() splits a doc
+  into heading-scoped, size-capped (default 1200 char) chunks, each prefixed with a
+  `[Project_Persona :: <file> :: <H1 > H2 > ...>]` breadcrumb so the embedding + the model know the
+  chunk is about THIS project and where it came from; iter_self_chunks() walks the doc list. Default
+  docs: knowledge.md, README.md, roadmap.md, docs/host_onboarding.md, AGENTS.md, WORKFLOW.md,
+  README_models_hardware.md (override SELF_KNOWLEDGE_DOCS).
+- server.py: stores chunks under a dedicated kind `project_doc` (SELF_KNOWLEDGE_KIND) via memory_add;
+  added `project_doc` to RAG_KINDS_FOR_CHAT (now "fact,project_doc") + RAG_KINDS_FOR_SCIENCE so it is
+  retrievable in every topic -- but vector-gated, so it surfaces only when a question is actually about
+  the project. NEW `POST /memory/ingest_self` (+ ingest_self_knowledge() + a _purge_kind() helper) is
+  idempotent: it drops prior project_doc points before re-adding, so a docs edit + re-ingest never
+  duplicates. Ingests into the same collection the default profile retrieves from.
+- NEW tests/test_self_knowledge.py (13 checks: breadcrumbs, nested heading paths, oversized-section
+  hard-splitting within max_chars, preamble, missing-file skip, real-doc ingest). offline 20/20.
+
 ## 2026-06-28 0240 PDT -- Necessity-check tuning: stop web-searching general-knowledge questions (Brandon + Claude)
 
 - SYMPTOM (from Brandon's live rounds, read back from logs/conversations.db): general-knowledge turns

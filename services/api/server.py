@@ -23,6 +23,7 @@ import windowing as win
 import sorting_line as sl
 import sleep_cycle as sc
 import avatar_state as av
+import self_knowledge as skn
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -95,6 +96,14 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
 # and is not seen under per-profile scoping until migrated.
 RAG_PER_PROFILE = os.getenv("RAG_PER_PROFILE", "0").strip().lower() in ("1", "true", "yes", "on")
 RAG_GLOBAL_COLLECTION = os.getenv("RAG_GLOBAL_COLLECTION", "global_memory")
+
+# Self-knowledge (2026-06-28): the project's own docs, chunked + embedded under this kind so
+# the persona answers about itself from fact, not guesswork. Re-ingest via POST /memory/ingest_self.
+SELF_KNOWLEDGE_KIND = os.getenv("SELF_KNOWLEDGE_KIND", "project_doc")
+SELF_KNOWLEDGE_MAX_CHARS = int(os.getenv("SELF_KNOWLEDGE_MAX_CHARS", "1200"))
+SELF_KNOWLEDGE_DOCS = [
+    d.strip() for d in os.getenv("SELF_KNOWLEDGE_DOCS", ",".join(skn.DEFAULT_SELF_DOCS)).split(",") if d.strip()
+]
 # Phase 2a vector backend: chroma (default) | qdrant (embedded local mode, no server).
 # Both go through the RagStore abstraction (services/api/ragstore.py); server.py keeps
 # computing embeddings and passes vectors in. Default flipped to qdrant 2026-06-19 after
@@ -110,15 +119,17 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 # sentence-transformers is an OPT-IN extra (services/api/requirements-embed-torch.txt).
 EMBED_BACKEND = os.getenv("EMBED_BACKEND", "auto").strip().lower()
 
-# Retrieval defaults: facts only (chat logs are audit-only)
+# Retrieval defaults: facts + the project's own architecture docs (project_doc), so the
+# persona can answer about ITSELF accurately; chat logs stay audit-only. project_doc is
+# vector-gated like any kind -- it surfaces only when a question is actually about the project.
 RAG_KINDS_FOR_CHAT = {
     k.strip().lower()
-    for k in os.getenv("RAG_KINDS_FOR_CHAT", "fact").split(",")
+    for k in os.getenv("RAG_KINDS_FOR_CHAT", "fact,project_doc").split(",")
     if k.strip()
 }
 RAG_KINDS_FOR_SCIENCE = {
     k.strip().lower()
-    for k in os.getenv("RAG_KINDS_FOR_SCIENCE", "fact,scientist_note").split(",")
+    for k in os.getenv("RAG_KINDS_FOR_SCIENCE", "fact,scientist_note,project_doc").split(",")
     if k.strip()
 }
 
@@ -464,6 +475,58 @@ def memory_add(text: str, meta: Dict[str, Any], *, profile: Optional[str] = None
         _store.add(_collection_name(profile), str(uuid.uuid4()), text, vec, safe_meta)
     except Exception:
         return
+
+
+def _purge_kind(collection: str, kind: str) -> int:
+    """Delete every point in `collection` whose meta kind == `kind`. Returns the count.
+
+    Used to make self-knowledge re-ingest idempotent (drop the old project_doc chunks
+    before re-adding), so a docs edit + re-ingest never piles up stale duplicates.
+    """
+    if not _rag_ok:
+        return 0
+    try:
+        ids = [
+            p["id"]
+            for p in _store.export_points(collection)
+            if (p.get("meta") or {}).get("kind") == kind
+        ]
+    except Exception:
+        return 0
+    try:
+        return _store.delete(collection, ids) if ids else 0
+    except Exception:
+        return 0
+
+
+def ingest_self_knowledge(profile: Optional[str] = None) -> Dict[str, Any]:
+    """(Re)ingest the project's own docs into memory under SELF_KNOWLEDGE_KIND.
+
+    Idempotent: purges prior project_doc chunks first. Embeds into the same collection the
+    given profile retrieves from, so the default chat persona can recall its own architecture.
+    """
+    if not (_rag_ok and _embedder is not None):
+        return {"ok": False, "error": "rag_unavailable"}
+    prof = profile or DEFAULT_PROFILE
+    collection = _collection_name(prof)
+    purged = _purge_kind(collection, SELF_KNOWLEDGE_KIND)
+    chunks = skn.iter_self_chunks(AI_ROOT, SELF_KNOWLEDGE_DOCS, max_chars=SELF_KNOWLEDGE_MAX_CHARS)
+    stored = 0
+    for ch in chunks:
+        memory_add(
+            ch["text"],
+            {
+                "kind": SELF_KNOWLEDGE_KIND,
+                "source": ch["source"],
+                "heading": ch["heading"],
+                "profile": prof,
+                "ts": int(time.time()),
+            },
+            profile=prof,
+        )
+        stored += 1
+    sources = sorted({ch["source"] for ch in chunks})
+    return {"ok": True, "collection": collection, "purged": purged, "stored": stored, "sources": sources}
 
 
 # -----------------------
@@ -1817,6 +1880,16 @@ async def memory_ingest_inbox():
         if r.get("ok"):
             publish_event("ingest_complete", {kk: r.get(kk) for kk in ("doc_id", "bin", "collection", "chars", "source")})
     return {"ok": True, "ingested": sum(1 for r in results if r.get("ok")), "results": results}
+
+
+@app.post("/memory/ingest_self")
+async def memory_ingest_self(profile: Optional[str] = None):
+    """(Re)ingest the project's own architecture docs (knowledge.md, roadmap.md, ...) into the
+    persona's memory as `project_doc` so it can answer about itself from fact. Idempotent."""
+    res = ingest_self_knowledge(profile)
+    if res.get("ok"):
+        publish_event("ingest_complete", {"kind": SELF_KNOWLEDGE_KIND, "stored": res.get("stored"), "purged": res.get("purged")})
+    return res
 
 
 @app.get("/jobs/{job_id}")
