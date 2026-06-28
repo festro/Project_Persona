@@ -74,24 +74,39 @@ WEBUI_HOST="${WEBUI_HOST:-127.0.0.1}"
 WEBUI_PORT="${WEBUI_PORT:-3000}"
 
 # Idempotently teach OpenWebUI to honor PERSONA_WEB_SEARCH_DEFAULT. OpenWebUI gates web search on
-# the per-message form_data.features.web_search with NO server-side default, so we inject ONE line
-# that defaults it from the env (the user's explicit toggle still wins; runtime-toggleable via the
-# env, no re-patch). Safe-failing: if the anchor moves on an upgrade the patch no-ops and the manual
-# toggle is unchanged. The marker comment keeps it from applying twice.
+# the per-message form_data.features.web_search with NO server-side default. The browser sends that
+# flag EXPLICITLY as a bool (web_search:false when the chat toggle is off), so a setdefault() never
+# takes effect -- the box only searched when the toggle was on. We instead OR the user's flag with
+# the env default: when PERSONA_WEB_SEARCH_DEFAULT=1 web search is always ON and the per-turn
+# ENABLE_SEARCH_QUERY_GENERATION necessity check decides whether to actually search (so casual turns
+# still don't); =0 reverts to honoring the manual toggle. Self-healing: if a prior version of this
+# line is present (the old setdefault) it is REPLACED, so an upgrade re-applies cleanly. Safe-failing:
+# if the anchor moves on a pip upgrade the patch no-ops and the manual toggle is unchanged.
 python - <<'PYPATCH'
 import os
+NEW = ("features['web_search'] = bool(features.get('web_search')) or "
+       "os.getenv('PERSONA_WEB_SEARCH_DEFAULT', '1') == '1'  "
+       "# PROJECT_PERSONA: default web search (context-based via ENABLE_SEARCH_QUERY_GENERATION)")
+MARKER = "PROJECT_PERSONA: default web search"
 try:
     import open_webui
     mw = os.path.join(os.path.dirname(open_webui.__file__), "utils", "middleware.py")
     src = open(mw, encoding="utf-8").read()
-    if "PROJECT_PERSONA: default web search" in src:
-        print("[start_webui] web-search default: already patched")
+    lines = src.splitlines(keepends=True)
+    prior = next((i for i, l in enumerate(lines) if MARKER in l), None)
+    if prior is not None:
+        if lines[prior].strip() == NEW:
+            print("[start_webui] web-search default: already patched (current)")
+        else:
+            indent = lines[prior][: len(lines[prior]) - len(lines[prior].lstrip())]
+            lines[prior] = indent + NEW + "\n"
+            open(mw, "w", encoding="utf-8").write("".join(lines))
+            print("[start_webui] web-search default: patch UPDATED (replaced prior version)")
     else:
-        lines = src.splitlines(keepends=True)
         for i, l in enumerate(lines):
             if l.strip() == "features = form_data.pop('features', None) or {}":
                 indent = l[: len(l) - len(l.lstrip())]
-                lines.insert(i + 1, indent + "features.setdefault('web_search', os.getenv('PERSONA_WEB_SEARCH_DEFAULT', '1') == '1')  # PROJECT_PERSONA: default web search (context-based via ENABLE_SEARCH_QUERY_GENERATION)\n")
+                lines.insert(i + 1, indent + NEW + "\n")
                 open(mw, "w", encoding="utf-8").write("".join(lines))
                 print("[start_webui] web-search default: PATCHED (env PERSONA_WEB_SEARCH_DEFAULT)")
                 break

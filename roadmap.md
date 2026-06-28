@@ -384,7 +384,9 @@ Goal: a thin client over the API with durable conversation history.
       "latest news" query drew generic SEO pages; web search now DEFAULTS ON / context-based
       (PERSONA_WEB_SEARCH_DEFAULT=1 + an idempotent OpenWebUI patch -> the necessity check searches
       only when the question needs current info); + a persona helpfulness nudge (use thin results,
-      don't refuse). See changelog 2026-06-27.
+      don't refuse). See changelog 2026-06-27. FIX 2026-06-28: the patch used setdefault() which the
+      browser's explicit web_search:false defeated (only manual-toggle searched); now ORs the flag
+      with the default + the patch self-heals on upgrade. See changelog 2026-06-28 0115.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

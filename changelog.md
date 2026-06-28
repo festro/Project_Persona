@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-28 0115 PDT -- FIX: context-based web search never auto-fired from the browser (setdefault vs explicit web_search:false) (Brandon + Claude)
+
+- SYMPTOM (Brandon): web search still only ran when the chat toggle was MANUALLY switched on; the
+  PERSONA_WEB_SEARCH_DEFAULT=1 "default-on / context-based" behavior did nothing in the real browser.
+- ROOT CAUSE: the start_webui.sh patch injected `features.setdefault('web_search', <default>)`.
+  setdefault only fills the key when it is ABSENT. The OpenWebUI browser sends features.web_search
+  EXPLICITLY as a bool -- web_search:false when the toggle is off -- so setdefault was always a no-op
+  and the default never applied. (The probe's no-flag case OMITS the key, so it DID default-on -> the
+  earlier "context gating confirmed" probes were green while the browser stayed broken. Classic
+  verify-the-real-symptom miss: webui_probe.py --no-web sends explicit false, == the browser toggle
+  off.) REPRO: `webui_probe.py --no-web "latest Anthropic model releases this month?"` -> sources=0,
+  "I don't have real-time browsing" (exactly Brandon's symptom).
+- FIX (scripts/start_webui.sh): inject `features['web_search'] = bool(features.get('web_search')) or
+  os.getenv('PERSONA_WEB_SEARCH_DEFAULT','1')=='1'` instead. ORs the user flag with the env default:
+  DEFAULT=1 -> always ON, the per-turn ENABLE_SEARCH_QUERY_GENERATION necessity check still gates
+  whether to actually search (casual turns stay sources=0); =0 -> honors the manual toggle. Made the
+  patch SELF-HEALING: it now REPLACES a prior marker line (the old setdefault) instead of skipping on
+  "already patched", so the upgrade re-applies on the already-patched EVO-X2 install. bash -n + the
+  embedded PYPATCH py_compile both clean.
+- DEPLOY + SENTINEL: see live verification below.
+
 ## 2026-06-28 0045 PDT -- Reboot survival made automatic (persistent systemd --user units) + debug-loop validation pass (Brandon + Claude)
 
 - REBOOT SURVIVAL (was owed since the ~02:09 reboot last session that took the stack down): the EVO-X2
