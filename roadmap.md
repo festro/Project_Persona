@@ -392,6 +392,9 @@ Goal: a thin client over the API with durable conversation history.
       + a middleware hook fetch them via /process/web and skip the keyword search that turn. Plus the
       persona DEFAULT response style is now fuller/well-developed (was "1 short paragraph"), still
       deferring to explicit brevity/format; PERSONA_MAX_TOKENS 192->800. See changelog 2026-06-28 0200.
+      NECESSITY-CHECK TUNED 2026-06-28 0240: OpenWebUI's stock query-gen prompt is search-biased and
+      fired failed searches on general-knowledge turns; start_webui.sh now exports a less-eager
+      QUERY_GENERATION_PROMPT_TEMPLATE (search only for current/external facts). See changelog 0240.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

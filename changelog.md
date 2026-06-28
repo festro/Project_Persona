@@ -14,6 +14,29 @@ Conventions:
 
 ---
 
+## 2026-06-28 0240 PDT -- Necessity-check tuning: stop web-searching general-knowledge questions (Brandon + Claude)
+
+- SYMPTOM (from Brandon's live rounds, read back from logs/conversations.db): general-knowledge turns
+  like "explain how a hash map works" (no URL, no current-info need) fired keyword web searches that
+  then FAILED -- `process_web_search: Web search failed` / `400: No results found` -- because the
+  keyless engines were rate-limiting under rapid testing (Google 403, Brave 429, Mojeek 403). Answers
+  were still fine (the model falls back to its own knowledge), but every such turn wasted a few seconds
+  + a failed "Searching..." status + log noise.
+- ROOT: OpenWebUI's stock QUERY_GENERATION_PROMPT_TEMPLATE is deliberately search-biased ("By default
+  prioritize generating 1-3 broad queries", "Err on the side of suggesting search queries if there is
+  ANY chance they might... help"), so the necessity check leaks general questions through to search.
+- FIX (scripts/start_webui.sh): export an override QUERY_GENERATION_PROMPT_TEMPLATE that flips the
+  bias -- search ONLY when the answer needs current/external/hard-to-recall facts (recent events,
+  prices, versions, a named site/repo/person, niche docs); for concepts/definitions/math/coding/
+  reasoning return {"queries": []}. "When in doubt on a general question, prefer no search." Keeps the
+  JSON contract + the {{CURRENT_DATE}}/{{MESSAGES:END:6}} placeholders. tasks.py uses the config value
+  when non-empty, else the stock default, so the env override takes; empty reverts. Cuts both the
+  wasted failed-searches and most of the rate-limiting. Inline-URL fetch is unaffected (its hook runs
+  before the necessity check, whenever a link is present).
+- NB also observed in the same rounds (working as intended): inline-URL fetch handled the 2-URL
+  comparison (both repos public, 13 + 18 items fetched, no keyword search); responses are now fuller
+  (653/748/1201/1407/2512-token answers) with the brevity override still honored (a 34-token one-liner).
+
 ## 2026-06-28 0200 PDT -- Inline-URL fetch (read pasted links) + fuller default response style (Brandon + Claude)
 
 - INLINE-URL FETCH (Brandon: "I provided a link... it never visited it, decided to search instead").

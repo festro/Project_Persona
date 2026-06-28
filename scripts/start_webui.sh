@@ -66,6 +66,40 @@ export RAG_SYSTEM_CONTEXT="${RAG_SYSTEM_CONTEXT:-true}"
 # is one extra task-model (35B) call per message (~a few seconds) -- the cost of auto-deciding.
 export PERSONA_WEB_SEARCH_DEFAULT="${PERSONA_WEB_SEARCH_DEFAULT:-1}"
 
+# Necessity-check tuning (Brandon 2026-06-28): OpenWebUI's stock QUERY_GENERATION_PROMPT_TEMPLATE is
+# search-biased ("prioritize generating queries", "err on the side of suggesting... if there is ANY
+# chance"), so general-knowledge turns ("explain how a hash map works") fired keyword searches that
+# then FAILED under keyless-engine rate-limiting -- wasted latency + log noise. This override flips
+# the bias: search ONLY when the answer needs current/external/hard-to-recall facts; for concepts,
+# definitions, math, coding, reasoning -> return {"queries": []} (no search). Keeps the JSON contract
+# + the {{CURRENT_DATE}}/{{MESSAGES:END:6}} placeholders. Empty value reverts to OpenWebUI's default.
+if [ -z "${QUERY_GENERATION_PROMPT_TEMPLATE:-}" ]; then
+  export QUERY_GENERATION_PROMPT_TEMPLATE
+  QUERY_GENERATION_PROMPT_TEMPLATE="$(cat <<'EOF'
+### Task:
+Decide whether answering the user's latest message needs a web search, then return search queries in the given language. Search ONLY when the answer depends on CURRENT, EXTERNAL, or hard-to-recall FACTUAL information -- recent events or news, today's prices/weather/scores, release notes or version numbers, a specific named website/repo/product/company/person, or niche documentation the model would not know reliably. For general knowledge, concepts, definitions, explanations, math, logic, coding, writing, or anything answerable well from training, do NOT search.
+
+### Guidelines:
+- Respond EXCLUSIVELY with a JSON object. No commentary, explanation, or extra text.
+- If a search is warranted, respond as { "queries": ["query1", "query2"] } with 1-3 distinct, concise queries.
+- If no search is warranted (general knowledge / reasoning, or the needed facts are already in the chat history), return { "queries": [] }.
+- When in doubt on a general or conceptual question, prefer { "queries": [] } -- do NOT search "just in case".
+- Today's date is: {{CURRENT_DATE}}.
+
+### Output:
+Strictly return in JSON format:
+{
+  "queries": ["query1", "query2"]
+}
+
+### Chat History:
+<chat_history>
+{{MESSAGES:END:6}}
+</chat_history>
+EOF
+)"
+fi
+
 # WEBUI_HOST defaults to loopback (safe). Set it to a LAN address (0.0.0.0, or the host's
 # 192.168.x.x) to reach the UI from another machine's browser without an SSH tunnel. OpenWebUI
 # has its own account/auth (first visit = admin signup), so a LAN bind is less exposed than the
