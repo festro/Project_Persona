@@ -372,8 +372,14 @@ Goal: a thin client over the API with durable conversation history.
       THEN (0815) the request fit but the model still said "I can't browse": OpenWebUI injects the
       retrieved web data as a SYSTEM message (<context>...</context>) and the persona /v1 path dropped
       client system messages. Fixed: _v1_injected_context extracts <context> -> persona_generate
-      external_context (grounded as authoritative). Web-search saga = THREE bugs (BYPASS full-page /
-      conversations.db poison+windowing / system-context drop). See changelog 2026-06-22 0640/0725/0815.
+      external_context (grounded as authoritative). FINALLY (1850) the decisive one: OpenWebUI's
+      get_sources_from_items IGNORES a web-search result's {type:"web_search", collection_name} as an
+      "untrusted direct collection_name" unless BYPASS_RETRIEVAL_ACCESS_CONTROL=true (default false) --
+      so chunks were stored but never injected. FIX (start_webui.sh): BYPASS_RETRIEVAL_ACCESS_CONTROL=
+      true + RAG_SYSTEM_CONTEXT=true. WEB SEARCH NOW WORKS (verified: model answered with real web
+      facts). Output format also made ADAPTIVE (defers to explicit per-message format requests). Saga =
+      FOUR layers (BYPASS full-page / conversations.db poison+windowing / system-context drop /
+      access-control gate). See changelog 2026-06-22 0640/0725/0815/1850.
 - [x] SQLite `conversations.db` as source of truth for history. STORE BUILT 2026-06-19:
       services/api/conversations.py (stdlib sqlite3, taskboard.py posture: conversations +
       turns tables, distilled/summary cols for windowing); server.py persists user+assistant

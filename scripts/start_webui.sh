@@ -38,6 +38,21 @@ export ENABLE_WEB_SEARCH="${ENABLE_WEB_SEARCH:-true}"
 export WEB_SEARCH_ENGINE="${WEB_SEARCH_ENGINE:-duckduckgo}"
 export WEB_SEARCH_RESULT_COUNT="${WEB_SEARCH_RESULT_COUNT:-3}"
 export BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL="${BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:-false}"
+# CRITICAL (2026-06-22): the actual reason web search returned "I can't browse". OpenWebUI's
+# retrieval/utils.py get_sources_from_items routes by item type; a web-search result is attached as
+# {type:"web_search", collection_name:...}. No branch matches "web_search", so it falls to the
+# generic `elif item.get("collection_name")` which -- with BYPASS_RETRIEVAL_ACCESS_CONTROL=false
+# (the DEFAULT) -- IGNORES it as an "untrusted direct collection_name on item without type". Result:
+# scraped+embedded web chunks get stored but NEVER retrieved/injected, so the model gets a bare
+# question and falls back to "I cannot browse the live web" (confirmed by capturing a /v1 request:
+# a single bare user message, no <context>). Setting this true makes the web-search collection
+# trusted -> retrieved -> injected. Safe here: the access control guards multi-user collection-name
+# substitution, which does not apply to this single-user admin instance.
+export BYPASS_RETRIEVAL_ACCESS_CONTROL="${BYPASS_RETRIEVAL_ACCESS_CONTROL:-true}"
+# Put the retrieved web/RAG context in a SYSTEM message (not appended to the user message) so the
+# persona's /v1 path captures it as authoritative grounding (server.py _v1_injected_context) while
+# the persisted user turn stays clean.
+export RAG_SYSTEM_CONTEXT="${RAG_SYSTEM_CONTEXT:-true}"
 
 # WEBUI_HOST defaults to loopback (safe). Set it to a LAN address (0.0.0.0, or the host's
 # 192.168.x.x) to reach the UI from another machine's browser without an SSH tunnel. OpenWebUI

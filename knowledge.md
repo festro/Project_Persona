@@ -3,7 +3,7 @@
 Living reference for what Project_Persona is and how it works. See `todo.md` for
 current state and `changelog.md` for history. Conventions: see `D:\Projects\WORKFLOW.md`.
 
-Last updated: 2026-06-07 1827 PDT by Claude
+Last updated: 2026-06-22 1850 PDT by Claude
 
 ## Elevator pitch
 
@@ -243,6 +243,28 @@ critic/summarizer/coder/librarian) stays egress-off. The kernel egress baseline
 Ports: companion API 8000, unified llama-server 8090 (moved from 8080 on
 2026-05-19 to avoid a host-port collision with an unrelated co-tenant
 container), OpenWebUI 3000 (LIVE on EVO-X2; LAN-bindable via WEBUI_HOST).
+
+OpenWebUI web search (2026-06-22): keyless DuckDuckGo, per-message toggle. Two
+non-obvious requirements for results to actually reach the model, both set in
+`scripts/start_webui.sh`: (1) `BYPASS_RETRIEVAL_ACCESS_CONTROL=true` -- OpenWebUI's
+`get_sources_from_items` IGNORES a web-search result's `{type:"web_search",
+collection_name}` as an "untrusted direct collection_name on item without type" when
+this is the default false, so chunks get stored but never injected and the model says
+"I can't browse"; safe on a single-user admin box (the control guards multi-user
+collection-name spoofing). (2) `RAG_SYSTEM_CONTEXT=true` -- routes the retrieved
+`<context>` into a SYSTEM message, which `server.py` `_v1_injected_context` extracts and
+grounds as authoritative (the `/v1` path otherwise drops client system messages, keeping
+the stored user turn clean). `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL` stays false
+(retrieve top-k chunks, do NOT inject full pages -> avoids the 64K overflow). The
+windowing caps (`HISTORY_MAX_TURN_TOKENS`/`HISTORY_HARD_CAP_TOKENS`) + a graceful
+`ContextOverflowError`->400 backstop the overflow path. See changelog 2026-06-22.
+
+Persona output format (2026-06-22): a DEFAULT, not a mandate. `SOUL.md` +
+`build_persona_prompt`/`build_persona_messages` ask for one short paragraph + a "Next
+actions:" list by default, but BOTH now explicitly DEFER to an explicit per-message
+format/length request (bullets, tables, pros/cons, long-form, "no next actions"). On the
+messages path (`PERSONA_USE_MESSAGES=1`) the lossy two-part sanitizer is off, so the
+system prompt is the only format lever.
 
 Process liveness (2026-06-14; changelog 1407): a recorded pid is not trusted
 alone -- in WSL it could read dead while /health was still up, so `status` once

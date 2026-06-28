@@ -14,6 +14,34 @@ Conventions:
 
 ---
 
+## 2026-06-22 1850 PDT -- Web search WORKS (the REAL root cause: BYPASS_RETRIEVAL_ACCESS_CONTROL) + adaptive output format (Brandon + Claude)
+
+- WEB SEARCH ROOT CAUSE (the actual one, under the 0640/0725/0815 layers): OpenWebUI's
+  retrieval/utils.py get_sources_from_items routes attached items by `type`. A web-search result is
+  attached as {type:"web_search", collection_name:...}; NO branch matches "web_search", so it falls
+  to the generic `elif item.get("collection_name")` which -- with BYPASS_RETRIEVAL_ACCESS_CONTROL
+  false (the DEFAULT) -- IGNORES it as an "untrusted direct collection_name on item without type".
+  The scraped+embedded web chunks were stored but NEVER retrieved/injected, so the model got a bare
+  question and fell back to "I cannot browse the live web". PROVEN by capturing the real /v1 request
+  (temporary instrumentation): a single bare user message, no <context>. The vector store itself was
+  fine -- a standalone query of the web-search collection returned the right chunks.
+- FIX (scripts/start_webui.sh): BYPASS_RETRIEVAL_ACCESS_CONTROL=true (safe on this single-user admin
+  box -- the access control guards multi-user collection-name spoofing) -> the web-search collection
+  is trusted -> retrieved -> injected. + RAG_SYSTEM_CONTEXT=true so the context lands in a SYSTEM
+  message that server.py _v1_injected_context already grounds as authoritative. VERIFIED LIVE: the
+  capture then showed roles=[system,user]/any_context_tag=true and the model answered with real
+  web facts (WWDC 2026, NVIDIA Nemotron 3, LTX 2.3, the EU AI Act timeline).
+- OUTPUT FORMAT now ADAPTIVE (Brandon: "doesn't follow instructions well"). The rigid "always 1
+  paragraph + Next actions" was over-determined: persona/profiles/default/SOUL.md said "Always
+  answer with..." AND server.py build_persona_prompt/messages carried a "Output exactly TWO parts
+  (MUST follow)" block -- so an explicit per-message request (e.g. "pros/cons, clear separation,
+  bullet points") lost to the hard-wired default. FIX (Brandon chose "adaptive"): both reworded to a
+  DEFAULT that EXPLICITLY DEFERS to a user's format/length/structure request (bullets, tables,
+  pros/cons, long-form, "no next actions"); the Daemonic default is unchanged for normal chat. The
+  lossy sanitizer was already off on the messages path (PERSONA_USE_MESSAGES=1), so the prompt was
+  the only lever.
+- Removed the temporary /v1 request-capture instrumentation (server.py). offline 18/18.
+
 ## 2026-06-22 0815 PDT -- FIX: web search "I can't browse" -- persona dropped OpenWebUI's <context> system message (Brandon + Claude)
 
 - After the 0725 overflow fix, web search STOPPED overflowing (request fits, no 500) but the model
