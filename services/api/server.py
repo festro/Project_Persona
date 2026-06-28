@@ -1409,9 +1409,13 @@ async def structured_intake(user_text: str, assistant_text: str = "", *, profile
     today = time.strftime("%Y-%m-%d")
     prompt = mi.build_intake_prompt(user_text, assistant_text, today=today)
     try:
-        out, stats = await query_llama(
-            PERSONA_URL, prompt, tokens=MEMORY_INTAKE_MAX_TOKENS, temperature=0.2,
-            timeout_s=MEMORY_DISTILL_TIMEOUT_S, extra={"top_p": 0.9, "repeat_penalty": 1.10},
+        # Messages path with enable_thinking=False -- the reliable way to stop the 35B from
+        # spending the token budget on a <think> block before the JSON (the raw /completion
+        # /no_think text switch is unreliable here).
+        out, _reasoning, stats = await query_llama_messages(
+            PERSONA_CHAT_URL, [{"role": "user", "content": prompt}], MEMORY_INTAKE_MAX_TOKENS,
+            0.2, MEMORY_DISTILL_TIMEOUT_S, enable_thinking=False,
+            extra={"top_p": 0.9, "repeat_penalty": 1.10},
         )
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"intake_call_failed: {repr(e)}"}

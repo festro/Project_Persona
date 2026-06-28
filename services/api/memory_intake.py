@@ -190,7 +190,9 @@ Assistant reply:
 def build_intake_prompt(user_text: str, assistant_text: str, *, today: str) -> str:
     u = (user_text or "").strip()
     a = (assistant_text or "").strip()
-    return INTAKE_PROMPT.format(user=u, assistant=a, today=today) + "\n/no_think"
+    # Thinking is disabled by the caller via the messages API (enable_thinking=False) -- the
+    # reliable Qwen3 control -- so no "/no_think" text suffix is needed here.
+    return INTAKE_PROMPT.format(user=u, assistant=a, today=today)
 
 
 def _strip_think(s: str) -> str:
