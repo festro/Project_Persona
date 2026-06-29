@@ -112,3 +112,28 @@ archive/cruft/
 
 # ── Transient scp verification hashes ─────────────────
 run/*.sha256*
+
+# ── Per-role worker runtime (NOT versioned; recreated by scripts) ─────
+# The role CONFIG (SOUL.md / .hermes.md / config.yaml) IS tracked; only
+# runtime + vendored content is ignored: HOME-isolation dirs (created by
+# scripts/apply_home_isolation.sh), the vendored Hermes skills corpus, and
+# the per-profile auth lock.
+persona/profiles/*/home/
+persona/profiles/*/skills/
+persona/profiles/*/auth.lock
+
+# ── Persona-root runtime/state + vendored skills/binaries (NOT versioned) ─
+persona/skills/
+persona/bin/
+persona/auth.lock
+persona/state.db
+persona/state.db-shm
+persona/state.db-wal
+persona/.skills_prompt_snapshot.json
+persona/.update_check
+persona/profiles/*/state.db
+persona/profiles/*/state.db-shm
+persona/profiles/*/state.db-wal
+persona/profiles/*/.skills_prompt_snapshot.json
+persona/profiles/*/.update_check
+persona/profiles/*/bin/

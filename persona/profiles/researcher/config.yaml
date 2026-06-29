@@ -1,0 +1,56 @@
+model:
+  provider: custom
+  model: qwen3.6-35b-a3b
+  base_url: http://127.0.0.1:8090/v1
+  api_key: not-needed
+  reasoning_effort: ""
+  sampling:
+    default:
+      temperature: 0.7
+      top_p: 0.8
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 1.5
+    thinking:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      min_p: 0.0
+      presence_penalty: 0.0
+
+fallback_model: {}
+
+auxiliary:
+  vision:
+    provider: main
+    base_url: ""
+  web_extract:
+    provider: main
+    base_url: ""
+  session_search:
+    provider: main
+    base_url: ""
+  compression:
+    provider: main
+    base_url: ""
+
+compression:
+  enabled: true
+  threshold: 0.5
+
+tools:
+  disabled:
+    - browser_navigate
+    - browser_click
+    - browser_screenshot
+
+terminal:
+  backend: local
+  shell_init_files:
+    - /home/festro33/Git/Project_Persona/run/hermes_shell_init.sh
+
+security:
+  redact_secrets: true
+  website_blocklist:
+    enabled: false
+    domains: []
