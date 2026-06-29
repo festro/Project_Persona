@@ -14,6 +14,31 @@ Conventions:
 
 ---
 
+## 2026-06-28 0520 PDT -- Echo-chamber cleanup: sleep-cycle provenance, a real delete bug, the purge, and a self-knowledge limitation (Brandon + Claude)
+
+- SECOND fabrication source found: the SLEEP CYCLE (Phase 7 consolidation, _sleep_distill ->
+  build_distill_prompt with the whole [role]-labelled transcript in the user slot) had the SAME bug
+  and produced source=sleep_cycle "user wants/proposed IBOS" facts. Fix: the DISTILL_PROMPT provenance
+  section now explicitly covers assistant content shown as [assistant] lines inside a transcript, not
+  just the assistant-reply slot -> both paths fixed (commit 1a7dfb2).
+- DELETE BUG (why the first purge silently failed): sleep_cycle stores with uuid4().hex (no hyphens),
+  so ragstore._point_id HASHES it to an INTEGER point id, while the distiller uses str(uuid4()) -> a
+  STRING id. /memory/facts stringified every id, so an int id came back as "12345" and never matched
+  the stored int on delete; QdrantStore.delete also returned len(ids) regardless, FALSELY reporting
+  success. Fixes (commit 0ce8295): QdrantStore.delete retrieves-then-deletes and returns the REAL
+  count; /memory/facts returns the native id type; /memory/forget coerces numeric-string ids to int.
+- PURGE DONE: 22 fabricated "user wants/proposed/values/integrating IBOS" facts removed across
+  source=distiller (string ids) + source=sleep_cycle (int ids); backups in archive/memory_backups/
+  (reversible). KEPT the legit ones Brandon actually generated -- "comparing IBOS and Project Persona",
+  "how could IBOS benefit Persona", "requested an essay", "exploring the IBOS repo". Verified the
+  fabricated set no longer retrieves; the echo chamber is broken (no more "proposition stands").
+- FINDING (self-knowledge is similarity-gated): with the echo gone, "describe your architecture"
+  correctly cites daemon.py/Hermes/Qdrant (project_doc retrieves), BUT an oblique "which IBOS features
+  do you already have?" did NOT retrieve project_doc -- the model fell back to "I'm probably Ollama+RAG"
+  and said it has no memory of Project Persona. RAG self-knowledge surfaces only on close embedding
+  matches. OWED (Brandon's call): an always-on compact self-identity/architecture block in the system
+  prompt (like SOUL.md does for personality) would make self-knowledge reliable regardless of phrasing.
+
 ## 2026-06-28 0430 PDT -- Fix the "doubling-down" echo chamber: distiller provenance + necessity-check introspection guard (Brandon + Claude)
 
 - SYMPTOM (Brandon, from a live round): asked "refresh/check the RAG and see if your proposition still
