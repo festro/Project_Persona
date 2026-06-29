@@ -275,6 +275,13 @@ Each profile has:
 Default profile: default
 EOF
 
+# Per-role SOFT scope contracts (proposal C): idempotently append operating boundaries to each
+# role's .hermes.md. Kept in a separate re-runnable script so it can be applied to existing
+# (untracked) profiles without re-scaffolding.
+if [ -f "$AI_ROOT/scripts/apply_scope_contracts.sh" ]; then
+  PERSONA_ROOT="$PERSONA_ROOT" PROFILES_DIR="$PROFILES_DIR" bash "$AI_ROOT/scripts/apply_scope_contracts.sh" || true
+fi
+
 echo "==> Done."
 echo ""
 echo "Tree:"
