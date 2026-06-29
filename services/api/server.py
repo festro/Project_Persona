@@ -1973,7 +1973,9 @@ async def memory_facts(profile: Optional[str] = None, source: Optional[str] = No
             if source and meta.get("source") != source:
                 continue
             out.append({
-                "id": str(p["id"]), "text": p.get("document", ""),
+                # Native id type (int for hashed ids, str for UUIDs) so it round-trips to
+                # /memory/forget and matches the stored point -- stringifying ints broke delete.
+                "id": p["id"], "text": p.get("document", ""),
                 "source": meta.get("source"), "type": meta.get("type"), "ts": meta.get("ts"),
             })
             if len(out) >= max(1, int(limit)):
@@ -1987,7 +1989,12 @@ async def memory_facts(profile: Optional[str] = None, source: Optional[str] = No
 async def memory_forget(req: dict):
     """Delete specific memory points by id (the reversible-purge primitive). Body:
     {"ids": [...], "profile"?: str}. Caller is expected to have exported them first."""
-    ids = [str(i) for i in (req or {}).get("ids") or [] if str(i).strip()]
+    def _pid(v):
+        # Qdrant point ids are int (hashed) or UUID string; a numeric string must become an int
+        # to match the stored id (a client may JSON-encode it either way).
+        s = str(v)
+        return int(s) if s.isdigit() else s
+    ids = [_pid(i) for i in (req or {}).get("ids") or [] if str(i).strip()]
     if not ids:
         return {"ok": False, "error": "no_ids"}
     coll = _collection_name(str((req or {}).get("profile") or DEFAULT_PROFILE))

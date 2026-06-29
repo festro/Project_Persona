@@ -279,9 +279,14 @@ class QdrantStore:
         if not self._ensure(collection) or not ids:
             return 0
         m = self._models
+        ids = list(ids)
         try:
-            self._client.delete(collection, points_selector=m.PointIdsList(points=list(ids)))
-            return len(list(ids))
+            # Count how many of the requested ids actually exist, so the return value is the
+            # real number deleted (not just the number requested) -- a silent mismatch (e.g. an
+            # int point id passed as a string) otherwise reports a phantom success.
+            present = len(self._client.retrieve(collection, ids=ids, with_payload=False, with_vectors=False))
+            self._client.delete(collection, points_selector=m.PointIdsList(points=ids))
+            return present
         except Exception:  # noqa: BLE001
             return 0
 
