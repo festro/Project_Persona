@@ -14,6 +14,15 @@ Conventions:
 
 ---
 
+## 2026-06-29 0800 PDT -- Roadmap: Phase 9 node-role distinguisher (planning only) (Claude)
+
+- Added roadmap Phase 9 Item 9.6 (PLANNING, no code): a capability-based node ROLE distinguisher in
+  manage.py. Reuse the existing detect_host envelope (run/node_capabilities.json: accels / vram_mb /
+  ram_mb / memory_model + the model-matcher fit estimate) to classify a host as an AI-capable SERVING
+  NODE vs a thin CLIENT, with an overridable node_role + a manage.py subcommand. Feeds 9.3
+  capability-aware routing and the Portal-Based Asymmetric VR client split (capable boxes serve; thin
+  devices portal/VR in). Brandon's request; detailed rules to be fleshed out in docs/distributed_nodes.md.
+
 ## 2026-06-29 0745 PDT -- Avatar gains voice INPUT (Talk/listen) + auto-speaks mic turns (Claude)
 
 - The Godot avatar could be typed to but not spoken to. NEW "Talk (mic)" button (main.gd): records one

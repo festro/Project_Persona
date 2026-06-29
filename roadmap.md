@@ -808,6 +808,17 @@ deny-list for bad actors; WireGuard mesh for transport + egress containment.
       split-brain reconcile).
 - [-] 9.5: WireGuard substrate; Object-store artifact transfer; superclusters
       at scale
+- [ ] 9.6: capability-based node ROLE distinguisher (manage.py) -- classify each host
+      from its ALREADY-detected envelope (detect_host -> run/node_capabilities.json:
+      accels / vram_mb / ram_mb / memory_model + the model-matcher's fit estimate) into a
+      role: AI-CAPABLE SERVING NODE (a useful model fits its VRAM/RAM envelope -> joins the
+      mesh as worker/anchor) vs thin CLIENT (can't host local inference -> consumes the
+      mesh: the Windows/phone "portal" + Quest/VR avatar clients under clients/). Adds a
+      classification + an overridable `node_role` (node_capabilities.json / config, manual
+      override wins) + a manage.py subcommand to surface the verdict. Builds on the existing
+      detection + matcher (no new infra); feeds 9.3 capability-aware routing and the
+      asymmetric-client split. Flesh the rules out in docs/distributed_nodes.md. Ties to the
+      Portal-Based Asymmetric VR direction (capable boxes serve; thin devices portal/VR in).
 
 Exit Gate:
 
