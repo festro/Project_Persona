@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-28 0545 PDT -- Always-on self-identity block: reliable self-knowledge regardless of phrasing (Brandon + Claude)
+
+- Closes the 0520 finding (RAG self-knowledge is similarity-gated -> oblique self-questions fell back
+  to "I'm probably Ollama+RAG"). NEW SELF_IDENTITY.md (repo root): a compact (~190 word) authoritative
+  description of what the persona IS + its real stack (Qwen3.6-35B-A3B on llama.cpp, FastAPI persona
+  API, daemon.py supervision, Qdrant RAG + per-turn distiller + sleep-cycle consolidation, Git-tracked
+  SOUL.md/.hermes.md identity, Hermes agent layer, OpenWebUI web/inline-URL). It ends by telling the
+  model it ALREADY has versioned identity / topic-routed memory / consolidation / agents -- "check what
+  you already have before claiming you lack a capability or proposing to add one".
+- server.py: load_self_identity() (cached) + self_identity_section() inject the block into EVERY system
+  prompt (both build_persona_messages and build_persona_prompt), between the Hermes rules and the Output
+  format block -- so identity is always present, like SOUL.md for personality; RAG project_doc adds
+  detail on top. SELF_IDENTITY_ENABLED=0 / SELF_IDENTITY_PATH to disable or relocate.
+- NEW tests/test_self_identity.py (8 checks: section loads, authoritative, real facts, injected into
+  both builders, Output-format still follows). offline 22/22.
+
 ## 2026-06-28 0520 PDT -- Echo-chamber cleanup: sleep-cycle provenance, a real delete bug, the purge, and a self-knowledge limitation (Brandon + Claude)
 
 - SECOND fabrication source found: the SLEEP CYCLE (Phase 7 consolidation, _sleep_distill ->

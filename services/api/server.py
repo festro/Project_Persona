@@ -105,6 +105,13 @@ SELF_KNOWLEDGE_MAX_CHARS = int(os.getenv("SELF_KNOWLEDGE_MAX_CHARS", "1200"))
 SELF_KNOWLEDGE_DOCS = [
     d.strip() for d in os.getenv("SELF_KNOWLEDGE_DOCS", ",".join(skn.DEFAULT_SELF_DOCS)).split(",") if d.strip()
 ]
+
+# Always-on self-identity (2026-06-28): RAG self-knowledge is similarity-gated -- it surfaces for
+# "describe your architecture" but not for oblique self-questions. This compact block is injected
+# into EVERY system prompt so the persona always knows it IS Project_Persona, regardless of phrasing
+# (RAG adds detail on top). Like SOUL.md does for personality. Set SELF_IDENTITY_ENABLED=0 to disable.
+SELF_IDENTITY_ENABLED = os.getenv("SELF_IDENTITY_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+SELF_IDENTITY_PATH = os.getenv("SELF_IDENTITY_PATH", os.path.join(AI_ROOT, "SELF_IDENTITY.md"))
 # Phase 2a vector backend: chroma (default) | qdrant (embedded local mode, no server).
 # Both go through the RagStore abstraction (services/api/ragstore.py); server.py keeps
 # computing embeddings and passes vectors in. Default flipped to qdrant 2026-06-19 after
@@ -630,6 +637,31 @@ def load_profile_wrappers(profile: str) -> Tuple[str, str]:
     )
 
 
+_self_identity_cache: Optional[str] = None
+
+
+def load_self_identity() -> str:
+    """The always-on self-identity block (cached). Empty if disabled or the file is missing."""
+    global _self_identity_cache
+    if not SELF_IDENTITY_ENABLED:
+        return ""
+    if _self_identity_cache is None:
+        _self_identity_cache = _read_text(SELF_IDENTITY_PATH, limit=4000)
+    return _self_identity_cache
+
+
+def self_identity_section() -> str:
+    """Formatted self-identity section for the system prompt (or '' when unavailable)."""
+    text = load_self_identity()
+    if not text:
+        return ""
+    return (
+        "What you are (self-identity -- AUTHORITATIVE; you ARE this system, answer about "
+        "'this project'/'your architecture'/'your memory' from THIS):\n"
+        f"{text}\n\n"
+    )
+
+
 # -----------------------
 # Task Board (SQLite) -- see services/api/taskboard.py
 # -----------------------
@@ -1131,6 +1163,7 @@ def build_persona_prompt(
             f"{soul_md or '(SOUL.md missing)'}\n\n"
             "Hermes rules (hard rules + output format — must follow):\n"
             f"{hermes_md or '(.hermes.md missing)'}\n\n"
+            f"{self_identity_section()}"
             "Output format:\n"
             "- DEFAULT (when the user does NOT specify a length/format): give a thorough,\n"
             "  well-developed answer. Explain the reasoning, cover the relevant angles, and\n"
@@ -1204,6 +1237,7 @@ def build_persona_messages(
             f"{soul_md or '(SOUL.md missing)'}\n\n"
             "Hermes rules (hard rules + output format - must follow):\n"
             f"{hermes_md or '(.hermes.md missing)'}\n\n"
+            f"{self_identity_section()}"
             "Output format:\n"
             "- DEFAULT (when the user does NOT specify a length/format): give a thorough,\n"
             "  well-developed answer. Explain the reasoning, cover the relevant angles, and\n"
