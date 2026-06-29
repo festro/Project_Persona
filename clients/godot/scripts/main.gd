@@ -16,11 +16,14 @@ var avatar: Node2D        # AvatarFaceScript instance
 
 var input: LineEdit
 var send_btn: Button
+var talk_btn: Button
 var speak_chk: CheckBox
-var reply_lbl: Label
+var reply_lbl: RichTextLabel
 var state_lbl: Label
+var _rec_thread: Thread = null
+var _voice_turn: bool = false           # set for mic-initiated turns -> always speak the reply
 
-const PANEL_H: float = 196.0
+const PANEL_H: float = 280.0
 
 
 func _ready() -> void:
@@ -54,9 +57,10 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
-	reply_lbl = Label.new()
-	reply_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	reply_lbl.custom_minimum_size = Vector2(0, 78)
+	reply_lbl = RichTextLabel.new()
+	reply_lbl.bbcode_enabled = false
+	reply_lbl.scroll_active = true                      # long replies scroll, not push controls off-screen
+	reply_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	reply_lbl.text = "..."
 	vbox.add_child(reply_lbl)
 
@@ -89,6 +93,12 @@ func _build_ui() -> void:
 	send_btn.text = "Send"
 	send_btn.pressed.connect(_on_send_pressed)
 	row.add_child(send_btn)
+
+	talk_btn = Button.new()
+	talk_btn.text = "Talk (mic)"
+	talk_btn.tooltip_text = "Speak one message; a pause ends your turn (Whisper STT)"
+	talk_btn.pressed.connect(_on_talk_pressed)
+	row.add_child(talk_btn)
 
 	speak_chk = CheckBox.new()
 	speak_chk.text = "Speak (Piper)"
@@ -130,12 +140,15 @@ func _on_reply(text: String, state: Dictionary, _cid: String) -> void:
 	avatar.apply_state(state)
 	var secs: float = _speak_seconds(text)
 	avatar.speak_for(secs)
-	if speak_chk.button_pressed:
+	# Voice-in -> voice-out: a mic turn always speaks; typed turns speak only if Speak is ticked.
+	if speak_chk.button_pressed or _voice_turn:
 		_speak_aloud(text)
+	_voice_turn = false
 
 
 func _on_failed(message: String) -> void:
 	send_btn.disabled = false
+	_voice_turn = false
 	_set_status("error: " + message)
 
 
@@ -148,6 +161,9 @@ func _set_status(msg: String) -> void:
 ## the viewport -> quit. Capture happens mid-animation so the saved frame shows the
 ## emotion color + an open (speaking) mouth.
 func _run_demo() -> void:
+	var speak: bool = OS.get_environment("PERSONA_AVATAR_SPEAK") == "1"
+	if speak:
+		speak_chk.button_pressed = true  # _on_reply will then fire _speak_aloud()
 	await get_tree().create_timer(0.8).timeout
 	_send("Greet me warmly and tell me you are excited to meet me!")
 	await client.reply  # (text, state, cid) -- _on_reply also runs and animates
@@ -159,7 +175,9 @@ func _run_demo() -> void:
 		path = ProjectSettings.globalize_path("user://avatar_demo.png")
 	var err: int = img.save_png(path)
 	print("[demo] screenshot %s -> %s" % ["OK" if err == OK else "ERR %d" % err, path])
-	await get_tree().create_timer(0.4).timeout
+	# When speaking, hold the window open so the detached Piper process has time to
+	# synthesize + start playing (it survives quit, but this lets the audio begin).
+	await get_tree().create_timer(6.0 if speak else 0.4).timeout
 	get_tree().quit()
 
 
@@ -168,16 +186,65 @@ func _speak_seconds(text: String) -> float:
 	return clampf(float(words) * 0.34 + 0.6, 0.8, 14.0)
 
 
-## Optional: fire the local Piper voice client to speak the reply aloud. Best-effort
-## and non-blocking; the mouth animation above runs on the word-count estimate, so a
-## visual demo works even without audio. Phase 5's tts_speaking will tighten this.
-func _speak_aloud(text: String) -> void:
+## Resolve [python_exe, persona_voice.py] for the local voice client, or [] if missing.
+func _voice_py() -> Array:
 	var base: String = ProjectSettings.globalize_path("res://")  # .../clients/godot/
 	var py: String = base.path_join("../../portable/python/python.exe").simplify_path()
 	var script: String = base.path_join("../voice/persona_voice.py").simplify_path()
 	if not FileAccess.file_exists(py):
 		py = "python"  # fall back to PATH
 	if not FileAccess.file_exists(script):
-		_set_status("voice client not found at " + script)
+		return []
+	return [py, script]
+
+
+## Optional: fire the local Piper voice client to speak the reply aloud. Best-effort,
+## non-blocking; the mouth animation runs on the word-count estimate, so a visual demo
+## works even without audio. Phase 5's tts_speaking will tighten this.
+func _speak_aloud(text: String) -> void:
+	var v: Array = _voice_py()
+	if v.is_empty():
+		_set_status("voice client not found")
 		return
-	OS.create_process(py, [script, "say", text])
+	OS.create_process(v[0], [v[1], "say", text])
+
+
+## Voice INPUT: record one spoken utterance off the main thread (so the UI stays
+## responsive), transcribe it with the local Whisper client, then send it like a typed
+## message -- the avatar animates from STATE and (if Speak is ticked) replies aloud.
+func _on_talk_pressed() -> void:
+	if client.busy or (_rec_thread != null and _rec_thread.is_alive()):
+		return
+	if _voice_py().is_empty():
+		_set_status("voice client not found -- run clients\\install.ps1")
+		return
+	talk_btn.disabled = true
+	send_btn.disabled = true
+	_set_status("listening... speak now, then pause")
+	_rec_thread = Thread.new()
+	_rec_thread.start(_talk_worker)
+
+
+func _talk_worker() -> void:
+	var text: String = ""
+	var v: Array = _voice_py()
+	if not v.is_empty():
+		var out: Array = []
+		# record-text: VAD-records one utterance and prints ONLY the transcript to stdout
+		OS.execute(v[0], [v[1], "record-text", "--seconds", "15"], out, false)
+		if out.size() > 0:
+			text = String(out[0]).strip_edges()
+	call_deferred("_on_transcript", text)
+
+
+func _on_transcript(text: String) -> void:
+	if _rec_thread != null:
+		_rec_thread.wait_to_finish()
+		_rec_thread = null
+	talk_btn.disabled = false
+	send_btn.disabled = false
+	if text == "":
+		_set_status("(no speech heard -- click Talk and try again)")
+		return
+	_voice_turn = true        # spoke to it -> speak the reply back
+	_send(text)

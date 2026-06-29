@@ -289,7 +289,7 @@ def _record(seconds, out_wav):
     except ImportError:
         raise SystemExit("live mic needs sounddevice: pip install sounddevice")
     sr = 16000
-    print(f"[mic] recording {seconds:.0f}s ...")
+    print(f"[mic] recording {seconds:.0f}s ...", file=sys.stderr)
     audio = sd.rec(int(seconds * sr), samplerate=sr, channels=1, dtype="int16")
     sd.wait()
     with wave.open(str(out_wav), "wb") as w:
@@ -315,7 +315,8 @@ def _record_vad(max_seconds=15.0, silence_tail=1.0, start_timeout=8.0, out_wav=N
         cal = [float(np.abs(stream.read(block)[0]).mean()) for _ in range(10)]  # ~0.3s
         floor = float(np.median(cal)) if cal else 50.0
         thresh = max(floor * 3.5, 120.0)
-        print(f"[mic] listening (noise floor {floor:.0f}; speak now -- a pause ends your turn)...")
+        print(f"[mic] listening (noise floor {floor:.0f}; speak now -- a pause ends your turn)...",
+              file=sys.stderr)
         speech = False
         silence = 0.0
         pre = 0.0
@@ -336,7 +337,7 @@ def _record_vad(max_seconds=15.0, silence_tail=1.0, start_timeout=8.0, out_wav=N
             if speech and silence >= silence_tail:
                 break
             if not speech and pre >= start_timeout:
-                print(f"[mic] (no speech detected within {start_timeout:.0f}s)")
+                print(f"[mic] (no speech detected within {start_timeout:.0f}s)", file=sys.stderr)
                 break
             if elapsed >= max_seconds:
                 break
@@ -390,6 +391,22 @@ def cmd_converse(args):
     return 0
 
 
+def cmd_record_text(args):
+    """Record one mic utterance (VAD) and print ONLY the transcript to stdout, so a
+    programmatic caller (e.g. the Godot avatar) gets speech-to-text without the chat/TTS
+    round-trip. Status/diagnostics go to stderr; empty stdout + rc 3 means no speech."""
+    if args.fixed:
+        wav = _record(args.seconds, SCRATCH / "mic_in.wav")
+    else:
+        wav, spoke = _record_vad(max_seconds=args.seconds, out_wav=SCRATCH / "mic_in.wav")
+        if not spoke:
+            return 3
+    text = stt(wav)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+    return 0 if text else 3
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Project_Persona voice client (Windows -> EVO-X2 API)")
     p.add_argument("--profile", default=PROFILE, help="persona profile (default: %(default)s)")
@@ -425,6 +442,11 @@ def main(argv=None):
     s.add_argument("--fixed", action="store_true", help="record fixed --seconds per turn instead of VAD")
     s.add_argument("--brief", action="store_true", help="short 1-2 sentence spoken replies (default: full)")
     s.add_argument("--cid"); s.set_defaults(fn=cmd_converse)
+
+    s = sub.add_parser("record-text", help="record one mic utterance, print the transcript (for callers)")
+    s.add_argument("--seconds", type=float, default=15.0)
+    s.add_argument("--fixed", action="store_true")
+    s.set_defaults(fn=cmd_record_text)
 
     args = p.parse_args(argv)
     return args.fn(args) or 0

@@ -83,8 +83,12 @@ and speaks the reply -- proving the whole loop without a microphone.
 inline `state` field returned by `/chat` (`docs/avatar_protocol.md`): emotion
 drives color + mouth curve + eye shape, intensity drives strength, gesture fires a
 one-shot cue (nod / shrug / tilt_head / lean_in / ...), and the mouth animates while
-the reply is "spoken". Tick **Speak (Piper)** in the UI to also hear the reply via
-the voice client.
+the reply is "spoken". Tick **Speak (Piper)** to also hear a *typed* reply via the
+voice client.
+
+Click **Talk (mic)** to speak *to* the avatar: it records one utterance off the main
+thread (Whisper VAD, via the voice client's `record-text` verb), shows the transcript,
+then answers and speaks the reply aloud -- a mic turn is always voice-in -> voice-out.
 
 ```powershell
 clients\godot\run_avatar.ps1            # run the avatar app

@@ -518,6 +518,9 @@ Goal: optional 3D/VR client driven by a two-channel protocol.
       Piper speak-aloud). Topology: Windows CLIENT -> EVO-X2 API over LAN (clients/README.md).
       PROVEN headless via tools/headless_check.gd (Godot --headless): avatar instanced + STATE
       applied + live /chat round-trip -> reply+STATE, exit 0.
+      VOICE I/O (2026-06-29): a "Talk (mic)" button records -> Whisper STT (persona_voice.py
+      record-text, off-thread) -> /chat, and mic turns speak the reply via Piper (voice-in ->
+      voice-out); "Speak (Piper)" governs typed turns. Confirmed live by Brandon.
 
 Exit Gate:
 

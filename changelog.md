@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-29 0745 PDT -- Avatar gains voice INPUT (Talk/listen) + auto-speaks mic turns (Claude)
+
+- The Godot avatar could be typed to but not spoken to. NEW "Talk (mic)" button (main.gd): records one
+  utterance OFF the main thread (Thread + OS.execute) via a NEW persona_voice.py `record-text` verb
+  (VAD capture -> transcript on stdout, diagnostics moved to stderr so stdout is clean), then feeds the
+  text into the normal chat -> animate -> speak flow. Voice INPUT now lives in the avatar, not just the CLI.
+- Voice-in -> voice-out: a mic turn ALWAYS speaks the reply; the "Speak (Piper)" checkbox still governs
+  typed turns. Fixes Brandon's "it listened but didn't speak" -- the checkbox simply was not ticked.
+- Layout fix: a long reply pushed the input row (incl. the Talk button) off the bottom of the window.
+  The reply is now a scrolling RichTextLabel and the panel is taller (PANEL_H 196 -> 280), so the
+  controls stay pinned and visible.
+- main.gd: _voice_py() resolves [python, persona_voice.py] for both speak + listen; added a
+  PERSONA_AVATAR_SPEAK=1 self-demo hook (parallels PERSONA_AVATAR_DEMO).
+- Verified: record-text stdout-clean (rc 3 on no-speech), the speak path produces audio (866 KB wav),
+  and Brandon confirmed LIVE listen + speak in the avatar.
+
 ## 2026-06-29 0715 PDT -- Voice client polish: speak prose not Markdown; --brief opt-in (Claude)
 
 - Brandon test of `listen` worked (spoke "lizards" -> full reply) but surfaced two annoyances: Piper
