@@ -259,7 +259,11 @@ if [ -f "$PROFILES_DIR/researcher/config.yaml" ]; then
   echo "==> researcher role: web search enabled (keyless ddgs); ensure 'ddgs' is in env_hermes"
 fi
 
-cat > "$PERSONA_ROOT/README.md" <<EOF
+# Only scaffold the README when one doesn't already exist -- otherwise a re-run would
+# clobber a hand-maintained persona/README.md with this short stub (which is exactly what
+# happened on EVO-X2). Scaffold-only, like the SOUL.md/.hermes.md/config.yaml above.
+if [ ! -f "$PERSONA_ROOT/README.md" ]; then
+  cat > "$PERSONA_ROOT/README.md" <<EOF
 # Persona Profiles
 
 - Global shared memory: $GLOBAL_DIR
@@ -274,6 +278,7 @@ Each profile has:
 
 Default profile: default
 EOF
+fi
 
 # Per-role SOFT scope contracts (proposal C): idempotently append operating boundaries to each
 # role's .hermes.md. Kept in a separate re-runnable script so it can be applied to existing

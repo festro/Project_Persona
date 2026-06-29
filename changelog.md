@@ -14,6 +14,22 @@ Conventions:
 
 ---
 
+## 2026-06-29 0415 PDT -- Back up default+test profile config; fix init_profiles README clobber; session handoff (Brandon + Claude)
+
+- Completed the profile backup: tracked the default + test profiles' safe, script-generated edits --
+  the .hermes.md scope-contract blocks (from apply_scope_contracts.sh) + the default config.yaml
+  shell_init_files entry (the H2d worker-shell PATH fix). No secrets. The 5 worker profiles were
+  done at 0346; this closes out the persona profile config (default = the main persona identity).
+- FIXED a latent init_profiles.sh bug: it wrote persona/README.md UNCONDITIONALLY, so any re-run
+  clobbered the detailed hand-maintained README with a short auto-gen stub -- which had already
+  happened on EVO-X2 (the tracked detailed version was the GOOD one; the working copy was the stub).
+  Now scaffold-only (skip-if-exists), matching the SOUL.md/.hermes.md/config.yaml guards. RESTORED the
+  detailed README on EVO-X2's working tree (git checkout) -> EVO-X2 now has ZERO modified tracked files.
+- SESSION HANDOFF written -> archive/handoffs/handoff_persona_20260629_0415.md (consolidates this
+  session: proposal C containment via HOME isolation [0147], profile backup [0346], this cleanup
+  [0415]). The ONLY thing left for Brandon is the sudo-gated kernel egress baseline; everything else
+  doable autonomously is done. D:\ = origin/main = EVO-X2 at HEAD; offline 23/23.
+
 ## 2026-06-29 0346 PDT -- Back up the H4 worker role profiles to git (Brandon + Claude)
 
 - Followed up the containment work by versioning the previously-untracked worker role profiles
