@@ -14,6 +14,24 @@ Conventions:
 
 ---
 
+## 2026-06-29 0520 PDT -- Decision: do NOT kernel-seal worker egress (Brandon)
+
+- After weighing it, Brandon decided AGAINST kernel-sealing Hermes worker egress. Rationale: the
+  researcher role is web-ENABLED by design (sealing it is counterproductive), and for the
+  non-research roles the worker-exfil vector is low-value on this single-user, trusted-model,
+  LAN-bound node -- little to exfiltrate (repo is public; the daemon strips cloud secrets from
+  worker children; today's HOME isolation already put ~/.ssh, ~/.config, and tokens out of reach).
+- The containment story therefore rests on the PROPORTIONATE layer already in place: config
+  egress-off for non-research roles + daemon secret-stripping + per-role HOME/CWD confinement +
+  soft scope contracts. That layer is about filesystem blast-radius and stands on its own,
+  independent of any network lock -- so nothing today is wasted.
+- The host egress baseline (scripts/egress_baseline.sh) stays AVAILABLE but UNAPPLIED. Its real
+  use is a host-wide backstop against accidental/dependency phone-home, not policing the workers.
+  If ever wanted: PROVISION (sudo bash scripts/egress_baseline.sh apply --provision --yes) keeps
+  ALL web research working while dropping non-DNS/HTTPS outbound; SERVE / cgroup-scoped
+  worker-sealing is explicitly NOT pursued. Supersedes the 0415 "only thing left = kernel egress"
+  framing -- there is now no owed follow-up from this session's work.
+
 ## 2026-06-29 0415 PDT -- Back up default+test profile config; fix init_profiles README clobber; session handoff (Brandon + Claude)
 
 - Completed the profile backup: tracked the default + test profiles' safe, script-generated edits --

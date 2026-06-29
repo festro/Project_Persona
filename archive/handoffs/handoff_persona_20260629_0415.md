@@ -119,9 +119,13 @@ changelog.md (2026-06-29 entries 0147 / 0346 / 0415).
 5. OUTSTANDING (Brandon's call / sudo-gated)
 ================================================================================
 
-- SUDO-GATED (Brandon): kernel egress baseline (scripts/egress_baseline.sh, nftables, root). Config-
-  level egress is already off (non-researcher roles); this closes the "egress at config AND kernel"
-  gate line. THE ONLY thing this session's work explicitly left for you.
+- KERNEL EGRESS BASELINE: DECIDED 2026-06-29 0520 (Brandon) -- do NOT kernel-seal worker egress.
+  The researcher role is web-enabled by design and the non-research worker-exfil vector is low-value
+  on this single-user/trusted-model/LAN node (public repo, secrets stripped from worker children,
+  ~/.ssh & tokens already isolated by today's HOME work). Containment rests on the proportionate
+  config-egress-off + secret-stripping + HOME/CWD confinement + scope-contracts layer. scripts/
+  egress_baseline.sh stays AVAILABLE-but-UNAPPLIED (host-wide backstop, not worker-policing); if ever
+  wanted, PROVISION keeps all web research working. NO owed follow-up remains from this session.
 - A HARDER containment tier (denylist/allowlist `bash` shim winning shutil.which("bash")) remains
   possible but was declined as too risky on the fragile complete-chain. Mechanism + why-soft are in
   changelog 0147 and memory evox2-ssh-operations. Current layers: soft scope contracts (.hermes.md) +
