@@ -257,3 +257,72 @@ def parse_intake(text: str) -> Tuple[List[Dict[str, Any]], str]:
         elif isinstance(it, dict):
             out.append(it)
     return out, ""
+
+
+# -----------------------
+# Contradiction resolution (pure prompt + parser; server.py runs the model + the store ops)
+# -----------------------
+CONFLICT_PROMPT = """You maintain a user's long-term memory. A NEW fact is about to be stored.
+
+Decide which EXISTING facts (if any) the NEW fact SUPERSEDES -- meaning they are about the SAME
+subject and the new fact updates or directly contradicts them: a changed preference, a corrected
+detail, or a status change. Facts that are merely related, broader, more specific, or about a
+DIFFERENT subject are NOT superseded -- leave those alone.
+
+NEW fact:
+{new}
+
+EXISTING facts (numbered):
+{candidates}
+
+Return STRICT JSON only:
+{{"supersede": [<indices of existing facts the NEW fact replaces>], "note": "<short reason, or empty>"}}
+If nothing is superseded, return {{"supersede": [], "note": ""}}.
+"""
+
+
+def build_conflict_prompt(new_statement: str, candidates: List[str]) -> str:
+    numbered = "\n".join(f"{i}. {c}" for i, c in enumerate(candidates))
+    return CONFLICT_PROMPT.format(new=(new_statement or "").strip(), candidates=numbered)
+
+
+def parse_conflict(text: str, n_candidates: int) -> Tuple[List[int], str]:
+    """Never raises. Returns (supersede_indices, note). Indices are de-duped, sorted, and
+    clamped to [0, n_candidates)."""
+    raw = _strip_think((text or "").strip())
+    if not raw:
+        return [], ""
+    obj: Any = None
+    try:
+        obj = json.loads(raw)
+    except Exception:
+        j = _extract_json(raw)
+        if not j:
+            return [], ""
+        try:
+            obj = json.loads(j)
+        except Exception:
+            return [], ""
+    if isinstance(obj, str):
+        try:
+            obj = json.loads(obj)
+        except Exception:
+            return [], ""
+    if not isinstance(obj, dict):
+        return [], ""
+    raw_idx = obj.get("supersede") or []
+    if not isinstance(raw_idx, list):
+        return [], ""
+    idxs = set()
+    for v in raw_idx:
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)):
+            i = int(v)
+        elif isinstance(v, str) and v.strip().lstrip("-").isdigit():
+            i = int(v.strip())
+        else:
+            continue
+        if 0 <= i < n_candidates:
+            idxs.add(i)
+    return sorted(idxs), str(obj.get("note") or "")

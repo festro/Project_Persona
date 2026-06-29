@@ -588,6 +588,18 @@ def memory_query(text: str, k: int, kind_filter: Optional[set[str]] = None, *, p
         return []
 
 
+def memory_query_detailed(text: str, k: int, kind_filter: Optional[set[str]] = None, *, profile: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Like memory_query but returns [{id, document}] so the caller can act on the points
+    (used by structured intake to supersede a stale fact by id)."""
+    if not _rag_ok or _embedder is None or k <= 0:
+        return []
+    try:
+        vec = _embed(text)
+        return _store.query_detailed(_collection_name(profile), vec, k, kind_filter=kind_filter)
+    except Exception:
+        return []
+
+
 # -----------------------
 # Profiles
 # -----------------------
@@ -1445,6 +1457,12 @@ async def distill_and_store_facts(user_text: str, assistant_text: str, *, profil
 # visible (informational -- it does NOT auto-delete). Demonstrable via POST /memory/intake;
 # the default distiller path is unchanged.
 MEMORY_INTAKE_MAX_TOKENS = int(os.getenv("MEMORY_INTAKE_MAX_TOKENS", "320"))
+# Contradiction resolution (task A): when a new record supersedes an existing fact (same subject,
+# updated/contradicting info), delete the stale one instead of just surfacing it. An LLM decides
+# per record; only kind=fact candidates are eligible (never project_doc/self-knowledge). =0 to revert
+# to surface-only.
+MEMORY_INTAKE_RESOLVE_CONFLICTS = os.getenv("MEMORY_INTAKE_RESOLVE_CONFLICTS", "1").strip().lower() in ("1", "true", "yes", "on")
+MEMORY_INTAKE_CONFLICT_K = int(os.getenv("MEMORY_INTAKE_CONFLICT_K", "5"))
 
 
 async def structured_intake(user_text: str, assistant_text: str = "", *, profile: str, topic: str) -> Dict[str, Any]:
@@ -1468,23 +1486,51 @@ async def structured_intake(user_text: str, assistant_text: str = "", *, profile
     if perr:
         return {"ok": False, "error": perr, "raw": (out or "")[:400]}
 
-    records, stored = [], 0
+    records, stored, total_superseded = [], 0, 0
     for raw in raws:
         rec, errs = mi.validate_record(raw)
         if rec is None:
             records.append({"skipped": True, "errors": errs, "raw": raw})
             continue
-        # Contradiction visibility: nearest existing facts BEFORE we add this one.
-        related = memory_query(rec.statement, k=3, kind_filter={"fact"}, profile=profile)
+        # Nearest existing facts (id+text) BEFORE we add this one -- for both contradiction
+        # RESOLUTION (supersede the stale ones) and visibility (the rest, as related_existing).
+        cands = memory_query_detailed(rec.statement, k=MEMORY_INTAKE_CONFLICT_K, kind_filter={"fact"}, profile=profile)
+        superseded = await _intake_resolve_conflicts(rec.statement, cands, profile=profile)
+        superseded_ids = {s["id"] for s in superseded}
+        related = [c["document"] for c in cands if c["id"] not in superseded_ids][:3]
         memory_add(mi.record_to_text(rec), mi.record_to_meta(rec, profile=profile, topic=topic), profile=profile)
         stored += 1
+        total_superseded += len(superseded)
         records.append({
             "statement": rec.statement, "type": rec.type, "entities": rec.entities,
-            "date": rec.date, "confidence": rec.confidence,
-            "warnings": errs, "related_existing": related,
+            "date": rec.date, "confidence": rec.confidence, "warnings": errs,
+            "superseded": [s["document"] for s in superseded], "related_existing": related,
         })
-    return {"ok": True, "extracted": len(raws), "stored": stored, "records": records,
-            "tokens": stats.get("tokens_generated", 0)}
+    return {"ok": True, "extracted": len(raws), "stored": stored, "superseded": total_superseded,
+            "records": records, "tokens": stats.get("tokens_generated", 0)}
+
+
+async def _intake_resolve_conflicts(statement: str, candidates: List[Dict[str, Any]], *, profile: str) -> List[Dict[str, Any]]:
+    """Ask the model which candidate facts the new statement supersedes, then DELETE those points.
+    Returns the superseded candidates (id+document). No-op (returns []) when disabled or none apply."""
+    if not (MEMORY_INTAKE_RESOLVE_CONFLICTS and candidates):
+        return []
+    prompt = mi.build_conflict_prompt(statement, [c["document"] for c in candidates])
+    try:
+        out, _r, _s = await query_llama_messages(
+            PERSONA_CHAT_URL, [{"role": "user", "content": prompt}], 200, 0.1,
+            MEMORY_DISTILL_TIMEOUT_S, enable_thinking=False, extra={"top_p": 0.9},
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    idxs, _note = mi.parse_conflict(out, len(candidates))
+    superseded = [candidates[i] for i in idxs]
+    if superseded:
+        try:
+            _store.delete(_collection_name(profile), [s["id"] for s in superseded])
+        except Exception:  # noqa: BLE001
+            return []
+    return superseded
 
 
 # -----------------------

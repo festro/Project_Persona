@@ -14,6 +14,23 @@ Conventions:
 
 ---
 
+## 2026-06-28 0645 PDT -- Memory contradiction RESOLUTION (proposal A): supersede stale facts, not just surface them (Brandon + Claude)
+
+- Implements the one genuinely-new part of the persona's own IBOS proposal (the rest -- structured
+  ingestion -- is already the distiller + sleep cycle + the task-B intake prototype). Structured intake
+  now ACTS on contradictions instead of only listing related_existing.
+- ragstore: NEW query_detailed() on both ChromaStore + QdrantStore -> [{id, document}] so callers can
+  act on points by id. server.py: NEW memory_query_detailed() wrapper.
+- memory_intake.py: NEW build_conflict_prompt() + parse_conflict() (robust JSON, strips <think>,
+  clamps/de-dupes indices, ignores booleans/out-of-range).
+- server.py structured_intake(): for each new record, pulls MEMORY_INTAKE_CONFLICT_K=5 nearest
+  kind=fact candidates (id+text), asks the model which the new fact SUPERSEDES (same subject +
+  updated/contradicting -- not merely related), DELETES those points, then stores the new record.
+  Response now reports per-record `superseded` + `related_existing`, and a top-level `superseded`
+  count. Only kind=fact is eligible (project_doc/self-knowledge never superseded). Gate:
+  MEMORY_INTAKE_RESOLVE_CONFLICTS=0 reverts to surface-only. enable_thinking=False on the conflict call.
+- tests/test_memory_intake.py +9 (conflict prompt + parser); offline 22/22.
+
 ## 2026-06-28 0610 PDT -- Anti-sycophancy reassessment + necessity check stops searching prior replies (Brandon + Claude)
 
 - A CONTINUED browser thread (ids 461-470, post-self-identity-deploy) STILL doubled down ("the

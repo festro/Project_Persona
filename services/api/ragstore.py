@@ -94,6 +94,27 @@ class ChromaStore:
         except Exception:  # noqa: BLE001
             return []
 
+    def query_detailed(self, collection, vector, k, kind_filter=None) -> List[Dict[str, Any]]:
+        """Like query() but returns [{id, document}] so callers can act on the points
+        (e.g. supersede a stale fact by id)."""
+        c = self._coll(collection)
+        if c is None or k <= 0:
+            return []
+        where = None
+        ks = _kinds(kind_filter)
+        if len(ks) == 1:
+            where = {"kind": ks[0]}
+        elif len(ks) > 1:
+            where = {"$or": [{"kind": kk} for kk in ks]}
+        try:
+            res = c.query(query_embeddings=[list(vector)], n_results=k,
+                          include=["documents"], where=where)
+            ids = list((res.get("ids") or [[]])[0])
+            docs = list((res.get("documents") or [[]])[0])
+            return [{"id": i, "document": d} for i, d in zip(ids, docs)][:k]
+        except Exception:  # noqa: BLE001
+            return []
+
     def count(self, collection) -> int:
         c = self._coll(collection)
         try:
@@ -238,6 +259,25 @@ class QdrantStore:
                 collection, query=list(vector), limit=k,
                 with_payload=True, query_filter=qfilter).points
             return [(p.payload or {}).get("document", "") for p in res][:k]
+        except Exception:  # noqa: BLE001
+            return []
+
+    def query_detailed(self, collection, vector, k, kind_filter=None) -> List[Dict[str, Any]]:
+        """Like query() but returns [{id, document}] so callers can act on the points
+        (e.g. supersede a stale fact by id)."""
+        if k <= 0 or not self._ensure(collection):
+            return []
+        m = self._models
+        qfilter = None
+        ks = _kinds(kind_filter)
+        if ks:
+            qfilter = m.Filter(should=[
+                m.FieldCondition(key="kind", match=m.MatchValue(value=kk)) for kk in ks])
+        try:
+            res = self._client.query_points(
+                collection, query=list(vector), limit=k,
+                with_payload=True, query_filter=qfilter).points
+            return [{"id": p.id, "document": (p.payload or {}).get("document", "")} for p in res][:k]
         except Exception:  # noqa: BLE001
             return []
 

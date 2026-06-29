@@ -103,5 +103,20 @@ raws, _ = mi.parse_intake('{"memories":[{"statement":"Brandon runs Project_Perso
 recA, errA = mi.validate_record(raws[0])
 check("parse->validate end to end", recA is not None and recA.type == "project" and "EVO-X2" in recA.entities)
 
+# ---- contradiction resolution: build_conflict_prompt + parse_conflict ----
+cp = mi.build_conflict_prompt("User prefers light mode", ["User prefers dark mode", "User lives in Denver"])
+check("conflict prompt numbers candidates", "0. User prefers dark mode" in cp and "1. User lives in Denver" in cp)
+check("conflict prompt embeds the new fact", "User prefers light mode" in cp)
+
+idxs, note = mi.parse_conflict('{"supersede": [0], "note": "preference changed"}', 2)
+check("parses supersede indices", idxs == [0] and note == "preference changed")
+check("empty supersede -> none", mi.parse_conflict('{"supersede": [], "note": ""}', 2) == ([], ""))
+idxs2, _ = mi.parse_conflict('<think>0 contradicts</think>{"supersede":[0,1]}', 2)
+check("strips think + multiple indices", idxs2 == [0, 1])
+check("out-of-range indices clamped", mi.parse_conflict('{"supersede":[0,5,-1]}', 2)[0] == [0])
+check("string indices coerced + de-duped", mi.parse_conflict('{"supersede":["1","1"]}', 2)[0] == [1])
+check("garbage conflict output -> no supersede", mi.parse_conflict("not json", 3) == ([], ""))
+check("booleans ignored as indices", mi.parse_conflict('{"supersede":[true, 0]}', 2)[0] == [0])
+
 print(f"\n{checks - len(failures)}/{checks} checks passed")
 sys.exit(1 if failures else 0)
