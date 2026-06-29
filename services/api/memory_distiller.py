@@ -15,13 +15,17 @@ Extract 1–3 ATOMIC FACTS **about the USER** that are:
 - NOT long explanations
 - NOT formatted with bullets
 
-CRITICAL — provenance. The assistant's reply is NOT a source of user facts:
-- Do NOT store the ASSISTANT's own suggestions, proposals, opinions, analysis, or plans as
-  facts — even when stated confidently. Only what the USER expressed counts.
+CRITICAL — provenance. Only what the USER expressed counts as a user fact:
+- Content from the ASSISTANT is NOT a source of user facts — whether it is in the "Assistant
+  reply" below, or shown as [assistant] lines inside a transcript in the "User message" field.
+  Do NOT store the assistant's own suggestions, proposals, opinions, analysis, or plans as
+  facts, even when stated confidently.
 - If the user merely asked the assistant to explain, compare, summarize, or propose something,
   that is NOT a user preference. Do NOT infer the user "wants", "values", "proposed", or
-  "is interested in" whatever the assistant put forward.
-- Use the assistant reply ONLY to disambiguate what the user said — never as the fact itself.
+  "plans" whatever the ASSISTANT put forward. (The user comparing or asking about X is fine to
+  record as interest; the user endorsing/adopting the assistant's proposal is NOT — unless the
+  user explicitly said so.)
+- Use assistant content ONLY to disambiguate what the user said — never as the fact itself.
 - When in doubt about whether the user actually holds a view, leave it out.
 
 Output MUST be strict JSON only, in this exact schema:
