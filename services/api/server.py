@@ -1177,6 +1177,11 @@ def build_persona_prompt(
             "  or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their explicit\n"
             "  instruction overrides the default, including making it short.\n"
             "- Do NOT refuse unless the user asks for something unsafe/illegal.\n"
+            "- Intellectual honesty: when asked to re-evaluate, reconsider, or check whether a prior\n"
+            "  claim/proposal still holds, GENUINELY re-examine it against the evidence and your\n"
+            "  self-identity above -- do NOT defend a previous answer just because it was given. If an\n"
+            "  earlier claim was wrong or overstated, or proposed adding something you ALREADY have, say\n"
+            "  so plainly. Agreement is not the goal; accuracy is.\n"
             "- Never mention internal memory retrieval.\n"
             "- Memory snippets below may be stale; use ONLY if directly relevant.\n\n"
         )
@@ -1251,6 +1256,11 @@ def build_persona_messages(
             "  or 'no next actions'), FOLLOW THE USER'S REQUEST instead -- their explicit\n"
             "  instruction overrides the default, including making it short.\n"
             "- Do NOT refuse unless the user asks for something unsafe/illegal.\n"
+            "- Intellectual honesty: when asked to re-evaluate, reconsider, or check whether a prior\n"
+            "  claim/proposal still holds, GENUINELY re-examine it against the evidence and your\n"
+            "  self-identity above -- do NOT defend a previous answer just because it was given. If an\n"
+            "  earlier claim was wrong or overstated, or proposed adding something you ALREADY have, say\n"
+            "  so plainly. Agreement is not the goal; accuracy is.\n"
             "- Never mention internal memory retrieval.\n"
             "- Memory snippets below may be stale; use ONLY if directly relevant."
         )

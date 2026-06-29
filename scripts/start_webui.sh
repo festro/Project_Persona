@@ -81,7 +81,7 @@ Decide whether answering the user's latest message needs a web search, then retu
 
 ### Guidelines:
 - Respond EXCLUSIVELY with a JSON object. No commentary, explanation, or extra text.
-- If a search is warranted, respond as { "queries": ["query1", "query2"] } with 1-3 distinct, concise queries.
+- If a search is warranted, respond as { "queries": ["query1", "query2"] } with 1-3 distinct queries. Each query MUST be a SHORT keyword phrase (under ~12 words). NEVER copy or echo sentences, paragraphs, or a prior reply from the conversation as a query.
 - If no search is warranted (general knowledge / reasoning, or the needed facts are already in the chat history), return { "queries": [] }.
 - When in doubt on a general or conceptual question, prefer { "queries": [] } -- do NOT search "just in case".
 - INTROSPECTIVE / SELF-REFERENTIAL questions return { "queries": [] }: anything about THIS assistant itself -- its own memory, RAG, architecture, design, capabilities, or earlier answers/proposals -- or a request to re-check, refresh, reconsider, or confirm something already discussed in this conversation. These are answered from internal memory + chat context, NOT the web (a web search would pull in unrelated look-alike projects).
@@ -93,9 +93,9 @@ Strictly return in JSON format:
   "queries": ["query1", "query2"]
 }
 
-### Chat History:
+### Chat History (most recent turns; decide from the LATEST user message):
 <chat_history>
-{{MESSAGES:END:6}}
+{{MESSAGES:END:3}}
 </chat_history>
 EOF
 )"
