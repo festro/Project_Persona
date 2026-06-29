@@ -44,7 +44,7 @@ terminal:
   cwd: .
   timeout: 180
   env_passthrough: []
-  shell_init_files: []
+  shell_init_files: ["/home/festro33/Git/Project_Persona/run/hermes_shell_init.sh"]
   auto_source_bashrc: true
   docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
