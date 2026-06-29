@@ -14,6 +14,26 @@ Conventions:
 
 ---
 
+## 2026-06-29 0346 PDT -- Back up the H4 worker role profiles to git (Brandon + Claude)
+
+- Followed up the containment work by versioning the previously-untracked worker role profiles
+  (handoff section 6 open item). The repo is PUBLIC, so deliberately scope-limited to role CONFIG:
+  persona/profiles/{coder,critic,librarian,researcher,summarizer}/{SOUL.md,.hermes.md,config.yaml}
+  -- the role prompts + the proposal-C soft scope contracts, 15 files, no secrets (api_key:
+  not-needed, egress off, redact_secrets: true). The content already derives from the public
+  init_profiles.sh + apply_scope_contracts.sh, so ~zero new public exposure.
+- .gitignore HARDENED so a future careless `git add persona/profiles/` can't leak the public repo:
+  now ignores the per-role HOME-isolation dirs (persona/profiles/*/home/), the vendored Hermes skills
+  corpus (persona/profiles/*/skills/ + persona/skills/), bin/ (the tirith binary), and runtime state
+  (state.db*, auth.lock, .skills_prompt_snapshot.json, .update_check) at BOTH the profile and
+  persona-root level. After the rules, `git status` under persona/profiles/ is clean.
+- NOT committed (deliberate): the skills corpus (large, vendored, credential-adjacent -- e.g.
+  google-workspace OAuth setup scripts -- and regenerable via Hermes), persona/bin/tirith (binary),
+  all runtime/state, and the 'default' + 'test' profiles (locally modified on EVO-X2 -- "preserve,
+  don't clobber"). Committed on EVO-X2 (where the files live -> exact LF bytes, no autocrlf munge),
+  pushed, D:\ fast-forwarded. The home/ dirs (HOME isolation) stay UNTRACKED by design -- recreated
+  by scripts/apply_home_isolation.sh, not pinned per-host.
+
 ## 2026-06-29 0147 PDT -- Proposal C HARD containment, realized as per-role HOME isolation (workspace-confine) (Brandon + Claude)
 
 - The next-session priority from the handoff: HARD containment for Hermes workers. INVESTIGATION
