@@ -1,0 +1,25 @@
+; Project_Persona -- Godot avatar client (Phase 4, two-channel embodiment).
+; This box is a CLIENT: the avatar talks to the persona API on the EVO-X2 anchor
+; node over the LAN (PERSONA_API env, default http://192.168.8.114:8000) and
+; animates from the inline STATE channel returned by /chat. See clients/README.md
+; and docs/avatar_protocol.md.
+
+config_version=5
+
+[application]
+
+config/name="Project_Persona Avatar"
+config/description="Two-channel embodiment client: animates emotion / gesture / mouth from the persona /chat STATE field."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=760
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+environment/defaults/default_clear_color=Color(0.09, 0.10, 0.13, 1)

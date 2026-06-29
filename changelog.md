@@ -14,6 +14,82 @@ Conventions:
 
 ---
 
+## 2026-06-29 0715 PDT -- Voice client polish: speak prose not Markdown; --brief opt-in (Claude)
+
+- Brandon test of `listen` worked (spoke "lizards" -> full reply) but surfaced two annoyances: Piper
+  read the Markdown aloud ("asterisk asterisk Diversity...") and an 87s essay is a lot for a voice turn.
+- clients/voice/persona_voice.py: tts() now runs NEW clean_for_speech() first -- strips emphasis
+  (** * _ ~~ `), headings (#), bullet/numbered list markers, blockquotes, horizontal rules, and
+  [label](url) -> label -- so the engine speaks words, not symbols. Verified via say->transcribe (no
+  "asterisk"/"hash"/"backtick" in the transcript) and a unit pass over emphasis/heading/bullets/
+  numbered/link/real-reply samples.
+- Added `--brief` (opt-in) to ask/turn/listen/converse: appends a "1-2 spoken sentences, no markdown"
+  hint to the prompt. Default stays FULL/detailed (Brandon: "I don't mind a detailed response") -- the
+  Markdown strip alone fixes the read-aloud annoyance, brevity is there when wanted.
+
+## 2026-06-29 0700 PDT -- Phase 5 LIVE voice loop working (mic -> speaker) (Claude)
+
+- Installed sounddevice + numpy into portable python; enumerated audio devices (default in = EMEET
+  USB mic, out = AMD HDMI). Machinery check: a 2s capture peaked at 8040 and Whisper transcribed the
+  live mic audio; Piper synth + winsound playback OK -- both audio directions function on real hardware.
+- clients/voice/persona_voice.py: NEW VAD-lite capture (_record_vad) -- calibrates a room noise floor,
+  starts on speech onset, ends after ~1s of trailing silence (natural turn end), capped at --seconds;
+  `--fixed` forces the old fixed-window behavior. listen/converse use it. cmd_listen now honors the
+  VAD "no speech" signal (no more spurious reply to Whisper's near-silence "you" hallucination).
+- Full `listen` round-trip ran end-to-end on real hardware: mic -> VAD -> STT -> POST /chat (EVO-X2)
+  -> TTS -> SPEAKER, with the reply audibly played out. Phase 5 Exit Gate live-hardware leg proven;
+  the deterministic compute chain stays covered by selftest. To converse: run_voice.ps1 converse + talk.
+
+## 2026-06-29 0645 PDT -- Phase 4 avatar VISUALLY CONFIRMED on-screen (Claude)
+
+- Ran the Godot avatar client on a display and captured proof. NEW self-capture demo mode
+  (PERSONA_AVATAR_DEMO=1, clients/godot/scripts/main.gd _run_demo): runs a scripted /chat exchange,
+  animates from the returned STATE, saves a viewport PNG via get_viewport().get_texture().get_image(),
+  then quits. Confirmed the face is STATE-driven: emotion=excited -> orange face + raised brows + open
+  (speaking) mouth + nod; a question-form reply -> emotion=thinking -> blue face + tilt_head. roadmap
+  Phase 4 Exit Gate -> [x].
+- Two more GDScript bring-up fixes (windowed run; beyond the earlier headless two): main.gd now
+  PRELOADS the avatar/client scripts instead of referencing their class_name -- the global class
+  registry is only written on a full editor import, so a fresh run-scene launch parse-failed on the
+  bare type names (PersonaClient/AvatarFace). And the avatar rest position is set via
+  avatar.set_anchor() because _process() rewrites position = base + gesture-offset every frame, so a
+  plain `position =` in _layout() was clobbered and pinned the face to the top-left corner.
+- NB computer-use could not target the portable Godot window (its resolver matches Start-menu apps,
+  not a portable exe), so capture was done in-engine -- more reliable, and leaves a reusable smoke path.
+
+## 2026-06-29 0615 PDT -- Phase 4 + 5 LANDED: voice engines installed + Godot avatar client (Claude)
+
+- DECISION (Brandon): the embodiment + voice clients run on the WINDOWS box as a CLIENT, forwarding
+  to the EVO-X2 persona API over the LAN (http://192.168.8.114:8000). The 35B model + API stay on the
+  headless anchor node; the engines + mic/speaker + avatar live next to the hardware that needs them.
+  Federated noding (Phases 9-10) may relocate pieces later; the only client/server seam is HTTP /chat.
+- NEW clients/ tree (Windows-side, tracked source; engines/models gitignored):
+  - clients/voice/persona_voice.py -- voice orchestrator. Pipeline: mic/file -> Whisper STT -> POST
+    /chat -> reply text + STATE -> Piper TTS -> speaker. Stdlib-only core (urllib/wave/subprocess/
+    winsound); only live-mic verbs need sounddevice. Verbs: say/transcribe/ask/turn/selftest/listen/
+    converse. PERSONA_API / engine paths env-overridable.
+  - clients/godot/ -- Godot 4.7 avatar client. A minimal procedural face animates from the inline
+    /chat `state`: emotion -> color + mouth curve + eye shape, intensity -> strength, gesture ->
+    one-shot cue (nod/shrug/tilt_head/lean_in/...), mouth gated while speaking; optional "Speak
+    (Piper)" runs the voice client aloud. persona_client.gd (HTTPRequest+STATE parse), avatar.gd
+    (procedural _draw face), main.gd (procedural UI). tools/headless_check.gd = headless smoke test.
+  - clients/install.ps1 (pinned, idempotent fetch+verify), run_voice.ps1 / run_avatar.ps1 launchers,
+    clients/README.md (topology + usage + the GPL-3.0 separate-process boundary for Piper).
+- ENGINES INSTALLED + VERIFIED on the Windows client (all host-provided, gitignored):
+  whisper.cpp v1.9.1 (tools/whisper) + ggml-base.en.bin; piper 2023.11.14 (tools/piper) +
+  en_US-lessac-medium; Godot 4.7 (tools/godot). whisper accepts any WAV rate (miniaudio resamples).
+- PROVEN END-TO-END (Phase 5 Exit Gate): `persona_voice.py selftest` -> TTS prompt -> STT (0.8s,
+  transcribed verbatim) -> /chat to EVO-X2 (2.3s, "The capital of France is Paris.") -> TTS reply
+  (sub-second). PROVEN (Phase 4 client): Godot --headless headless_check -> avatar applied STATE +
+  live /chat round-trip returned reply + state{emotion:excited,gesture:nod}, exit 0. On-screen visual
+  sync runs when the avatar app is launched with a display.
+- Two GDScript bugs found + fixed during headless bring-up: HTTPRequest created lazily (a child added
+  from SceneTree._initialize() has its _ready() deferred), and the first POST fired from the first
+  _process frame (nodes added during _initialize() are not "inside the tree" until the loop iterates).
+- .gitignore HARDENED: tools/{whisper,piper,godot}/, models/*.onnx(.json), clients/**/.godot|.import
+  so the fetched binaries/voices/editor-cache can never be staged. roadmap Phase 4/5 -> [~] (optional;
+  clients landed + proven); root README stack table updated.
+
 ## 2026-06-29 0520 PDT -- Decision: do NOT kernel-seal worker egress (Brandon)
 
 - After weighing it, Brandon decided AGAINST kernel-sealing Hermes worker egress. Rationale: the

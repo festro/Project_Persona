@@ -137,3 +137,17 @@ persona/profiles/*/state.db-wal
 persona/profiles/*/.skills_prompt_snapshot.json
 persona/profiles/*/.update_check
 persona/profiles/*/bin/
+
+# -- Voice / avatar client engines (host-provided binaries + voices; gitignored like models) --
+# The CLIENT SOURCE under clients/ IS tracked; only the fetched engine binaries
+# and voice models are ignored (installed by clients/voice/install_voice.* ).
+tools/whisper/
+tools/piper/
+tools/godot/
+models/*.onnx
+models/*.onnx.json
+
+# -- Godot editor cache / import artifacts (project source under clients/godot/ IS tracked) --
+clients/**/.godot/
+clients/**/.import/
+clients/**/android/build/

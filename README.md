@@ -66,8 +66,8 @@ A **Godot Engine** avatar is a core goal — a real-time, expressive face for th
 | Vector store | Qdrant (embedded, on-disk) — ChromaDB fallback | Apache 2.0 | ✅ Default (Phase 2a done) |
 | Agent backbone | Hermes Agent (Nous Research) | MIT | 🔄 Bridge wired as a daemon child; full execution EVO-X2-gated (Phase 8) |
 | Frontend | OpenWebUI (port 3000) | BSD-3 + branding clause | 🔄 Stood up + wired to `/v1`; manual click-test owed (Phase 2) |
-| Voice | Whisper.cpp (STT) + Piper TTS | MIT / GPL-3.0 | 🔄 Daemon wiring scaffolded; engines host-provided (Phase 5, optional) |
-| Avatar | Godot client + persona STATE protocol | MIT | 🔄 STATE protocol scaffolded; client host-side (Phase 4, optional) |
+| Voice | Whisper.cpp (STT) + Piper TTS | MIT / GPL-3.0 | ✅ Engines installed + voice client (`clients/voice`); end-to-end proven (Phase 5) |
+| Avatar | Godot client + persona STATE protocol | MIT | ✅ Godot 4.7 client (`clients/godot`) animates from STATE; client proven (Phase 4) |
 | Profile structure | 2-file per profile: `SOUL.md` + `.hermes.md` (Hermes naming) | — | ✅ Convention locked |
 
 ### Hardware reference
@@ -98,8 +98,8 @@ The project is organized into phases and tiered work blocks. Current state lives
 - ✅ Auto-Contextual RAG ("Sorting Line") — drop a file into `inbox/`, it's classified + routed (Phase 6)
 - ✅ Background Consolidation ("Sleep Cycle") — idle-triggered memory maintenance + insight journal (Phase 7)
 - 🔄 Hermes Agent backbone — bridge wired as a supervised daemon child; full execution EVO-X2-gated (Phase 8)
-- 🔄 Embodiment — persona two-channel STATE protocol scaffolded; Godot client host-side (Phase 4, optional)
-- 🔄 Voice pipeline — Whisper.cpp + Piper daemon wiring scaffolded; engines host-provided (Phase 5, optional)
+- ✅ Embodiment — Godot 4.7 avatar client (`clients/godot`) animates emotion/gesture/mouth from the `/chat` STATE channel; proven headless (Phase 4, optional)
+- ✅ Voice pipeline — Whisper.cpp STT + Piper TTS installed; voice client (`clients/voice`) proves speech-in/answer/speech-out end-to-end (Phase 5, optional)
 - ⏳ Decentralized cooperative node mesh + full-system test (Phases 9–10, parked)
 
 ---
