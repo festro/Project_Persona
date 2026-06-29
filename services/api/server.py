@@ -25,6 +25,7 @@ import sleep_cycle as sc
 import avatar_state as av
 import self_knowledge as skn
 import memory_intake as mi
+import memory_hygiene as mh
 from memory_distiller import build_distill_prompt, parse_facts
 
 # Optional deps (fail soft)
@@ -1627,6 +1628,12 @@ async def _sleep_cycle_loop():
                 )
                 if stats.get("conversations"):
                     publish_event("consolidation_done", {k: stats.get(k) for k in ("conversations", "facts", "links")})
+                # Periodic hygiene (D): after new facts land, collapse near-duplicates + drop
+                # conversation-orphaned facts. Bounded to runs that actually added facts.
+                if MEMORY_HYGIENE_ENABLED and stats.get("facts"):
+                    hy = memory_hygiene_pass(profile=DEFAULT_PROFILE, apply=True)
+                    if hy.get("ok") and (hy.get("deleted") or 0):
+                        publish_event("memory_hygiene", {"deleted": hy.get("deleted")})
         except Exception:  # noqa: BLE001 -- the sleep cycle must never crash the API
             pass
         await asyncio.sleep(SLEEP_CYCLE_CHECK_S)
@@ -2045,6 +2052,73 @@ async def memory_intake(req: dict):
     if res.get("ok"):
         publish_event("ingest_complete", {"kind": "fact", "structured": True, "stored": res.get("stored")})
     return res
+
+
+MEMORY_HYGIENE_DEDUP_THRESHOLD = float(os.getenv("MEMORY_HYGIENE_DEDUP_THRESHOLD", "0.97"))
+# Run the hygiene sweep automatically after the idle sleep cycle adds facts (near-identical dedup +
+# conversation-orphan removal -- both safe; keeps the newest). =0 leaves it manual (POST /memory/hygiene).
+MEMORY_HYGIENE_ENABLED = os.getenv("MEMORY_HYGIENE_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+
+
+def memory_hygiene_pass(*, profile: Optional[str] = None, apply: bool = False) -> Dict[str, Any]:
+    """Batch hygiene over kind=fact memory: collapse near-duplicate facts (keep the newest) and
+    flag facts orphaned from a deleted conversation. Dry-run by default; apply=True deletes.
+    Complements intake-time contradiction resolution (which keeps NEW writes clean)."""
+    if not _rag_ok:
+        return {"ok": False, "error": "rag_unavailable"}
+    coll = _collection_name(profile or DEFAULT_PROFILE)
+    try:
+        items = []
+        for p in _store.export_points(coll):
+            meta = p.get("meta") or {}
+            if meta.get("kind") != "fact":
+                continue
+            items.append({
+                "id": p["id"], "vector": p.get("vector"), "document": p.get("document", ""),
+                "ts": meta.get("ts") or 0, "conversation_id": meta.get("conversation_id"),
+                "source": meta.get("source"),
+            })
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": repr(e)}
+
+    clusters = mh.cluster_duplicates(items, MEMORY_HYGIENE_DEDUP_THRESHOLD)
+    dup_ids, dup_report = [], []
+    for c in clusters:
+        keep, drop = c[0], c[1:]
+        dup_ids.extend(d["id"] for d in drop)
+        dup_report.append({"kept": keep["document"][:140], "removed": [d["document"][:140] for d in drop]})
+
+    try:
+        valid_cids = {c.get("conversation_id") for c in convo.list_conversations(limit=100000)}
+    except Exception:  # noqa: BLE001
+        valid_cids = None
+    orphans = mh.find_orphans(items, valid_cids) if valid_cids is not None else []
+    orphan_ids = [o["id"] for o in orphans]
+
+    result = {
+        "ok": True, "apply": apply, "facts_scanned": len(items),
+        "duplicate_clusters": len(clusters), "duplicates_removable": len(dup_ids),
+        "orphans": len(orphan_ids),
+        "duplicate_examples": dup_report[:10],
+        "orphan_examples": [o["document"][:140] for o in orphans[:10]],
+    }
+    if apply:
+        ids = list({*dup_ids, *orphan_ids})
+        try:
+            result["deleted"] = _store.delete(coll, ids) if ids else 0
+        except Exception as e:  # noqa: BLE001
+            result["ok"] = False
+            result["error"] = repr(e)
+        if result.get("ok"):
+            publish_event("memory_hygiene", {"deleted": result.get("deleted", 0), "collection": coll})
+    return result
+
+
+@app.post("/memory/hygiene")
+async def memory_hygiene(profile: Optional[str] = None, apply: bool = False):
+    """Memory hygiene sweep: collapse near-duplicate facts + flag conversation-orphaned facts.
+    Dry-run by default; pass ?apply=true to delete (near-identical dups keep the newest)."""
+    return memory_hygiene_pass(profile=profile, apply=apply)
 
 
 @app.get("/memory/facts")

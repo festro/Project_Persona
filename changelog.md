@@ -14,6 +14,27 @@ Conventions:
 
 ---
 
+## 2026-06-29 -- Proposal C (soft scope contracts) + D (memory hygiene sweep) (Brandon + Claude)
+
+- C (scope contracts): investigation found HARD per-role command/filesystem containment is NOT
+  achievable here -- every worker needs the local terminal to run `hermes kanban complete`,
+  terminal.backend=local has no command/path allowlist, there's no docker for a sandbox, and
+  tools.disabled only accepts tool names not toolset names (verified: toolset-name denies were
+  ignored). The CRITICAL vector is already covered (non-researcher roles egress-off + daemon strips
+  cloud secrets). Delivered the realistic layer: NEW scripts/apply_scope_contracts.sh -- idempotent,
+  marker-guarded, appends a per-role SOFT scope contract to each role's .hermes.md (isolated
+  workspace; only side effects = result + kanban_complete; no destructive/system commands, messaging,
+  cron, desktop control, or onward delegation; + a role-specific line). Wired into init_profiles.sh
+  for fresh installs. Applied to all 7 EVO-X2 profiles; idempotent re-run = all skipped. Zero chain
+  risk (prompt text the worker reads from .hermes.md). HARD containment (restricted-shell/sandbox)
+  noted as a deferred larger effort.
+- D (memory hygiene): NEW services/api/memory_hygiene.py (stdlib, testable): cosine + cluster_duplicates
+  (union-find, keep newest per >=threshold cluster) + find_orphans (facts whose conversation_id was
+  deleted). server.py: memory_hygiene_pass() + POST /memory/hygiene (DRY-RUN by default; ?apply=true
+  deletes near-identical dups [keeps newest] + conversation-orphans). Auto-runs after the idle sleep
+  cycle adds facts (MEMORY_HYGIENE_ENABLED, threshold 0.97) -- complements intake-time contradiction
+  resolution (A) by cleaning legacy/accumulated dups. NEW tests/test_memory_hygiene.py (16). offline 23/23.
+
 ## 2026-06-28 0645 PDT -- Memory contradiction RESOLUTION (proposal A): supersede stale facts, not just surface them (Brandon + Claude)
 
 - Implements the one genuinely-new part of the persona's own IBOS proposal (the rest -- structured
