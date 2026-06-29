@@ -14,6 +14,32 @@ Conventions:
 
 ---
 
+## 2026-06-28 0610 PDT -- Anti-sycophancy reassessment + necessity check stops searching prior replies (Brandon + Claude)
+
+- A CONTINUED browser thread (ids 461-470, post-self-identity-deploy) STILL doubled down ("the
+  proposition holds true / now stronger"). Diagnosed: (a) the 2512-token proposal essay is in THAT
+  thread's history, and "does your proposition still stand?" is a leading question -> the model defends
+  its own in-context output (history anchoring + sycophancy); fresh threads already answer honestly
+  (probe turns 443/456: "No, the proposition does not stand" / "I am running Project_Persona"). (b) a
+  real bug: the necessity check choked on the huge essay in its MESSAGES:END:6 window, malformed its
+  JSON, and OpenWebUI's fallback searched the ENTIRE prior assistant reply as the query (seen in
+  logs/webui.log: ddgs q=the whole essay -> 403s the model then cited as "noise").
+- FIX A (server.py, both builders): an intellectual-honesty rule -- when asked to re-evaluate /
+  reconsider / whether a prior claim still holds, GENUINELY re-examine against evidence + self-identity;
+  do not defend a previous answer just because it was given; if it proposed adding something already
+  present, say so. "Accuracy over agreement."
+- FIX B (start_webui.sh): necessity-check queries must be SHORT keyword phrases and must NOT echo
+  conversation text; context window dropped MESSAGES:END 6->3 so a big prior reply no longer chokes
+  query-gen into the search-the-whole-essay fallback.
+- VERIFIED via a direct /v1 multi-turn call replaying the contaminated thread (propose IBOS -> assistant
+  defends -> "reassess honestly given your own architecture"): the persona now opens "my previous
+  assertion was too broad", lists what it ALREADY has per feature (SOUL.md=doctrine, Qdrant
+  topic-routing=namespaces, Task Board=intake, Hermes=playbooks) vs the genuine gap (structure /
+  isolation / validation / standardization), and reframes the verdict to "engineering maturity, not
+  missing capabilities" -- grounded, neither doubling-down nor over-corrected. offline 22/22.
+- NOTE: the OLD turns in a contaminated thread stay in its history (can't be un-said); NEW turns there,
+  and any fresh thread, now reassess honestly.
+
 ## 2026-06-28 0545 PDT -- Always-on self-identity block: reliable self-knowledge regardless of phrasing (Brandon + Claude)
 
 - Closes the 0520 finding (RAG self-knowledge is similarity-gated -> oblique self-questions fell back
