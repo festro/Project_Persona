@@ -14,6 +14,44 @@ Conventions:
 
 ---
 
+## 2026-06-29 0147 PDT -- Proposal C HARD containment, realized as per-role HOME isolation (workspace-confine) (Brandon + Claude)
+
+- The next-session priority from the handoff: HARD containment for Hermes workers. INVESTIGATION
+  FIRST (per handoff). Findings:
+  * Path (b) sandboxed backend is RULED OUT on EVO-X2: bwrap IS installed but AppArmor blocks
+    unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1; every bwrap/unshare
+    attempt fails at uid-map/loopback setup). Lifting it needs that sysctl flipped or an AppArmor
+    profile -- both sudo, which is hard-denied. firejail/nsjail/proot absent.
+  * Path (a) "allowlist shim via terminal.shell_init_files" (handoff's literal wording) would NOT
+    gate anything: per-command execution is `bash -c "<cmd>"` (tools/environments/local.py::_run_bash)
+    and only the LOGIN env-snapshot sources shell_init_files. The sole per-command interception point
+    is winning shutil.which("bash") via PATH order -- a global shim that must detect the worker role
+    internally. Higher risk on the fragile complete-chain.
+- Brandon chose WORKSPACE-CONFINE ONLY (lightest; no command policy, no bash shim -> zero risk to the
+  delegate->complete chain). Delivered the missing piece -- per-role HOME isolation -- via Hermes'
+  NATIVE mechanism (no Hermes code change): hermes_constants.get_subprocess_home() redirects a
+  worker's TERMINAL-subprocess HOME to {HERMES_HOME}/home/ WHEN THAT DIR EXISTS (activation is purely
+  directory-based). NEW scripts/apply_home_isolation.sh: idempotent, creates persona/profiles/<role>/home/
+  for every NON-default worker profile + seeds an identity-only .gitconfig (name "<host> (<role> worker)"
+  + safe.directory=*; NO credentials copied). The 'default' profile (trusted persona/bridge/dispatcher)
+  is intentionally skipped. Wired into init_profiles.sh (after the scope-contracts call) for fresh
+  installs. The CWD half of "workspace confine" was already native: the dispatcher spawns workers with
+  cwd=<per-task scratch workspace> (run/hermes_kanban/kanban/workspaces/<task_id>).
+- SAFETY: only the terminal SUBPROCESS HOME is affected; the worker's own `hermes` process reads config
+  from HERMES_HOME (not HOME) and kanban_complete is an in-process tool -> the chain is untouched. A
+  confined worker now cannot reach the host's ~/.ssh, ~/.config, gh/aws tokens, or shell history.
+- VERIFIED LIVE on EVO-X2 (no daemon restart needed -- get_subprocess_home checks dir existence per
+  shell spawn; workers are fresh processes):
+  * Mechanism: get_subprocess_home() -> profiles/coder|summarizer/home; profiles/default -> None.
+  * Idempotent re-run: activated=0 skipped=6.
+  * No-regression gate (handoff's gate): delegate role=summarizer -> status=ok+summary (pre-change too).
+  * END-TO-END isolation PROVEN: a delegated coder shell self-check reported
+    HOME=/home/.../persona/profiles/coder/home (isolated; contains only .gitconfig) and
+    PWD=/home/.../run/hermes_kanban/kanban/workspaces/t_89b0c912 (per-task scratch CWD), status=ok.
+- Offline suite unaffected (no Python touched; bash scripts syntax-checked with `bash -n`). The home/
+  dirs live under untracked persona/profiles/ on EVO-X2 (created by running the script); the SCRIPTS
+  are committed for reproducibility.
+
 ## 2026-06-29 -- Proposal C (soft scope contracts) + D (memory hygiene sweep) (Brandon + Claude)
 
 - C (scope contracts): investigation found HARD per-role command/filesystem containment is NOT

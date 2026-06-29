@@ -282,6 +282,15 @@ if [ -f "$AI_ROOT/scripts/apply_scope_contracts.sh" ]; then
   PERSONA_ROOT="$PERSONA_ROOT" PROFILES_DIR="$PROFILES_DIR" bash "$AI_ROOT/scripts/apply_scope_contracts.sh" || true
 fi
 
+# Per-role HOME isolation (proposal C, "workspace confine only"): create {profile}/home/ for each
+# non-default worker profile so Hermes' get_subprocess_home() redirects worker terminal-subprocess
+# HOME there, keeping shell commands out of the human's real ~ . Separate re-runnable script so it
+# applies to existing (untracked) profiles too. The terminal CWD half of "workspace confine" is
+# already native (the dispatcher spawns workers with cwd=<per-task scratch workspace>).
+if [ -f "$AI_ROOT/scripts/apply_home_isolation.sh" ]; then
+  PERSONA_ROOT="$PERSONA_ROOT" PROFILES_DIR="$PROFILES_DIR" bash "$AI_ROOT/scripts/apply_home_isolation.sh" || true
+fi
+
 echo "==> Done."
 echo ""
 echo "Tree:"
