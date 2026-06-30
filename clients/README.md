@@ -112,12 +112,56 @@ clients\godot\run_avatar.ps1
 The procedural face is intentionally simple; a rigged 3D blend-shape head is the
 natural next step and consumes the **same** STATE contract unchanged.
 
+## Playspace (3D world)
+
+`godot/playspace.tscn` -- a separate Godot scene from the avatar face: a navigable
+**two-room starship habitat** the persona inhabits (the north-star "looking-glass").
+A **command bridge** with a semicircular glass observation bay over a real-imagery
+**Earth** (NASA Blue/Black Marble) and a real **space skybox** (NASA Deep Star Map),
+plus a **lounge** through the back doorway. Built procedurally in code; the imagery and
+ffmpeg are host-fetched (gitignored).
+
+```powershell
+clients\godot\fetch_earth.ps1                  # fetch Earth + space imagery (once)
+clients\fetch_ffmpeg.ps1                        # fetch ffmpeg for the media player (once)
+clients\godot\run_playspace.ps1                 # walk the habitat (flatscreen)
+clients\godot\run_playspace.ps1 -Editor          # open the project in the Godot editor
+clients\godot\run_playspace.ps1 -Shot out.png    # render one frame to PNG, then quit
+```
+
+Controls: **WASD** move, **mouse** look, **Shift** sprint, **Space** jump, **F**
+fly/noclip, **Esc** frees the cursor. Aim the crosshair at a console screen and
+**click** to use it (type, then **Esc** to release). Press **T** to talk to the ship AI.
+
+What's inside:
+- **Command seat** -- three interactive screens (`scripts/panel3d.gd` + `screen_interactor.gd`):
+  a **research** terminal (persona `/chat` <-> direct web fetch), a **network** panel
+  (persona `/health` mesh + LAN probe), and a **weather/news** panel (auto-located
+  forecast + map tile + headlines, with region search).
+- **Ship AI** (`scripts/ship_ai.gd`) -- the persona as an omnipresent ship's computer
+  (voice in via Whisper, out via Piper) with a HUD presence orb + subtitles; a
+  placeholder until the embodied avatar lands on the command deck.
+- **Lounge** -- an L-sofa and a holo-table **media player** (`scripts/media_player.gd`):
+  auto-discovers audio/video from your Music/Videos folders + any `PERSONA_MEDIA_ROOTS`
+  network shares; plays WAV/OGG/MP3 natively and FLAC / non-Theora video via the bundled
+  ffmpeg.
+
+Flatscreen now, **XR-ready**: the player is a `CharacterBody3D` `PlayerRig`
+(`scripts/player_rig.gd`); an OpenXR rig (`XROrigin3D` / `XRCamera3D`) swaps in later
+with no scene surgery (the world only references `get_camera()` + the rig transform).
+Headless smoke test:
+
+```powershell
+tools\godot\Godot_v4.7-stable_win64_console.exe --headless --path clients\godot -s res://tools/headless_check_playspace.gd
+```
+
 ## Configuration (env)
 
 | Var | Default | Used by |
 |---|---|---|
-| `PERSONA_API` | `http://192.168.8.114:8000` | voice + avatar |
+| `PERSONA_API` | `http://192.168.8.114:8000` | voice + avatar + playspace |
 | `PERSONA_PROFILE` | `default` | voice + avatar |
+| `PERSONA_MEDIA_ROOTS` | (Music + Videos) | playspace media player -- extra/network roots, `;`-separated |
 | `WHISPER_BIN` / `WHISPER_MODEL` | `tools\whisper\...` / `models\ggml-base.en.bin` | voice |
 | `PIPER_BIN` / `PIPER_MODEL` | `tools\piper\...` / `models\en_US-lessac-medium.onnx` | voice |
 

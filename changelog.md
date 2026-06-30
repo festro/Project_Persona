@@ -14,6 +14,68 @@ Conventions:
 
 ---
 
+## 2026-06-30 0315 PDT -- Playspace buildout: real Earth + skybox, command panels, lounge, ship AI, ffmpeg, physics, media (Claude)
+
+Iterated the Godot playspace (changelog 06-29 1945) into a navigable two-room starship habitat with the
+persona present as a ship AI. Still procedural/code-built; host-fetched imagery + ffmpeg are gitignored.
+- WORLD/VIEW: bridge enlarged (26x27x6.5) + rezoned (helm / command deck / aft lounge); the flat viewport
+  became a SEMICIRCULAR GLASS BAY outcrop (more glass, less frame) with a FRAMED GLASS floor + ceiling
+  (half-disc -- you stand on glass over open space). Real EARTH from NASA Blue/Black Marble imagery
+  (shaders/earth.gdshader now textured: day + night city lights + animated clouds + day/night terminator
+  + atmosphere); SKYBOX is real space imagery (shaders/space_panorama.gdshader sampling a NASA Deep Star
+  Map EXR, drifting with Earth), procedural starfield kept as fallback. Lighting made diffuse. Fetched by
+  clients/godot/fetch_earth.ps1 (assets/earth, assets/space -- gitignored).
+- COMMAND SEAT + 3 INTERACTIVE PANELS: scripts/panel3d.gd (SubViewport -> quad + Area3D) +
+  scripts/screen_interactor.gd (crosshair ray forwards mouse/keys to the targeted panel, pauses walk while
+  typing). scripts/panels/: RESEARCH (persona /chat <-> direct web fetch toggle), NETWORK (persona /health
+  mesh + LAN TCP probe), WEATHER (ip-api autodetect + open-meteo + OSM map tile + BBC RSS, region search).
+- SHIP AI: scripts/ship_ai.gd -- the persona as an OMNIPRESENT ship's computer (placeholder until the
+  embodied avatar): press T -> Whisper STT (persona_voice.py off-thread) -> /chat -> Piper TTS + a HUD
+  presence orb (idle/listening/thinking/speaking) + reply subtitle.
+- LOUNGE (2nd room through the back doorway, _build_lounge): L-sofa + rug + warm light, with the HOLO-TABLE
+  relocated here as a working MEDIA PLAYER (scripts/media_player.gd + media_library.gd): auto-discovers
+  audio/video from Music/Videos + PERSONA_MEDIA_ROOTS network shares, plays WAV/OGG/MP3 natively and
+  FLAC/non-Theora video via the bundled ffmpeg (off-thread transcode + native-decode-fail fallback);
+  transport + volume + filter, and the disc pulses while playing.
+- PHYSICS: player_rig.gd is now a CharacterBody3D -- gravity keeps you on the deck; hull/walls/glass +
+  furniture collide (no more no-clip out); Space jump, F = free-fly + noclip.
+- FFMPEG added to the stack (clients/fetch_ffmpeg.ps1 -> tools/ffmpeg/, gitignored, subprocess boundary
+  like Piper) so media isn't limited to Godot's native formats.
+- FIXES: the centre crosshair (mouse_filter STOP) was eating mouse-look + panel-click events -> HUD set to
+  MOUSE_FILTER_IGNORE. BBC RSS titles are CDATA -> CDATA-aware regex (verified 5 headlines). Glass-cap
+  z-fight on the floor/ceiling -> half-disc caps + floor/ceiling trimmed flush at the bay mouth.
+- VERIFIED: headless_check_playspace PASS (242 nodes); Vulkan renders across iterations; media scan+load
+  proven (testtone.mp3/.wav OK; NB the user's morrowind_title.mp3 is actually an HTML file). Confirmed
+  live by Brandon (Earth/skybox, collision, mouse-look). UNCOMMITTED at write -> committing now.
+
+## 2026-06-29 1945 PDT -- Playspace: starship-bridge 3D scene (Godot, flatscreen + XR-ready) (Claude)
+
+- NEW playspace -- the shared 3D world the persona inhabits (the north-star "looking-glass"), SEPARATE
+  from the 2D STATE-driven avatar face: a starship bridge in geostationary orbit with Earth filling the
+  forward viewport. The avatar mounts the command deck in a later pass. Built procedurally in code (no
+  imported assets), mirroring how avatar.gd/main.gd build their face/UI in code.
+- clients/godot/scripts/playspace.gd -- builds the bridge interior (deck, framed forward viewport with
+  slim mullions, helm + side console banks with emissive readouts, command dais), the Earth sphere, the
+  sun DirectionalLight3D, a WorldEnvironment (space sky + ACES + bloom), overhead cabin fill lights, and
+  the player rig. Keeps the Earth shader's sun_dir synced to the scene sun; slow planet spin. Screenshot
+  demo (PERSONA_PLAYSPACE_SHOT -> render one frame to PNG, then quit) is the reusable proof path.
+- clients/godot/scripts/player_rig.gd -- flatscreen first-person controller (WASD relative to look,
+  Space/Ctrl fly up/down, Shift sprint, mouse look, Esc frees the cursor) on a PlayerRig Node3D holding a
+  Camera3D. XR swap path documented: rename to XROrigin3D/XRCamera3D + drive locomotion from controllers;
+  the world only references get_camera() + the rig transform.
+- clients/godot/shaders/earth.gdshader -- procedural Earth (spatial, unshaded, manual sun_dir lighting):
+  fbm continents/oceans/deserts/ice in object space (stable as the globe spins), animated clouds, a
+  day/night terminator with night-side city lights, atmospheric fresnel rim (EMISSION -> bloom).
+- clients/godot/shaders/space_sky.gdshader -- procedural deep-space sky (shader_type sky): hashed
+  multi-layer starfield + faint nebula band over a blue-black gradient; smoothstep-softened stars.
+- playspace.tscn (trivial root + script), run_playspace.ps1 (run / -Editor / -Shot), and
+  tools/headless_check_playspace.gd (headless smoke test: instances the scene, asserts PlayerRig+Camera3D
+  / Earth / Sun / WorldEnvironment / CommandDais, exit 0). clients/README.md gains a "Playspace" section.
+- VERIFIED: headless_check_playspace PASS (38 nodes); rendered on Vulkan (RX 9060 XT) -- three screenshot
+  iterations tuned interior fill (the cabin was black without overhead lights), tamed the dais-rim bloom,
+  and widened the viewport + lifted Earth so the planet fills the central pane. Final frame: a lit bridge
+  with Earth (oceans/continents/clouds/terminator) out the window + glowing consoles. UNCOMMITTED.
+
 ## 2026-06-29 0800 PDT -- Roadmap: Phase 9 node-role distinguisher (planning only) (Claude)
 
 - Added roadmap Phase 9 Item 9.6 (PLANNING, no code): a capability-based node ROLE distinguisher in

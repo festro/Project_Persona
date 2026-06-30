@@ -144,6 +144,7 @@ persona/profiles/*/bin/
 tools/whisper/
 tools/piper/
 tools/godot/
+tools/ffmpeg/
 models/*.onnx
 models/*.onnx.json
 
@@ -151,3 +152,6 @@ models/*.onnx.json
 clients/**/.godot/
 clients/**/.import/
 clients/**/android/build/
+
+# -- Godot host-fetched assets (NASA Blue Marble Earth textures etc.; fetched by clients/godot/fetch_earth.ps1) --
+clients/godot/assets/

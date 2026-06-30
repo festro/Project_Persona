@@ -521,6 +521,20 @@ Goal: optional 3D/VR client driven by a two-channel protocol.
       VOICE I/O (2026-06-29): a "Talk (mic)" button records -> Whisper STT (persona_voice.py
       record-text, off-thread) -> /chat, and mic turns speak the reply via Piper (voice-in ->
       voice-out); "Speak (Piper)" governs typed turns. Confirmed live by Brandon.
+- [x] Playspace (3D world) -- LANDED 2026-06-29, BUILT OUT 2026-06-30: clients/godot/playspace.tscn, a
+      navigable two-room starship habitat the persona inhabits (north-star "looking-glass"), SEPARATE from
+      the 2D avatar face. BRIDGE: a semicircular glass observation BAY (framed glass floor/ceiling -- stand
+      on glass over space) over real NASA Blue/Black Marble EARTH (textured shaders/earth.gdshader) + a real
+      space-imagery SKYBOX (NASA Deep Star Map, shaders/space_panorama.gdshader); diffuse lighting; a
+      COMMAND SEAT with 3 interactive SubViewport panels (research<->web, network /health+LAN, weather/news/
+      map) via panel3d.gd + screen_interactor.gd (crosshair input). LOUNGE (2nd room through the doorway):
+      L-sofa + a working holo-table MEDIA PLAYER (media_player.gd/media_library.gd: auto-discovery of
+      local+network media, wav/ogg/mp3 native + flac/video via bundled ffmpeg). SHIP AI (ship_ai.gd): the
+      persona as an OMNIPRESENT ship's computer (press T -> Whisper->/chat->Piper + HUD orb/subtitle) --
+      placeholder until the embodied avatar mounts the command deck. PHYSICS: player_rig.gd = CharacterBody3D
+      (gravity, collision vs hull/furniture, Space jump, F fly/noclip), XR-ready. Host-fetched assets
+      gitignored (fetch_earth.ps1; ffmpeg via clients/fetch_ffmpeg.ps1). PROVEN: headless_check_playspace.gd
+      (242 nodes) + Vulkan renders + media scan/load; confirmed live by Brandon. clients/README.md "Playspace".
 
 Exit Gate:
 
