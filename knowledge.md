@@ -3,7 +3,7 @@
 Living reference for what Project_Persona is and how it works. See `todo.md` for
 current state and `changelog.md` for history. Conventions: see `D:\Projects\WORKFLOW.md`.
 
-Last updated: 2026-06-22 1850 PDT by Claude
+Last updated: 2026-10-06 1007 PDT by Claude (remote access notes)
 
 ## Elevator pitch
 
@@ -408,6 +408,22 @@ now wrong) -- use install.sh OR the portable path proven on EVO-X2: `uv venv env
 (isolated, no global mutations). Native Windows is UNSUPPORTED (WSL2 only) -> the Hermes
 node is EVO-X2. ARCH NOTE (H2): Hermes' native kanban (`HERMES_KANBAN_*`) likely
 supersedes / should bridge the project's `taskboard.py` for agent work.
+
+### Remote access (added 2026-10-06 1007 PDT)
+
+- Home LAN: EVO-X2 192.168.8.114. Mesh VPN: self-hosted NetBird (management domain is behind
+  an IP filter; not recorded here because the repo is public).
+- Claude Code on the web runs in a cloud container: no LAN or NetBird reach, and the
+  management API rejects its shared cloud egress (TLS reset by the IP filter). Do not
+  allowlist the cloud range. The phone being on NetBird does not route the cloud session.
+- Working path: on EVO-X2, in tmux session `claude`, run
+  `claude remote-control --spawn=same-dir`. A 401 "OAuth access token is invalid" means
+  run `claude`, then `/login` inside it (claude.ai subscription), `/exit`, retry.
+- Daemonic-PC (Windows 11 Pro) desktop: RDP reached through NetBird with EVO-X2 as the
+  routing peer for 192.168.8.0/24 (masquerade, needs net.ipv4.ip_forward=1 = sudo). Never
+  port-forward 3389. RDP must be enabled at the PC once; enabling OpenSSH Server there gives
+  a remote management fallback.
+- Details + checklist: archive/handoffs/handoff_persona_20261006_1007.md.
 
 ## Architecture roadmap
 

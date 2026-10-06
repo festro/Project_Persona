@@ -14,6 +14,17 @@ Conventions:
 
 ---
 
+## 2026-10-06 1007 PDT -- Remote access to home nodes: notes + handoff (Claude)
+
+- Docs only; no code, config or stack changes.
+- Proved `claude remote-control` on EVO-X2 (tmux) as the away-from-home path; cloud session
+  cannot reach the LAN, and the self-hosted NetBird management API resets cloud egress (IP filter).
+- Added knowledge.md "Remote access" under Operational notes.
+- Added archive/handoffs/handoff_persona_20261006_1007.md with the Daemonic-PC RDP-over-NetBird
+  checklist (EVO-X2 as routing peer for 192.168.8.0/24) and a revoke-token action.
+
+---
+
 ## 2026-06-30 0315 PDT -- Playspace buildout: real Earth + skybox, command panels, lounge, ship AI, ffmpeg, physics, media (Claude)
 
 Iterated the Godot playspace (changelog 06-29 1945) into a navigable two-room starship habitat with the
